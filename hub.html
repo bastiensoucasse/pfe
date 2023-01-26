@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="theme-color" content="rgb(245, 245, 247)" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <link rel="preload" as="image" href="https://www.icloud.com/system/icloud.com/current/static/wallpaper.jpeg" type="image/jpeg" />
+    <link rel="preload" as="image" href="https://parsefiles.back4app.com/JPaQcFfEEQ1ePBxbf6wvzkPMEqKYHhPYv8boI1Rc/632f44e8b125aad6ff4968a9d168fabc_ycKqpzIl8t.png" type="image/png" />
+    <link rel="preload" as="image" href="https://media.macosicons.com/parse/files/macOSicons/c2e5c7fe7b278039ae28a28f04724eca_Trello.png" type="image/png" />
+    <link rel="preload" as="image" href="https://parsefiles.back4app.com/JPaQcFfEEQ1ePBxbf6wvzkPMEqKYHhPYv8boI1Rc/00ae7a95526ddfcd34dd4b487b348d88_xq4Tg1r2rM.png" type="image/png" />
+
+    <title>PFE Hub</title>
+</head>
+
+<body>
+    <header>
+        <h1>PFE Hub</h1>
+    </header>
+
+    <main>
+        <div class="background"></div>
+        <div class="app-library">
+            <a class="app" href="https://github.com/bastiensoucasse/pfe" target="_blank">
+                <div class="app-icon"><img src="https://parsefiles.back4app.com/JPaQcFfEEQ1ePBxbf6wvzkPMEqKYHhPYv8boI1Rc/632f44e8b125aad6ff4968a9d168fabc_ycKqpzIl8t.png" /></div>
+                <div class="app-name">GitHub</div>
+            </a>
+
+            <a class="app" href="https://trello.com/b/p5yQBjLn/kanban-official" target="_blank">
+                <div class="app-icon"><img src="https://media.macosicons.com/parse/files/macOSicons/c2e5c7fe7b278039ae28a28f04724eca_Trello.png" /></div>
+                <div class="app-name">Trello</div>
+            </a>
+
+            <a class="app" href="https://drive.google.com/drive/folders/1C3qlX5eaoj2jx71ggq61IG-06aMQJyHD"
+                target="_blank">
+                <div class="app-icon"><img src="https://parsefiles.back4app.com/JPaQcFfEEQ1ePBxbf6wvzkPMEqKYHhPYv8boI1Rc/00ae7a95526ddfcd34dd4b487b348d88_xq4Tg1r2rM.png" /></div>
+                <div class="app-name">Google Drive</div>
+            </a>
+        </div>
+    </main>
+
+    <footer></footer>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        img {
+            display: block;
+            width: 100%;
+        }
+
+        body {
+            color: #1d1d1f;
+            display: flex;
+            font: 300 15px / 1.2 system-ui, -apple-system, BlinkMacSystemFont, SF Pro Text, Helvetica Neue, sans-serif;
+            justify-content: center;
+            padding: 0 20px;
+            text-rendering: optimizeLegibility;
+        }
+
+        header {
+            align-items: center;
+            backdrop-filter: blur(14px);
+            background-color: rgba(37, 38, 40, .21);
+            background-image: radial-gradient(circle at 25%, hsla(0, 0%, 100%, .2), rgba(50, 50, 50, .2) 80%);
+            display: flex;
+            height: 44px;
+            justify-content: center;
+            left: 0;
+            top: 0;
+            position: fixed;
+            width: 100%;
+            z-index: 3;
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        h1 {
+            align-items: center;
+            color: white;
+            display: flex;
+            font-size: 21px;
+            font-weight: 600;
+            justify-content: center;
+        }
+
+        main {
+            margin-top: 44px;
+        }
+
+        .background {
+            background-color: #32a2f6;
+            background-image: url("https://www.icloud.com/system/icloud.com/current/static/wallpaper.jpeg");
+            background-size: cover;
+            height: 100%;
+            left: 0;
+            position: absolute;
+            top: 0;
+            width: 100%;
+        }
+
+        .app-library {
+            background-color: hsla(0, 0%, 100%, .3);
+            backdrop-filter: blur(15px) saturate(86%);
+            border-radius: 16px;
+            display: grid;
+            grid-gap: 10px;
+            grid-template-columns: repeat(3, 120px);
+            margin: 44px auto;
+            padding: 20px;
+            -webkit-backdrop-filter: blur(15px) saturate(86%);
+        }
+
+        .app {
+            align-items: center;
+            color: inherit;
+            display: flex;
+            filter: drop-shadow(0 2px 10px rgba(0, 0, 0, .1));
+            flex-direction: column;
+            text-decoration: inherit;
+            transition: transform .2s cubic-bezier(.32, .08, .24, 1);
+        }
+
+        .app:hover {
+            color: inherit;
+            transform: scale3d(1.05, 1.05, 1.05);
+        }
+
+        .app-name {
+            font-size: 11px;
+        }
+    </style>
+</body>
+
+</html>
