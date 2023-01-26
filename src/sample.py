@@ -10,7 +10,6 @@ A typical Slicer window will open with the main drop-down list containing a Hell
 Clicking this action will open a message box saying “Hello, World!”.
 '''
 
-'test'
 
 class HelloWorldExtension(qt.QObject):
     def __init__(self, parent=None):
