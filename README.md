@@ -1,6 +1,6 @@
 # 3D Image Registration Software
 
-**Members:** [Wissam Boussella](mailto:wissam.boussella@etu.u-bordeaux.fr), [Iantsa Provost](mailto:iantsa.provost@gmail.com), [Bastien Soucasse](mailto:bastien.soucasse@icloud.com), and [Tony Wolff](mailto:tony.wolff@etu.u-bordeaux.fr).
+**Members:** [Wissam Boussella](mailto:wissamboussella@gmail.com), [Iantsa Provost](mailto:iantsa.provost@gmail.com), [Bastien Soucasse](mailto:bastien.soucasse@icloud.com), and [Tony Wolff](mailto:toto.wolff@live.fr).
 
 **Supervisor:** [Fabien Baldacci](mailto:fabien.baldacci@u-bordeaux.fr).
 
