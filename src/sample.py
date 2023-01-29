@@ -10,12 +10,18 @@ A typical Slicer window will open with the main drop-down list containing a Hell
 Clicking this action will open a message box saying “Hello, World!”.
 '''
 
-<<<<<<< HEAD
+from typing import TYPE_CHECKING, Any
 
-=======
->>>>>>> 0430182678eabbd9a135646c9f36ba1335ec37e9
+if TYPE_CHECKING:
+    slicer: Any = None
+    qt: Any = None
+
 
 class HelloWorldExtension(qt.QObject):
+    '''
+    Hello World sample extension which opens a simple Hello World sample dialog.
+    '''
+
     def __init__(self, parent=None):
         qt.QObject.__init__(self, parent)
 
@@ -23,6 +29,10 @@ class HelloWorldExtension(qt.QObject):
         pass
 
     def onHelloWorld(self):
+        '''
+        Opens a Hello World sample dialog.
+        '''
+
         qt.QMessageBox.information(slicer.util.mainWindow(), 'Hello, World!', 'Hello, World!')
 
 
