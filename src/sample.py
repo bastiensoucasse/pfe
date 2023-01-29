@@ -12,6 +12,8 @@ Clicking this action will open a message box saying “Hello, World!”.
 
 from typing import TYPE_CHECKING, Any
 
+# Declare slicer and qt as builtin modules when type checking, i.e., when this extension is
+# analyzed without loading Slicer (which contains those modules).
 if TYPE_CHECKING:
     slicer: Any = None
     qt: Any = None
@@ -36,10 +38,15 @@ class HelloWorldExtension(qt.QObject):
         qt.QMessageBox.information(slicer.util.mainWindow(), 'Hello, World!', 'Hello, World!')
 
 
+# Create an instance of the Hello World extension.
 helloWorldExtension = HelloWorldExtension()
 
+# Create an action for the "Hello World" message.
 action = qt.QAction("Hello World", slicer.util.mainWindow())
+
+# Connect the action to the "Hello World" function.
 action.connect('triggered()', helloWorldExtension.on_hello_world)
 
+# Add the action to the Slicer main window.
 moduleSelector = slicer.util.mainWindow().moduleSelector()
 moduleSelector.modulesMenu().addAction(action)
