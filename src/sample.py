@@ -28,7 +28,7 @@ class HelloWorldExtension(qt.QObject):
     def __del__(self):
         pass
 
-    def onHelloWorld(self):
+    def on_hello_world(self):
         '''
         Opens a Hello World sample dialog.
         '''
@@ -39,7 +39,7 @@ class HelloWorldExtension(qt.QObject):
 helloWorldExtension = HelloWorldExtension()
 
 action = qt.QAction("Hello World", slicer.util.mainWindow())
-action.connect('triggered()', helloWorldExtension.onHelloWorld)
+action.connect('triggered()', helloWorldExtension.on_hello_world)
 
 moduleSelector = slicer.util.mainWindow().moduleSelector()
 moduleSelector.modulesMenu().addAction(action)
