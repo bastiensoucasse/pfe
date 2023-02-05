@@ -1,3 +1,18 @@
 {
-    "python.analysis.typeCheckingMode": "basic"
+    "isort.args": [
+        "-l",
+        "1000"
+    ],
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none"
+    },
+    "python.analysis.typeCheckingMode": "basic",
+    "python.formatting.autopep8Args": [
+        "--max-line-length=1000"
+    ],
+    "python.formatting.provider": "autopep8",
+    "python.linting.flake8Args": [
+        "--ignore=E501"
+    ],
+    "python.linting.flake8Enabled": true
 }
