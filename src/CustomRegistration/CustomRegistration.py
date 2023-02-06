@@ -1,7 +1,7 @@
 """
 The Custom Registration module for Slicer provides the features for 3D images registration, based on the ITK library.
 """
-
+import vtk, qt, ctk, slicer
 from slicer import util
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
@@ -67,3 +67,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Load UI file.
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
+
+        #registration zone
+        self.registrationCollapsibleButton = ctk.ctkCollapsibleButton()
+        self.registrationCollapsibleButton.text = "Registration"
+        self.registrationCollapsibleButtonLayout = qt.QFormLayout(self.registrationCollapsibleButton)
+        self.layout.addWidget(self.registrationCollapsibleButton)
