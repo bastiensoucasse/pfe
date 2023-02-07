@@ -74,12 +74,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.crop_button = self.panel_ui.findChild(QPushButton, "crop_button")
         self.crop_button.clicked.connect(self.crop)
 
-        # :COMMENT: Get the image combobox widget.
+        # :COMMENT: Get the volume combobox widget.
         self.volumeComboBox = self.panel_ui.findChild(QComboBox, "volume")
         self.volumeComboBox.activated.connect(self.onVolumeActivated)
 
         # :COMMENT: Add the available volumes and options to the combobox.
-        # :GLITCH: List doesn't update automatically.
         volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
 
         # :BUG: Supposed to be a placeholder, but still appears in list (shouldn't)
@@ -92,8 +91,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.volumeComboBox.addItem("Rename current Volume")
         self.volumeComboBox.addItem("Delete current Volume")
 
-        # :COMMENT: Add observer to update combobox when new volume is added to MRML Scene
-        self.observerTag = mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.updateCombobox)
+        # :COMMENT: Add observer to update combobox when new volume is added to MRML Scene.
+        # :BUG: List doesn't update when new loaded volume.
+        # self.observerTag = mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.updateCombobox)
 
 
     def crop(self):
@@ -131,12 +131,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.currentVolumeIndex = index
             # :TODO: Set min and max for coordinates
 
-    def updateCombobox(self, caller, event):
-        volumes = mrmlScene.GetNodesByClass("vtkMRMLNode")
-        volumesNames = []
-        for i in range(volumes.GetNumberOfItems()):
-            volume = volumes.GetItemAsObject(i)
-            if volume.GetName() != "":
-                volumesNames.append(volume.GetName())
-        self.comboBox.clear()
-        self.comboBox.addItems(volumesNames)
+    # def updateCombobox(self, caller, event):
+    #     volumes = mrmlScene.GetNodesByClass("vtkMRMLNode")
+    #     volumesNames = []
+    #     for i in range(volumes.GetNumberOfItems()):
+    #         volume = volumes.GetItemAsObject(i)
+    #         if volume.GetName() != "":
+    #             volumesNames.append(volume.GetName())
+    #     self.comboBox.clear()
+    #     self.comboBox.addItems(volumesNames)
