@@ -3,7 +3,8 @@ The Custom Registration module for Slicer provides the features for 3D images re
 """
 
 import qt
-import slicer
+
+import slicer, ctk, vtk
 from slicer.ScriptedLoadableModule import ScriptedLoadableModule, ScriptedLoadableModuleLogic, ScriptedLoadableModuleWidget
 # import SlicerCustomAppUtilities
 
@@ -38,6 +39,17 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
     def __init__(self):
         ScriptedLoadableModuleLogic.__init__(self)
 
+    def mseDisplay(self,input1,input2):
+        #TODO : renvoyer un tableau d'intensité d'erreur 
+        #Que faire quand ils n'ont pas la meme résolution ??
+        pass
+
+    def mean(self,input1,input2):
+        #TODO : renvoyer la moyenne d'erreur entre les deux input
+        #Que faire quand ils n'ont pas la meme résolution ??
+        pass
+
+
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     """
@@ -47,15 +59,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def __init__(self, parent=None):
         ScriptedLoadableModuleWidget.__init__(self, parent)
 
-    def button(self, name, function):
-
-        new_button = qt.QPushButton(name)
-        self.layout.addWidget(new_button)
-        new_button.clicked.connect(function)
-
-    def printSomthing(self):
-        print("something")
-
+    def printS():
+        print("on est la ")
     def setup(self):
         """
         Sets up the widget for the module by adding a welcome message to the layout.
@@ -63,13 +68,71 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         ScriptedLoadableModuleWidget.setup(self)
 
-        welcome_label = qt.QLabel("Welcome to my custom extension.")
+        welcome_label = qt.QLabel("Welcome .")
         self.layout.addWidget(welcome_label)
-        self.uiWidget = slicer.util.loadUI(self.resourcePath('/home/wboussella/Documents/M2/pfe/pfe/src/CustomRegistration/UI/testUI.ui'))
-        self.layout.addWidget(self.uiWidget)
+       
+        path =  '/home/wboussella/Documents/M2/pfe/pfe/src/CustomRegistration/UI/mse.ui'  #TODO
 
-        self.ui = slicer.util.childWidgetVariables(self.uiWidget)
+        self.loadUI(path)
+
+    def loadUI(self,path):
+        self.uiWidget = slicer.util.loadUI(self.resourcePath(path))
+
+        """
+        Pour l'instant je n'utilise pas ma propre ui car je n'en ressent pas le besoin, mon interface est simple
+        """
+        # self.layout.addWidget(self.uiWidget)
+
+        # self.ui = slicer.util.childWidgetVariables(self.uiWidget)
+
+        slicer.app.layoutManager().sliceWidget("Red").hide()
+        slicer.app.layoutManager().sliceWidget("Yellow").hide()
         
-        # SlicerCustomAppUtilities.applyStyle([slicer.app], self.resourcePath("testUI.qss"))
-        # self.button("hey", self.printSomthing)
-        # self.button("ca va", self.printSomthing)
+        # tuto suivi ici : https://docs.google.com/presentation/d/1JXIfs0rAM7DwZAho57Jqz14MRn2BIMrjB17Uj_7Yztc/edit#slide=id.g420896289_0251
+
+        # Premier input selector 
+        parametersCollapsideButton = ctk.ctkCollapsibleButton()
+        parametersCollapsideButton.text = "param"
+        parametersFormLayout = qt.QFormLayout(parametersCollapsideButton)
+        self.layout.addWidget(parametersCollapsideButton)
+        self.inputSelector1 = slicer.qMRMLNodeComboBox()
+        self.inputSelector1.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        self.inputSelector1.selectNodeUponCreation = True
+        self.inputSelector1.addEnabled = False
+        self.inputSelector1.removeEnabled= False
+        self.inputSelector1.noneEnabled = False
+        self.inputSelector1.showHidden = False
+        self.inputSelector1.showChildNodeTypes = False
+        self.inputSelector1.setMRMLScene ( slicer.mrmlScene )
+        self.inputSelector1.setToolTip( "node 1")
+        parametersFormLayout.addRow("first volume : ",self.inputSelector1)
+
+
+        self.inputSelector2 = slicer.qMRMLNodeComboBox()
+        self.inputSelector2.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+
+        self.inputSelector2.selectNodeUponCreation = True
+        self.inputSelector2.addEnabled = False
+
+        self.inputSelector2.removeEnabled= False
+        self.inputSelector2.noneEnabled = False
+        self.inputSelector2.showHidden = False
+        self.inputSelector2.showChildNodeTypes = False
+        self.inputSelector2.setMRMLScene ( slicer.mrmlScene )
+        self.inputSelector2.setToolTip( "node 2")
+        parametersFormLayout.addRow("second volume volume : ",self.inputSelector2)
+    
+    def onApplyButton(self):
+        function = CustomRegistrationLogic()
+        #TODO faire un switch dans le futur 
+        mean = function.mseDisplay(self.inputSelector1.currentNode(),self.inputSelector2.inputSelector1.currentNode())
+
+    
+
+
+
+
+        
+
+        
+        
