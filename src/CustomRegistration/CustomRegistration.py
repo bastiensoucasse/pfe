@@ -35,7 +35,7 @@ class CustomRegistration(ScriptedLoadableModule):
         ]
         self.parent.helpText = "The Custom Registration module for Slicer provides the features for 3D images registration, based on the ITK library."
         self.parent.acknowledgementText = (
-            "Supported by Fabien Machin (Université de Bordeaux)."
+            "This project is supported by Fabien Baldacci."
         )
 
 
