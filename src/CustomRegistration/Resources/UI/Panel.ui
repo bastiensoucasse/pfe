@@ -6,11 +6,65 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>300</width>
-    <height>434</height>
+    <width>344</width>
+    <height>389</height>
    </rect>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout"/>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QComboBox" name="volume"/>
+   </item>
+   <item>
+    <layout class="QGridLayout" name="crop_interface">
+     <item row="1" column="0">
+      <widget class="QLabel" name="y">
+       <property name="text">
+        <string>y</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="2">
+      <widget class="QSpinBox" name="ey"/>
+     </item>
+     <item row="2" column="1">
+      <widget class="QSpinBox" name="sz"/>
+     </item>
+     <item row="1" column="1">
+      <widget class="QSpinBox" name="sy"/>
+     </item>
+     <item row="0" column="1">
+      <widget class="QSpinBox" name="sx"/>
+     </item>
+     <item row="2" column="2">
+      <widget class="QSpinBox" name="ez"/>
+     </item>
+     <item row="0" column="0">
+      <widget class="QLabel" name="x">
+       <property name="text">
+        <string>x</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="2">
+      <widget class="QSpinBox" name="ex"/>
+     </item>
+     <item row="2" column="0">
+      <widget class="QLabel" name="z">
+       <property name="text">
+        <string>z</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QPushButton" name="crop_button">
+     <property name="text">
+      <string>Crop</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
  </widget>
  <customwidgets>
   <customwidget>
