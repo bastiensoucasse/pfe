@@ -70,6 +70,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
 
+        self.crop_setup()
+
+
+    def crop_setup(self):
         # :COMMENT: Get the crop button widget.
         self.crop_button = self.panel_ui.findChild(QPushButton, "crop_button")
         self.crop_button.clicked.connect(self.crop)
@@ -79,45 +83,30 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.volumeComboBox.activated.connect(self.onVolumeActivated)
 
         # :COMMENT: Add the available volumes and options to the combobox.
-        volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
+        self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
 
         # :BUG: Supposed to be a placeholder, but still appears in list (shouldn't)
         self.volumeComboBox.insertItem(0, "Select a Volume")
 
-        for i in range(volumes.GetNumberOfItems()):
-            volume = volumes.GetItemAsObject(i)
+        for i in range(self.volumes.GetNumberOfItems()):
+            volume = self.volumes.GetItemAsObject(i)
             self.volumeComboBox.addItem(volume.GetName())
 
         self.volumeComboBox.addItem("Rename current Volume")
         self.volumeComboBox.addItem("Delete current Volume")
 
         # :COMMENT: Add observer to update combobox when new volume is added to MRML Scene.
-        # :BUG: List doesn't update when new loaded volume.
+        # :BUG: List not updated when new volume loaded.
         # self.observerTag = mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.updateCombobox)
 
-
-    def crop(self):
-        # :COMMENT: Print name, ID and dimensions of selected volume.
-        volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
-        volume = volumes.GetItemAsObject(self.currentVolumeIndex-1)
-        volumeData = volume.GetImageData()
-        print("Current volume name:", volume.GetName())
-        print("Current volume index:", self.currentVolumeIndex)
-        print("Dimensions:", volumeData.GetDimensions(), "\n")
-
-        # :COMMENT: Retrieve coordinates input and print them.
-        start_x = self.panel_ui.findChild(QSpinBox, "sx").value
-        start_y = self.panel_ui.findChild(QSpinBox, "sy").value
-        start_z = self.panel_ui.findChild(QSpinBox, "sz").value
-        end_x = self.panel_ui.findChild(QSpinBox, "ex").value
-        end_y = self.panel_ui.findChild(QSpinBox, "ey").value
-        end_z = self.panel_ui.findChild(QSpinBox, "ez").value
-        print("Start X:", start_x)
-        print("Start Y:", start_y)
-        print("Start Z:", start_z)
-        print("End X:", end_x)
-        print("End Y:", end_y)
-        print("End 2:", end_z)
+        # :COMMENT: Get the coordinates spinbox widgets.
+        # :DIRTY: To be factorized
+        self.sx = self.panel_ui.findChild(QSpinBox, "sx")
+        self.sy = self.panel_ui.findChild(QSpinBox, "sy")
+        self.sz = self.panel_ui.findChild(QSpinBox, "sz")
+        self.ex = self.panel_ui.findChild(QSpinBox, "ex")
+        self.ey = self.panel_ui.findChild(QSpinBox, "ey")
+        self.ez = self.panel_ui.findChild(QSpinBox, "ez")
 
     def onVolumeActivated(self, index):
         options = ["Select a Volume", "Delete current Volume", "Rename current Volume"]
@@ -125,12 +114,44 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         name = self.volumeComboBox.currentText
         if name in options:
             # :TODO: Add renaming and deleting features.
-            print(name, "not implemented yet!\n")
+            print("[DEBUG]", name, "not implemented yet!\n")
 
         else:
             self.currentVolumeIndex = index
-            # :TODO: Set min and max for coordinates
+            self.currentVolume = self.volumes.GetItemAsObject(index-1)
+            # :TODO: Set min and max for coordinates input
+            # :DIRTY: To be factorized
+            volumeData = self.currentVolume.GetImageData()
+            volumeDim = volumeData.GetDimensions()
+            print("[DEBUG] Volume Dimensions:", volumeDim)
+            self.sx.setMaximum(volumeDim[0])
+            self.sy.setMaximum(volumeDim[1])
+            self.sz.setMaximum(volumeDim[2])
+            self.ex.setMaximum(volumeDim[0])
+            self.ey.setMaximum(volumeDim[1])
+            self.ez.setMaximum(volumeDim[2])
 
+    def crop(self):
+        # :COMMENT: Print name, ID of selected volume.
+        print("[DEBUG] Current volume name:", self.currentVolume.GetName())
+        print("[DEBUG] Current volume index:", self.currentVolumeIndex)
+
+        # :COMMENT: Retrieve coordinates input and print them.
+        # :DIRTY: To be factorized.
+        start_x = self.sx.value
+        start_y = self.sy.value
+        start_z = self.sz.value
+        end_x = self.ex.value
+        end_y = self.ey.value
+        end_z = self.ez.value
+        print("[DEBUG] Start X:", start_x)
+        print("[DEBUG] Start Y:", start_y)
+        print("[DEBUG] Start Z:", start_z)
+        print("[DEBUG] End X:", end_x)
+        print("[DEBUG] End Y:", end_y)
+        print("[DEBUG] End 2:", end_z)
+
+    # :BUG: Doesn't update the list of available volumes.
     # def updateCombobox(self, caller, event):
     #     volumes = mrmlScene.GetNodesByClass("vtkMRMLNode")
     #     volumesNames = []
