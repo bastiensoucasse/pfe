@@ -68,8 +68,3 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
 
-        #registration zone
-        self.registrationCollapsibleButton = ctk.ctkCollapsibleButton()
-        self.registrationCollapsibleButton.text = "Registration"
-        self.registrationCollapsibleButtonLayout = qt.QFormLayout(self.registrationCollapsibleButton)
-        self.layout.addWidget(self.registrationCollapsibleButton)
