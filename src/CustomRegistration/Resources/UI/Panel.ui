@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>463</width>
-    <height>1180</height>
+    <width>458</width>
+    <height>872</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,7 +15,31 @@
   </property>
   <layout class="QVBoxLayout" name="panelVerticalLayout">
    <item>
+    <widget class="QComboBox" name="volume"/>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="image_data">
+     <item>
+      <widget class="QLabel" name="dim_text_label">
+       <property name="text">
+        <string>Image Dimensions:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="dim_label">
+       <property name="text">
+        <string>...</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
     <widget class="ctkCollapsibleButton" name="CroppingCollapsibleWidget" native="true">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
      <property name="text" stdset="0">
       <string>Cropping</string>
      </property>
@@ -23,74 +47,75 @@
       <bool>true</bool>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
-    <widget class="QComboBox" name="volume"/>
-   </item>
-   <item>
-    <layout class="QGridLayout" name="crop_interface">
-     <item row="1" column="0">
-      <widget class="QLabel" name="y">
-       <property name="text">
-        <string>y</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="2">
-      <widget class="QSpinBox" name="ey"/>
-     </item>
-     <item row="2" column="1">
-      <widget class="QSpinBox" name="sz"/>
-     </item>
-     <item row="1" column="1">
-      <widget class="QSpinBox" name="sy"/>
-     </item>
-     <item row="0" column="1">
-      <widget class="QSpinBox" name="sx"/>
-     </item>
-     <item row="2" column="2">
-      <widget class="QSpinBox" name="ez"/>
-     </item>
-     <item row="0" column="0">
-      <widget class="QLabel" name="x">
-       <property name="text">
-        <string>x</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="2">
-      <widget class="QSpinBox" name="ex"/>
-     </item>
-     <item row="2" column="0">
-      <widget class="QLabel" name="z">
-       <property name="text">
-        <string>z</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <widget class="QPushButton" name="crop_button">
-     <property name="text">
-      <string>Crop</string>
-     </property>
+      <item>
+       <widget class="QLabel" name="input_label">
+        <property name="text">
+         <string>Start and end value for each axis:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QGridLayout" name="crop_interface">
+        <item row="0" column="2">
+         <widget class="QSpinBox" name="ex"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="z">
+          <property name="text">
+           <string>z</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="y">
+          <property name="text">
+           <string>y</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QSpinBox" name="ey"/>
+        </item>
+        <item row="2" column="1">
+         <widget class="QSpinBox" name="sz"/>
+        </item>
+        <item row="1" column="1">
+         <widget class="QSpinBox" name="sy"/>
+        </item>
+        <item row="0" column="1">
+         <widget class="QSpinBox" name="sx"/>
+        </item>
+        <item row="2" column="2">
+         <widget class="QSpinBox" name="ez"/>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="x">
+          <property name="text">
+           <string>x</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QPushButton" name="crop_button">
+        <property name="text">
+         <string>Crop</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
-  </layout>
-    </widget>
-   </item>
    <item>
-    <spacer name="BottomSpacer">
+    <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
      </property>
-     <property name="sizeType">
-      <enum>QSizePolicy::MinimumExpanding</enum>
-     </property>
      <property name="sizeHint" stdset="0">
       <size>
-       <width>0</width>
-       <height>0</height>
+       <width>20</width>
+       <height>40</height>
       </size>
      </property>
     </spacer>
@@ -100,21 +125,16 @@
  <layoutdefault spacing="0" margin="0"/>
  <customwidgets>
   <customwidget>
-   <class>qSlicerWidget</class>
-   <extends>QWidget</extends>
-   <header>qSlicerWidget.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>ctkCollapsibleButton</class>
    <extends>QWidget</extends>
    <header>ctkCollapsibleButton.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>ctkFittedTextBrowser</class>
-   <extends>QTextBrowser</extends>
-   <header>ctkFittedTextBrowser.h</header>
+   <class>qSlicerWidget</class>
+   <extends>QWidget</extends>
+   <header>qSlicerWidget.h</header>
+   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources/>

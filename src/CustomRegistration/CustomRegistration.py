@@ -1,12 +1,11 @@
 """
 The Custom Registration module for Slicer provides the features for 3D images registration, based on the ITK library.
 """
-import sys
 import SimpleITK as sitk
-import vtk
 import numpy as np
-from qt import QPushButton, QSpinBox, QComboBox, QMessageBox
-from slicer import util, mrmlScene #, vtkMRMLScalarVolumeNode
+import vtk
+from qt import QPushButton, QSpinBox, QComboBox, QMessageBox, QLabel
+from slicer import util, mrmlScene, vtkMRMLScalarVolumeNode
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -123,16 +122,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         else:
             self.currentVolumeIndex = index
             self.currentVolume = self.volumes.GetItemAsObject(index-1)
-            volumeData = self.currentVolume.GetImageData()
-            volumeDim = volumeData.GetDimensions()
-            print("[DEBUG] Volume Dimensions:", volumeDim)
+            volume_data = self.currentVolume.GetImageData()
+            self.currentVolumeDim = volume_data.GetDimensions()
+            print("[DEBUG] Volume Dimensions:", self.currentVolumeDim)
+            self.update_volume_dimensions()
+
             # :DIRTY: To be factorized
-            self.sx.setMaximum(volumeDim[0])
-            self.sy.setMaximum(volumeDim[1])
-            self.sz.setMaximum(volumeDim[2])
-            self.ex.setMaximum(volumeDim[0])
-            self.ey.setMaximum(volumeDim[1])
-            self.ez.setMaximum(volumeDim[2])
+            self.sx.setMaximum(self.currentVolumeDim[0])
+            self.sy.setMaximum(self.currentVolumeDim[1])
+            self.sz.setMaximum(self.currentVolumeDim[2])
+            self.ex.setMaximum(self.currentVolumeDim[0])
+            self.ey.setMaximum(self.currentVolumeDim[1])
+            self.ez.setMaximum(self.currentVolumeDim[2])
 
     def crop(self):
         # :COMMENT: Do not do anything if crop button clicked but no volume selected.
@@ -155,7 +156,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print("[DEBUG] Start Z:", start_z)
         print("[DEBUG] End X:", end_x)
         print("[DEBUG] End Y:", end_y)
-        print("[DEBUG] End 2:", end_z, "\n")
+        print("[DEBUG] End Z:", end_z, "\n")
         start = [start_x, start_y, start_z]
         end = [end_x, end_y, end_z]
 
@@ -175,12 +176,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # print("[DEBUG]", type(sitk_image))
         print("[DEBUG] Size:", sitk_image.GetSize())
 
-        # :COMMENT: Get the size of the crop region
+        # :COMMENT: Get the size of the crop region.
         start = [self.sx.value, self.sy.value, self.sz.value]
         end = [self.ex.value, self.ey.value, self.ez.value]
         size = [end[0]-start[0]+1, end[1]-start[1]+1, end[2]-start[2]+1]
 
-        # :COMMENT: Crop the image
+        # :COMMENT: Crop the image.
         extract_filter = sitk.ExtractImageFilter()
         extract_filter.SetSize(size)
         extract_filter.SetIndex(start)
@@ -188,15 +189,28 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # print("[DEBUG]", type(cropped_image))
         print("[DEBUG] Size:", cropped_image.GetSize())
 
+        # Create a new volume node
+        new_volume_node = vtkMRMLScalarVolumeNode()
+        new_volume_node.SetName(selected_volume.GetName() + "_cropped")
+        # :TODO: Change the name of the new volume.
+
         # :COMMENT: Convert the cropped SimpleITK image back to a NumPy array
-        # np_array = sitk.GetArrayFromImage(cropped_image)
+        np_array = sitk.GetArrayFromImage(cropped_image)
 
         # :COMMENT: Convert the numpy array to a vtkImageData object
-        # vtk_image = vtk.vtkImageData()
-        # vtk_image.SetDimensions(np_array.shape[::-1])
-        # vtk_image.AllocateScalars(vtk.VTK_FLOAT, 1)
-        # vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
-        # vtk_image.GetPointData().SetScalars(vtk_array)
+        vtk_image = vtk.vtkImageData()
+        vtk_image.SetDimensions(np_array.shape[::-1])
+        vtk_image.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
+        vtk_image.GetPointData().SetScalars(vtk_array)
+
+        # Update the MRML scene
+        mrmlScene.AddNode(new_volume_node)
+        new_volume_node.SetAndObserveImageData(vtk_image)
+
+        # :TRICKY: Refresh the volume combobox but should be handled by the observer.
+        # self.volumeComboBox.insertItem(self.currentVolumeIndex + 1, new_volume_node.GetName())
+        # self.volumeComboBox.setCurrentIndex(self.currentVolumeIndex + 1)
 
         # :COMMENT: Create a vtkMRMLScalarVolumeNode object
         # volume_node = vtkMRMLScalarVolumeNode()
@@ -215,6 +229,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     #             volumesNames.append(volume.GetName())
     #     self.comboBox.clear()
     #     self.comboBox.addItems(volumesNames)
+
+    def update_volume_dimensions(self):
+        dim_label = self.panel_ui.findChild(QLabel, "dim_label")
+        dim_label.setText("{} x {} x {}".format(self.currentVolumeDim[0], self.currentVolumeDim[1], self.currentVolumeDim[2]))
 
     def error_message(self, message):
         msg = QMessageBox()
