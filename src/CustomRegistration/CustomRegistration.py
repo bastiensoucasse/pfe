@@ -1,10 +1,11 @@
 """
 The Custom Registration module for Slicer provides the features for 3D images registration, based on the ITK library.
 """
-
-import slicer
+import SimpleITK as sitk
+import vtk
+import numpy as np
 from qt import QPushButton, QSpinBox, QComboBox
-from slicer import util, mrmlScene
+from slicer import util, mrmlScene, vtkMRMLScalarVolumeNode
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -119,11 +120,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         else:
             self.currentVolumeIndex = index
             self.currentVolume = self.volumes.GetItemAsObject(index-1)
-            # :TODO: Set min and max for coordinates input
-            # :DIRTY: To be factorized
             volumeData = self.currentVolume.GetImageData()
             volumeDim = volumeData.GetDimensions()
             print("[DEBUG] Volume Dimensions:", volumeDim)
+            # :DIRTY: To be factorized
             self.sx.setMaximum(volumeDim[0])
             self.sy.setMaximum(volumeDim[1])
             self.sz.setMaximum(volumeDim[2])
@@ -132,11 +132,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.ez.setMaximum(volumeDim[2])
 
     def crop(self):
-        # :COMMENT: Print name, ID of selected volume.
         print("[DEBUG] Current volume name:", self.currentVolume.GetName())
         print("[DEBUG] Current volume index:", self.currentVolumeIndex)
 
-        # :COMMENT: Retrieve coordinates input and print them.
+        # :COMMENT: Retrieve coordinates input.
         # :DIRTY: To be factorized.
         start_x = self.sx.value
         start_y = self.sy.value
@@ -149,7 +148,50 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print("[DEBUG] Start Z:", start_z)
         print("[DEBUG] End X:", end_x)
         print("[DEBUG] End Y:", end_y)
-        print("[DEBUG] End 2:", end_z)
+        print("[DEBUG] End 2:", end_z, "\n")
+
+        # :TODO: Add checking of coordinates (start must be < end)
+
+        # :COMMENT: Get the selected volume and convert it to a SimpleITK image.
+        selected_volume = self.currentVolume
+        # print("[DEBUG]", type(selected_volume))
+        vtk_image = selected_volume.GetImageData()
+        np_array = vtk.util.numpy_support.vtk_to_numpy(vtk_image.GetPointData().GetScalars())
+        np_array = np.reshape(np_array, (vtk_image.GetDimensions()[::-1]))
+        # print("[DEBUG]", type(np_array))
+        sitk_image = sitk.GetImageFromArray(np_array)
+        # print("[DEBUG]", type(sitk_image))
+        print("[DEBUG] Size:", sitk_image.GetSize())
+
+        # :COMMENT: Get the size of the crop region
+        start = [self.sx.value, self.sy.value, self.sz.value]
+        end = [self.ex.value, self.ey.value, self.ez.value]
+        size = [end[0]-start[0]+1, end[1]-start[1]+1, end[2]-start[2]+1]
+
+        # :COMMENT: Crop the image
+        extract_filter = sitk.ExtractImageFilter()
+        extract_filter.SetSize(size)
+        extract_filter.SetIndex(start)
+        cropped_image = extract_filter.Execute(sitk_image)
+        # print("[DEBUG]", type(cropped_image))
+        print("[DEBUG] Size:", cropped_image.GetSize())
+
+        # :COMMENT: Convert the cropped SimpleITK image back to a NumPy array
+        # np_array = sitk.GetArrayFromImage(cropped_image)
+
+        # :COMMENT: Convert the numpy array to a vtkImageData object
+        # vtk_image = vtk.vtkImageData()
+        # vtk_image.SetDimensions(np_array.shape[::-1])
+        # vtk_image.AllocateScalars(vtk.VTK_FLOAT, 1)
+        # vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
+        # vtk_image.GetPointData().SetScalars(vtk_array)
+
+        # :COMMENT: Create a vtkMRMLScalarVolumeNode object
+        # volume_node = vtkMRMLScalarVolumeNode()
+        # volume_node.SetAndObserveImageData(vtk_image)
+        # print("[DEBUG]", type(volume_node))
+
+        # sitk.WriteImage(cropped_image, '/Users/iantsaprovost/Desktop/test.nrrd')
 
     # :BUG: Doesn't update the list of available volumes.
     # def updateCombobox(self, caller, event):
