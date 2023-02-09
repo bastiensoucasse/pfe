@@ -2,7 +2,7 @@
 The Custom Registration module for Slicer provides the features for 3D images registration, based on the ITK library.
 """
 import vtk, qt, ctk, slicer
-from slicer import util
+from slicer import util, mrmlScene
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -67,4 +67,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Load UI file.
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
+
+          # :COMMENT: Get all volumes, (merci Iantsa pour le code).
+        self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
+
+        # :COMMENT: insert volumes for fixed and moving images
+        self.fixed_image_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboFixedImage")
+        self.fixed_image_combo_box.addItems([volume.GetName() for volume in self.volumes])
+
+        self.moving_image_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMovingImage")
+        self.moving_image_combo_box.addItems([volume.GetName() for volume in self.volumes])
+
+
 

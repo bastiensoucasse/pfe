@@ -159,7 +159,22 @@ p, li { white-space: pre-wrap; }
         </property>
         <layout class="QGridLayout" name="gridLayout_2">
          <item row="0" column="1">
-          <widget class="ctkComboBox" name="ComboFixedImage"/>
+          <widget class="ctkComboBox" name="ComboFixedImage">
+           <item>
+            <property name="text">
+             <string>None</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="ctkComboBox" name="ComboMovingImage">
+           <item>
+            <property name="text">
+             <string>None</string>
+            </property>
+           </item>
+          </widget>
          </item>
          <item row="0" column="0">
           <widget class="QLabel" name="labelFixed">
@@ -194,7 +209,7 @@ p, li { white-space: pre-wrap; }
           <widget class="ctkComboBox" name="ComboMetrics">
            <property name="minimumSize">
             <size>
-             <width>175</width>
+             <width>0</width>
              <height>0</height>
             </size>
            </property>
@@ -217,9 +232,6 @@ p, li { white-space: pre-wrap; }
             <string>Moving Image</string>
            </property>
           </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="ctkComboBox" name="ComboMovingImage"/>
          </item>
         </layout>
        </widget>
