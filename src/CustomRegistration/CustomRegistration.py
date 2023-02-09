@@ -78,5 +78,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.moving_image_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMovingImage")
         self.moving_image_combo_box.addItems([volume.GetName() for volume in self.volumes])
 
+        # :COMMENT: handle button
+        self.button_registration = self.panel_ui.findChild(ctk.ctkPushButton, "PushButtonRegistration")
+        self.button_registration.clicked.connect(self.rigid_registration)
+
+
+    def rigid_registration(self):
+        print("[DEBUG] test")
+
 
 
