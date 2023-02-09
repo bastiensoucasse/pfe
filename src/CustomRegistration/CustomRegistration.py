@@ -1,11 +1,12 @@
 """
 The Custom Registration module for Slicer provides the features for 3D images registration, based on the ITK library.
 """
+import sys
 import SimpleITK as sitk
 import vtk
 import numpy as np
-from qt import QPushButton, QSpinBox, QComboBox
-from slicer import util, mrmlScene, vtkMRMLScalarVolumeNode
+from qt import QPushButton, QSpinBox, QComboBox, QMessageBox
+from slicer import util, mrmlScene #, vtkMRMLScalarVolumeNode
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -88,6 +89,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :BUG: Supposed to be a placeholder, but still appears in list (shouldn't)
         self.volumeComboBox.insertItem(0, "Select a Volume")
+        self.currentVolumeIndex = -1
 
         for i in range(self.volumes.GetNumberOfItems()):
             volume = self.volumes.GetItemAsObject(i)
@@ -116,6 +118,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if name in options:
             # :TODO: Add renaming and deleting features.
             print("[DEBUG]", name, "not implemented yet!\n")
+            self.currentVolumeIndex = -1
 
         else:
             self.currentVolumeIndex = index
@@ -132,6 +135,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.ez.setMaximum(volumeDim[2])
 
     def crop(self):
+        # :COMMENT: Do not do anything if crop button clicked but no volume selected.
+        if self.currentVolumeIndex < 0:
+            return
+
         print("[DEBUG] Current volume name:", self.currentVolume.GetName())
         print("[DEBUG] Current volume index:", self.currentVolumeIndex)
 
@@ -149,8 +156,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print("[DEBUG] End X:", end_x)
         print("[DEBUG] End Y:", end_y)
         print("[DEBUG] End 2:", end_z, "\n")
+        start = [start_x, start_y, start_z]
+        end = [end_x, end_y, end_z]
 
-        # :TODO: Add checking of coordinates (start must be < end)
+        # :COMMENT: Check that coordinates are valid.
+        if (end[0] < start[0]) or (end[1] < start[1]) or (end[2] < start[2]):
+            self.error_message("End values must be greater than or equal to start values.")
+            return
 
         # :COMMENT: Get the selected volume and convert it to a SimpleITK image.
         selected_volume = self.currentVolume
@@ -203,3 +215,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     #             volumesNames.append(volume.GetName())
     #     self.comboBox.clear()
     #     self.comboBox.addItems(volumesNames)
+
+    def error_message(self, message):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        msg.setText(message)
+        msg.setWindowTitle("Error")
+        msg.exec_()
