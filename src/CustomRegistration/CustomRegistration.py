@@ -97,4 +97,4 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.layout.addWidget(self.panel_ui)
 
         # :DEBUG: Run the resampling test.
-        # self.logic.run(self.resourcePath("Scripts/Resample.py"), "test_resample")
+        # self.logic.run(self.resourcePath("Scripts/Resampling.py"), "test_resample")
