@@ -5,13 +5,13 @@ Resampling algorithm and testing script.
 import SimpleITK as sitk
 
 
-def resample(reference_image: sitk.Image, input_image: sitk.Image):
+def resample(reference_image: sitk.Image, input_image: sitk.Image) -> sitk.Image:
     """
     Resamples the input image to the reference image's size, spacing, and origin.
 
     Parameters:
-        reference_image (sitk.Image): The reference image used as a template for the resampling.
-        input_image (sitk.Image): The input image to be resampled.
+        reference_image: The reference image used as a template for the resampling.
+        input_image: The input image to be resampled.
 
     Returns:
         The resampled image.
