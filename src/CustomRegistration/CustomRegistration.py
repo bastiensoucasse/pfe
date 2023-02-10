@@ -73,12 +73,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
 
-        self.crop_setup()
+        self.preprocessing_setup()
+        self.cropping_setup()
 
-    def crop_setup(self):
-        # :COMMENT: Get the crop button widget.
-        self.crop_button = self.panel_ui.findChild(QPushButton, "crop_button")
-        self.crop_button.clicked.connect(self.crop)
+    def preprocessing_setup(self):
+        """
+        Sets up the preprocessing widget by retrieving the volume selection widget and initializing it.
+        """
 
         # :COMMENT: Get the volume combobox widget.
         self.volumeComboBox = self.panel_ui.findChild(QComboBox, "volume")
@@ -102,6 +103,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :BUG: List not updated when new volume loaded.
         # self.observerTag = mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.updateCombobox)
 
+    def cropping_setup(self):
+        """
+        Sets up the cropping widget by retrieving the crop button and coordinates input widgets.
+        """
+
+        # :COMMENT: Get the crop button widget.
+        self.cropButton = self.panel_ui.findChild(QPushButton, "crop_button")
+        self.cropButton.clicked.connect(self.cropping)
+
         # :COMMENT: Get the coordinates entered by user in spinbox widgets.
         self.start = []
         self.end = []
@@ -110,16 +120,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.end.append(self.panel_ui.findChild(QSpinBox, "e" + i))
 
     def onVolumeActivated(self, index):
+        """
+        Called when an item in the volume combobox is selected.
+        Handles selection of a volume and updates the cropping parameters accordingly, and edition of the volume combobox.
+        """
+
         options = ["Select a Volume", "Delete current Volume", "Rename current Volume"]
 
         name = self.volumeComboBox.currentText
         if name in options:
             # :TODO: Add renaming and deleting features.
             if name == "Delete current Volume":
-                print("[DEBUG]", name, "not implemented yet!\n")
+                print("[DEBUG]", name, "option not implemented yet!\n")
 
             if name == "Rename current Volume":
-                print("[DEBUG]", name, "not implemented yet!\n")
+                print("[DEBUG]", name, "option not implemented yet!\n")
                 # self.renameVolume()
 
             self.currentVolumeIndex = -1
@@ -130,13 +145,64 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             volume_data = self.currentVolume.GetImageData()
             self.currentVolumeDim = volume_data.GetDimensions()
             print("[DEBUG] Volume Dimensions:", self.currentVolumeDim)
-            self.update_volume_dimensions()
+            self.update_dimensions_display()
 
             for i in range(3):
                 self.start[i].setMaximum(self.currentVolumeDim[i])
                 self.end[i].setMaximum(self.currentVolumeDim[i])
 
-    def crop(self):
+    def cropping_algorithm(self, volume, start_val, size):
+        """
+        Crops a volume using the selected algorithm.
+        :param volume: SimpleITK volume to be cropped.
+        :param start_val: Start index of the cropping region.
+        :param size: Size of the cropping region.
+        :return: Cropped SimpleITK image.
+        """
+
+        crop_filter = sitk.ExtractImageFilter()
+        crop_filter.SetSize(size)
+        crop_filter.SetIndex(start_val)
+        cropped_image = crop_filter.Execute(volume)
+        print("[DEBUG] Size:", cropped_image.GetSize())
+        return cropped_image
+
+    def vtk_to_sitk(self, vtk_image):
+        """
+        Converts a VTK image to a SimpleITK image.
+        :param vtk_image: VTK image to be converted.
+        :return: SimpleITK image.
+        """
+
+        np_array = vtk.util.numpy_support.vtk_to_numpy(
+            vtk_image.GetPointData().GetScalars()
+        )
+        np_array = np.reshape(np_array, (vtk_image.GetDimensions()[::-1]))
+        sitk_image = sitk.GetImageFromArray(np_array)
+        print("[DEBUG] Size:", sitk_image.GetSize())
+        return sitk_image
+
+    def sitk_to_vtk(self, sitk_image):
+        """
+        Converts a SimpleITK image to a VTK image.
+        :param sitk_image: SimpleITK image to be converted.
+        :return: VTK image.
+        """
+
+        print("[DEBUG] Size:", sitk_image.GetSize())
+        np_array = sitk.GetArrayFromImage(sitk_image)
+        vtk_image = vtk.vtkImageData()
+        vtk_image.SetDimensions(np_array.shape[::-1])
+        vtk_image.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
+        vtk_image.GetPointData().SetScalars(vtk_array)
+        return vtk_image
+
+    def cropping(self):
+        """
+        Crop a volume using the selected algorithm.
+        """
+
         # :COMMENT: Do not do anything if crop button clicked but no volume selected.
         # :TODO: Solve, knowing that it works for the "Select a Volume" case.
         if self.currentVolumeIndex < 0:
@@ -160,59 +226,19 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             return
 
         # :COMMENT: Get the selected volume and convert it to a SimpleITK image.
-        selected_volume = self.currentVolume
-        # print("[DEBUG]", type(selected_volume))
-        vtk_image = selected_volume.GetImageData()
-        np_array = vtk.util.numpy_support.vtk_to_numpy(
-            vtk_image.GetPointData().GetScalars()
-        )
-        np_array = np.reshape(np_array, (vtk_image.GetDimensions()[::-1]))
-        # print("[DEBUG]", type(np_array))
-        sitk_image = sitk.GetImageFromArray(np_array)
-        # print("[DEBUG]", type(sitk_image))
-        print("[DEBUG] Size:", sitk_image.GetSize())
+        sitk_image = self.vtk_to_sitk(self.currentVolume.GetImageData())
 
         # :COMMENT: Get the size of the crop region.
         size = [end_val[i] - start_val[i] + 1 for i in range(3)]
 
         # :COMMENT: Crop the image.
-        extract_filter = sitk.ExtractImageFilter()
-        extract_filter.SetSize(size)
-        extract_filter.SetIndex(start_val)
-        cropped_image = extract_filter.Execute(sitk_image)
-        # print("[DEBUG]", type(cropped_image))
-        print("[DEBUG] Size:", cropped_image.GetSize())
+        cropped_image = self.cropping_algorithm(sitk_image, start_val, size)
 
-        # :COMMENT: Create a new volume node
-        new_volume_node = vtkMRMLScalarVolumeNode()
-        current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        new_name = f"{selected_volume.GetName()}_cropped_{current_time}"
-        new_volume_node.SetName(new_name)
+        # :COMMENT: Convert the cropped SimpleITK image back to a vtkImageData object
+        vtk_image = self.sitk_to_vtk(cropped_image)
 
-        # :COMMENT: Convert the cropped SimpleITK image back to a NumPy array
-        np_array = sitk.GetArrayFromImage(cropped_image)
-
-        # :COMMENT: Convert the numpy array to a vtkImageData object
-        vtk_image = vtk.vtkImageData()
-        vtk_image.SetDimensions(np_array.shape[::-1])
-        vtk_image.AllocateScalars(vtk.VTK_FLOAT, 1)
-        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
-        vtk_image.GetPointData().SetScalars(vtk_array)
-
-        # :COMMENT: Update the MRML scene
-        mrmlScene.AddNode(new_volume_node)
-        new_volume_node.SetAndObserveImageData(vtk_image)
-
-        # :TRICKY: Refresh the volume combobox but should be handled by the observer.
-        # self.volumeComboBox.insertItem(self.currentVolumeIndex + 1, new_volume_node.GetName())
-        # self.volumeComboBox.setCurrentIndex(self.currentVolumeIndex + 1)
-
-        # :COMMENT: Create a vtkMRMLScalarVolumeNode object
-        # volume_node = vtkMRMLScalarVolumeNode()
-        # volume_node.SetAndObserveImageData(vtk_image)
-        # print("[DEBUG]", type(volume_node))
-
-        # sitk.WriteImage(cropped_image, '/Users/iantsaprovost/Desktop/test.nrrd')
+        # :COMMENT: Add the VTK image to the scene.
+        self.add_new_volume(vtk_image)
 
     # :BUG: Doesn't update the list of available volumes.
     # def updateCombobox(self, caller, event):
@@ -225,7 +251,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     #     self.comboBox.clear()
     #     self.comboBox.addItems(volumesNames)
 
-    def update_volume_dimensions(self):
+    def update_dimensions_display(self):
+        """
+        Updates the display of the dimensions according to the selected volume.
+        """
+
         dim_label = self.panel_ui.findChild(QLabel, "dim_label")
         dim_label.setText(
             "{} x {} x {}".format(
@@ -235,7 +265,35 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
         )
 
+    def add_new_volume(self, volume):
+        """
+        Adds a new volume to the scene.
+        :param volume: SimpleITK volume to be added.
+        """
+
+        # :COMMENT: Create a new volume node
+        new_volume_node = vtkMRMLScalarVolumeNode()
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        new_name = f"{self.currentVolume.GetName()}_cropped_{current_time}"
+        new_volume_node.SetName(new_name)
+
+        # :COMMENT: Update the MRML scene
+        mrmlScene.AddNode(new_volume_node)
+        new_volume_node.SetAndObserveImageData(volume)
+
+        # :TRICKY: Refresh the volume combobox but should be handled by the observer.
+        # self.volumeComboBox.insertItem(self.currentVolumeIndex + 1, new_volume_node.GetName())
+        # self.volumeComboBox.setCurrentIndex(self.currentVolumeIndex + 1)
+
+        # :COMMENT: Useful for exporting.
+        # sitk.WriteImage(cropped_image, '/Users/iantsaprovost/Desktop/test.nrrd')
+
     def error_message(self, message):
+        """
+        Displays an error message.
+        :param message: Message to be displayed.
+        """
+
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Critical)
         msg.setText(message)
