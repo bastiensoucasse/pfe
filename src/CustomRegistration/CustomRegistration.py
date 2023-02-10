@@ -2,6 +2,7 @@
 The Custom Registration module for Slicer provides the features for 3D images registration, based on the ITK library.
 """
 
+# import SimpleITK as sitk
 from slicer import util
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
@@ -96,5 +97,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
 
-        # :DEBUG: Run the resampling test.
+        # :DEBUG: Run the Resampling algorithm test.
         # self.logic.run(self.resourcePath("Scripts/Resampling.py"), "test_resample")
+
+        # :DEBUG: Run the ROI Selection algorithm.
+        # self.logic.run(
+        #     self.resourcePath("Scripts/ROISelection.py"),
+        #     "select_roi",
+        #     sitk.Image((512, 512, 512), sitk.sitkFloat32),
+        #     threshold=0.2,
+        # )
