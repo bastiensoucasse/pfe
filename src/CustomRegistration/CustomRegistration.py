@@ -147,6 +147,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         self.preprocessing_setup()
         self.cropping_setup()
+        self.resampling_setup()
 
     def preprocessing_setup(self):
         """
@@ -193,6 +194,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         for i in ["x", "y", "z"]:
             self.start.append(self.panel_ui.findChild(QSpinBox, "s" + i))
             self.end.append(self.panel_ui.findChild(QSpinBox, "e" + i))
+
+    def resampling_setup(self):
+        """
+        Sets up the resampling widget by retrieving the images and the resample button.
+        """
+
+        # :TODO: Implement resampling setup and the call to the resample algorithm.
 
     def onVolumeActivated(self, index):
         """
