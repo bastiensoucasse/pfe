@@ -1,13 +1,20 @@
 """
 The Custom Registration module for Slicer provides the features for 3D images registration, based on the ITK library.
 """
+
 import datetime
 
 import numpy as np
 import SimpleITK as sitk
 import vtk
-from qt import QComboBox, QInputDialog, QLabel, QMessageBox, QPushButton, QSpinBox, QDialog, QLineEdit
-from slicer import mrmlScene, util, vtkMRMLScalarVolumeNode
+from qt import (  # QDialog,; QInputDialog,; QLineEdit,
+    QComboBox,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+)
+from slicer import mrmlScene, util, vtkMRMLScalarVolumeNode  # vtkMRMLScene
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -52,7 +59,23 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
     def __init__(self):
         ScriptedLoadableModuleLogic.__init__(self)
 
+    def cropping_algorithm(self, volume, start_val, size):
+        """
+        Crops a volume using the selected algorithm.
+        :param volume: SimpleITK volume to be cropped.
+        :param start_val: Start index of the cropping region.
+        :param size: Size of the cropping region.
+        :return: Cropped SimpleITK image.
+        """
 
+        crop_filter = sitk.ExtractImageFilter()
+        crop_filter.SetSize(size)
+        crop_filter.SetIndex(start_val)
+        cropped_image = crop_filter.Execute(volume)
+        print("[DEBUG] Size:", cropped_image.GetSize())
+        return cropped_image
+
+# :TODO: Homogenise the names of variables (image, node, volume)
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     """
     Widget class for the Custom Registration module used to define the module's panel interface.
@@ -68,6 +91,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Initialize setup from Slicer.
         ScriptedLoadableModuleWidget.setup(self)
+
+        self.logic = CustomRegistrationLogic()
 
         # :COMMENT: Load UI file.
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
@@ -88,6 +113,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Add the available volumes and options to the combobox.
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
 
+        # :DEBUGGING:
+        # print("[DEBUG] Size of volumes:", self.volumes.GetNumberOfItems())
+
         # :BUG: Supposed to be a placeholder, but still appears in list (shouldn't)
         self.volumeComboBox.insertItem(0, "Select a Volume")
         self.currentVolumeIndex = -1
@@ -101,7 +129,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Add observer to update combobox when new volume is added to MRML Scene.
         # :BUG: List not updated when new volume loaded.
-        # self.observerTag = mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.updateCombobox)
+        # self.observerTag = mrmlScene.AddObserver(vtkMRMLScene.NodeAddedEvent, self.updateCombobox)
 
     def cropping_setup(self):
         """
@@ -115,7 +143,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Get the coordinates entered by user in spinbox widgets.
         self.start = []
         self.end = []
-        for i in ['x', 'y', 'z']:
+        for i in ["x", "y", "z"]:
             self.start.append(self.panel_ui.findChild(QSpinBox, "s" + i))
             self.end.append(self.panel_ui.findChild(QSpinBox, "e" + i))
 
@@ -151,57 +179,48 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.start[i].setMaximum(self.currentVolumeDim[i])
                 self.end[i].setMaximum(self.currentVolumeDim[i])
 
-    def cropping_algorithm(self, volume, start_val, size):
-        """
-        Crops a volume using the selected algorithm.
-        :param volume: SimpleITK volume to be cropped.
-        :param start_val: Start index of the cropping region.
-        :param size: Size of the cropping region.
-        :return: Cropped SimpleITK image.
-        """
-
-        crop_filter = sitk.ExtractImageFilter()
-        crop_filter.SetSize(size)
-        crop_filter.SetIndex(start_val)
-        cropped_image = crop_filter.Execute(volume)
-        print("[DEBUG] Size:", cropped_image.GetSize())
-        return cropped_image
-
     def vtk_to_sitk(self, vtk_image):
         """
-        Converts a VTK image to a SimpleITK image.
-        :param vtk_image: VTK image to be converted.
+        Converts a VTK Volume Node to a SimpleITK image.
+        :param vtk_image: VTK Volume Node to be converted.
         :return: SimpleITK image.
         """
 
+        vtk_image_data = vtk_image.GetImageData()
         np_array = vtk.util.numpy_support.vtk_to_numpy(
-            vtk_image.GetPointData().GetScalars()
+            vtk_image_data.GetPointData().GetScalars()
         )
-        np_array = np.reshape(np_array, (vtk_image.GetDimensions()[::-1]))
+        np_array = np.reshape(np_array, (vtk_image_data.GetDimensions()[::-1]))
         sitk_image = sitk.GetImageFromArray(np_array)
-        print("[DEBUG] Size:", sitk_image.GetSize())
         return sitk_image
 
     def sitk_to_vtk(self, sitk_image):
         """
-        Converts a SimpleITK image to a VTK image.
+        Converts a SimpleITK image to a VTK Volume Node.
         :param sitk_image: SimpleITK image to be converted.
-        :return: VTK image.
+        :return: VTK Volume Node.
         """
 
-        print("[DEBUG] Size:", sitk_image.GetSize())
         np_array = sitk.GetArrayFromImage(sitk_image)
-        vtk_image = vtk.vtkImageData()
-        vtk_image.SetDimensions(np_array.shape[::-1])
-        vtk_image.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_image_data = vtk.vtkImageData()
+        vtk_image_data.SetDimensions(np_array.shape[::-1])
+        vtk_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
         vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
-        vtk_image.GetPointData().SetScalars(vtk_array)
+        vtk_image_data.GetPointData().SetScalars(vtk_array)
+        vtk_image = vtkMRMLScalarVolumeNode()
+        vtk_image.SetAndObserveImageData(vtk_image_data)
         return vtk_image
 
+    # :GLITCH: Black image on slice visualization but 3D image ok.
+    # :GLITCH: [VTK] Warning: In /Volumes/D/S/S-0/Modules/Loadable/VolumeRendering/Logic/vtkSlicerVolumeRenderingLogic.cxx, line 674
+    #          [VTK] vtkSlicerVolumeRenderingLogic (0x600002bb0420): CopyDisplayToVolumeRenderingDisplayNode: No display node to copy.
+    # This error appears when the cropped volume is selected in the volume rendering module but it is displayed though.
     def cropping(self):
         """
-        Crop a volume using the selected algorithm.
+        Crops a volume using the selected algorithm.
         """
+        # :DEBUGGING:
+        # print("[DEBUG] Size of volumes:", self.volumes.GetNumberOfItems())
 
         # :COMMENT: Do not do anything if crop button clicked but no volume selected.
         # :TODO: Solve, knowing that it works for the "Select a Volume" case.
@@ -225,31 +244,45 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
             return
 
-        # :COMMENT: Get the selected volume and convert it to a SimpleITK image.
-        sitk_image = self.vtk_to_sitk(self.currentVolume.GetImageData())
+        # :COMMENT: Save selected volume's data, and convert the volume to a SimpleITK image.
+        data_backup = [
+            self.currentVolume.GetSpacing(),
+            self.currentVolume.GetOrigin(),
+            vtk.vtkMatrix4x4(),
+        ]
+        self.currentVolume.GetIJKToRASDirectionMatrix(data_backup[2])
+        sitk_image = self.vtk_to_sitk(self.currentVolume)
 
         # :COMMENT: Get the size of the crop region.
         size = [end_val[i] - start_val[i] + 1 for i in range(3)]
 
         # :COMMENT: Crop the image.
-        cropped_image = self.cropping_algorithm(sitk_image, start_val, size)
+        cropped_image = self.logic.cropping_algorithm(sitk_image, start_val, size)
 
-        # :COMMENT: Convert the cropped SimpleITK image back to a vtkImageData object
+        # :COMMENT: Convert the cropped SimpleITK image back to a VTK Volume Node.
         vtk_image = self.sitk_to_vtk(cropped_image)
 
-        # :COMMENT: Add the VTK image to the scene.
+        # :COMMENT: Set the new volume's data with the original volume's data.
+        vtk_image.SetSpacing(data_backup[0])
+        vtk_image.SetOrigin(data_backup[1])
+        vtk_image.SetIJKToRASDirectionMatrix(data_backup[2])
+
+        # :COMMENT: Add the VTK Volume Node to the scene.
         self.add_new_volume(vtk_image)
+
+        # :DEBUGGING:
+        # print("[DEBUG] Size of volumes:", self.volumes.GetNumberOfItems())
 
     # :BUG: Doesn't update the list of available volumes.
     # def updateCombobox(self, caller, event):
-    #     volumes = mrmlScene.GetNodesByClass("vtkMRMLNode")
-    #     volumesNames = []
-    #     for i in range(volumes.GetNumberOfItems()):
-    #         volume = volumes.GetItemAsObject(i)
-    #         if volume.GetName() != "":
-    #             volumesNames.append(volume.GetName())
-    #     self.comboBox.clear()
-    #     self.comboBox.addItems(volumesNames)
+    # # volumes = mrmlScene.GetNodesByClass("vtkMRMLNode")
+    # volumesNames = []
+    # for i in range(self.volumes.GetNumberOfItems()):
+    #     volume = self.volumes.GetItemAsObject(i)
+    #     if volume.GetName() != "":
+    #         volumesNames.append(volume.GetName())
+    # self.volumeComboBox.clear()
+    # self.volumeComboBox.addItems(volumesNames)
 
     def update_dimensions_display(self):
         """
@@ -268,18 +301,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def add_new_volume(self, volume):
         """
         Adds a new volume to the scene.
-        :param volume: SimpleITK volume to be added.
+        :param volume: VTK Volume Node to be added.
         """
 
-        # :COMMENT: Create a new volume node
-        new_volume_node = vtkMRMLScalarVolumeNode()
+        # :COMMENT: Generate and assign a unique name to the volume.
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         new_name = f"{self.currentVolume.GetName()}_cropped_{current_time}"
-        new_volume_node.SetName(new_name)
+        volume.SetName(new_name)
 
-        # :COMMENT: Update the MRML scene
-        mrmlScene.AddNode(new_volume_node)
-        new_volume_node.SetAndObserveImageData(volume)
+        # :COMMENT: Update the MRML scene.
+        mrmlScene.AddNode(volume)
 
         # :TRICKY: Refresh the volume combobox but should be handled by the observer.
         # self.volumeComboBox.insertItem(self.currentVolumeIndex + 1, new_volume_node.GetName())
@@ -332,16 +363,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     #         selected_volume.SetName(new_name)
 
     # def rename_volume(self):
-        # new_name, ok = QInputDialog.getText(
-        #     self, "Rename Volume", "Enter new volume name:", QLineEdit.Normal
-        # )
-        # if ok:
-        #     selected_index = self.volumeComboBox.currentIndex()
-        #     if selected_index > 0:
-        #         selected_volume = self.volumes.GetItemAsObject(selected_index - 1)
-        #         selected_volume.SetName(new_name)
-        #         self.volumeComboBox.setItemText(selected_index, new_name)
-        #         self.currentVolumeIndex = selected_index
-        # selected_index = self.volumeComboBox.currentIndex
-        # selected_volume = self.volumes.GetItemAsObject(selected_index)
-        # print(selected_volume)
+    # new_name, ok = QInputDialog.getText(
+    #     self, "Rename Volume", "Enter new volume name:", QLineEdit.Normal
+    # )
+    # if ok:
+    #     selected_index = self.volumeComboBox.currentIndex()
+    #     if selected_index > 0:
+    #         selected_volume = self.volumes.GetItemAsObject(selected_index - 1)
+    #         selected_volume.SetName(new_name)
+    #         self.volumeComboBox.setItemText(selected_index, new_name)
+    #         self.currentVolumeIndex = selected_index
+    # selected_index = self.volumeComboBox.currentIndex
+    # selected_volume = self.volumes.GetItemAsObject(selected_index)
+    # print(selected_volume)
