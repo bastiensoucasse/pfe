@@ -146,7 +146,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         vtk_image.Modified()
         return vtk_image
 
-
+    # Registration algorithme using simpleITK
+    # :BUG: the registration is not centered
     def rigid_registration(self):
         # :COMMENT: if no image is selected
         if self.fixed_image_combo_box.currentIndex == 0 or self.moving_image_combo_box.currentIndex == 0:
@@ -167,29 +168,34 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: FROM simpleitk docs : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod1_docs.html
         # a simple 3D rigid registration method
         R = sitk.ImageRegistrationMethod()
-        R.SetMetricAsMeanSquares()
-        R.SetOptimizerAsRegularStepGradientDescent(4.0, 0.01, 200)
+        R.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
+        R.SetMetricSamplingStrategy(R.RANDOM)
+        R.SetMetricSamplingPercentage(0.01)
+        R.SetOptimizerAsGradientDescent(learningRate=1, numberOfIterations=100, convergenceMinimumValue=1e-8, convergenceWindowSize=10)
         initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
                                                       moving_image, 
                                                       sitk.Euler3DTransform(), 
                                                       sitk.CenteredTransformInitializerFilter.GEOMETRY)
-        R.SetInitialTransform(initial_transform)
+        R.SetInitialTransform(initial_transform, inPlace=False)
         R.SetInterpolator(sitk.sitkLinear)
+        R.SetOptimizerScalesFromPhysicalShift()
+
         final_transform = R.Execute(fixed_image, moving_image)
 
         print("-------")
-        print(final_transform)
         print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
         print(f" Iteration: {R.GetOptimizerIteration()}")
         print(f" Metric value: {R.GetMetricValue()}")
         
         moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
+        self.create_volume(moving_resampled, fixed_image)
+    
+    # create a new volume
+    def create_volume(self, sitkimg, fixed_img):
         volumeNode=slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
         volumeNode.SetName(f"output_volume")
-        itk_moved_volume = self.sitk2vtk(moving_resampled)
+        itk_moved_volume = self.sitk2vtk(sitkimg)
         volumeNode.SetAndObserveImageData(itk_moved_volume)
-        volumeNode.SetSpacing(moving_resampled.GetSpacing())
-        volumeNode.SetOrigin(moving_resampled.GetSpacing())
         slicer.util.setSliceViewerLayers(volumeNode, fit=True)
         print(f"[DEBUG]: new volume {volumeNode.GetName()} created !")
 
