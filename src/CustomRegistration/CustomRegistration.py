@@ -79,9 +79,22 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.moving_image_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMovingImage")
         self.moving_image_combo_box.addItems([volume.GetName() for volume in self.volumes])
 
+        # :COMMENT: Link settings UI and code
+        self.volume_name = self.panel_ui.findChild(qt.QLineEdit, "lineEditNewVolumeName")
+        self.histogram_bin_count_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxBinCount")
+        self.sampling_strat_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxSamplingStrat")
+        self.sampling_perc = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxSamplingPerc")
+
+        # :COMMENT: Gradients parameters
+        self.learning_rate_spin_box = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxLearningR")
+        self.nb_of_iter_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxNbIter")
+        self.conv_min_val = self.panel_ui.findChild(qt.QLineEdit, "lineEditConvMinVal")
+        self.conv_win_size = self.panel_ui.findChild(qt.QSpinBox, "spinBoxConvWinSize")
+
         # :COMMENT: handle button
         self.button_registration = self.panel_ui.findChild(ctk.ctkPushButton, "PushButtonRegistration")
         self.button_registration.clicked.connect(self.rigid_registration)
+
 
 
     def vtk2sitk(self, vtkimg):
@@ -165,13 +178,24 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         fixed_image = self.vtk2sitk(self.fixedVolumeData)
         moving_image = self.vtk2sitk(self.movingVolumeData)
 
+        # :COMMENT: User settings retrieve
+        bin_count = self.histogram_bin_count_spin_box.value
+        sampling_strat = self.sampling_strat_combo_box.currentText
+        sampling_perc = self.sampling_perc.value
+
+        # :COMMENT: settings for gradients only
+        learning_rate = self.learning_rate_spin_box.value
+        nb_iteration = self.nb_of_iter_spin_box.value
+        convergence_min_val = self.conv_min_val.text
+        convergence_win_size = self.conv_win_size.value
+
         # :COMMENT: FROM simpleitk docs : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod1_docs.html
         # a simple 3D rigid registration method
         R = sitk.ImageRegistrationMethod()
-        R.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
+        R.SetMetricAsMattesMutualInformation(numberOfHistogramBins=bin_count)
         R.SetMetricSamplingStrategy(R.RANDOM)
-        R.SetMetricSamplingPercentage(0.01)
-        R.SetOptimizerAsGradientDescent(learningRate=1, numberOfIterations=100, convergenceMinimumValue=1e-8, convergenceWindowSize=10)
+        R.SetMetricSamplingPercentage(sampling_perc)
+        R.SetOptimizerAsGradientDescent(learningRate=learning_rate, numberOfIterations=nb_iteration, convergenceMinimumValue=float(convergence_min_val), convergenceWindowSize=convergence_win_size)
         initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
                                                       moving_image, 
                                                       sitk.Euler3DTransform(), 
@@ -193,7 +217,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     # create a new volume
     def create_volume(self, sitkimg, fixed_img):
         volumeNode=slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-        volumeNode.SetName(f"output_volume")
+        volumeNode.SetName(self.volume_name.text)
         itk_moved_volume = self.sitk2vtk(sitkimg)
         volumeNode.SetAndObserveImageData(itk_moved_volume)
         slicer.util.setSliceViewerLayers(volumeNode, fit=True)

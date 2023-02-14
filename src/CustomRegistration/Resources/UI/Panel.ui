@@ -190,7 +190,7 @@ p, li { white-space: pre-wrap; }
           </widget>
          </item>
          <item row="2" column="1">
-          <widget class="QLineEdit" name="lineEdit"/>
+          <widget class="QLineEdit" name="lineEditNewVolumeName"/>
          </item>
          <item row="3" column="0">
           <widget class="ctkComboBox" name="ComboMetrics">
@@ -257,7 +257,7 @@ p, li { white-space: pre-wrap; }
              </widget>
             </item>
             <item row="0" column="2">
-             <widget class="QSpinBox" name="spinBox">
+             <widget class="QSpinBox" name="spinBoxBinCount">
               <property name="maximum">
                <number>255</number>
               </property>
@@ -274,7 +274,7 @@ p, li { white-space: pre-wrap; }
              </widget>
             </item>
             <item row="1" column="2">
-             <widget class="QComboBox" name="comboBox">
+             <widget class="QComboBox" name="comboBoxSamplingStrat">
               <item>
                <property name="text">
                 <string>Random</string>
@@ -288,30 +288,10 @@ p, li { white-space: pre-wrap; }
                <string>gradients only</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_4">
-               <item row="1" column="1">
-                <widget class="QLineEdit" name="lineEdit_3"/>
-               </item>
                <item row="0" column="0">
                 <widget class="QLabel" name="label_5">
                  <property name="text">
                   <string>learning rate</string>
-                 </property>
-                </widget>
-               </item>
-               <item row="3" column="1">
-                <widget class="QLineEdit" name="lineEdit_5"/>
-               </item>
-               <item row="1" column="0">
-                <widget class="QLabel" name="label_6">
-                 <property name="text">
-                  <string>Number of iterations</string>
-                 </property>
-                </widget>
-               </item>
-               <item row="2" column="0">
-                <widget class="QLabel" name="label_7">
-                 <property name="text">
-                  <string>Convergence minimum value</string>
                  </property>
                 </widget>
                </item>
@@ -322,20 +302,54 @@ p, li { white-space: pre-wrap; }
                  </property>
                 </widget>
                </item>
-               <item row="2" column="1">
-                <widget class="QDoubleSpinBox" name="doubleSpinBox">
-                 <property name="decimals">
-                  <number>10</number>
-                 </property>
-                </widget>
-               </item>
                <item row="0" column="1">
-                <widget class="QDoubleSpinBox" name="doubleSpinBox_2">
+                <widget class="QDoubleSpinBox" name="doubleSpinBoxLearningR">
                  <property name="decimals">
                   <number>6</number>
                  </property>
                  <property name="maximum">
                   <double>100.000000000000000</double>
+                 </property>
+                 <property name="value">
+                  <double>0.100000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="label_7">
+                 <property name="text">
+                  <string>Convergence minimum value</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="label_6">
+                 <property name="text">
+                  <string>Number of iterations</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QSpinBox" name="spinBoxNbIter">
+                 <property name="maximum">
+                  <number>100000</number>
+                 </property>
+                 <property name="value">
+                  <number>100</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QLineEdit" name="lineEditConvMinVal">
+                 <property name="text">
+                  <string>1e-8</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QSpinBox" name="spinBoxConvWinSize">
+                 <property name="value">
+                  <number>10</number>
                  </property>
                 </widget>
                </item>
@@ -343,9 +357,15 @@ p, li { white-space: pre-wrap; }
              </widget>
             </item>
             <item row="2" column="2">
-             <widget class="QSpinBox" name="spinBox_3">
+             <widget class="QDoubleSpinBox" name="doubleSpinBoxSamplingPerc">
+              <property name="decimals">
+               <number>3</number>
+              </property>
               <property name="maximum">
-               <number>100</number>
+               <double>1.000000000000000</double>
+              </property>
+              <property name="value">
+               <double>0.100000000000000</double>
               </property>
              </widget>
             </item>
