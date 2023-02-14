@@ -14,7 +14,7 @@ from qt import (  # QDialog,; QInputDialog,; QLineEdit,
     QPushButton,
     QSpinBox,
 )
-from slicer import mrmlScene, util, vtkMRMLScalarVolumeNode  # vtkMRMLScene
+from slicer import mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -101,8 +101,16 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         crop_filter.SetSize(size)
         crop_filter.SetIndex(start_val)
         cropped_image = crop_filter.Execute(volume)
-        print("[DEBUG] Size:", cropped_image.GetSize())
         return cropped_image
+
+    # :IDK: Could change class.
+    def cleanup(self):
+        """
+        Cleans up the module.
+        """
+
+        # Remove the observer.
+        mrmlScene.RemoveObserver(self.observerTag)
 
 
 # :TODO: Homogenise the names of variables (image, node, volume)
@@ -145,13 +153,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Get the volume combobox widget.
         self.volumeComboBox = self.panel_ui.findChild(QComboBox, "volume")
-        self.volumeComboBox.activated.connect(self.onVolumeActivated)
+        self.volumeComboBox.activated.connect(self.on_volume_activated)
 
         # :COMMENT: Add the available volumes and options to the combobox.
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
-
-        # :DEBUGGING:
-        # print("[DEBUG] Size of volumes:", self.volumes.GetNumberOfItems())
 
         # :BUG: Supposed to be a placeholder, but still appears in list (shouldn't)
         self.volumeComboBox.insertItem(0, "Select a Volume")
@@ -165,8 +170,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.volumeComboBox.addItem("Delete current Volume")
 
         # :COMMENT: Add observer to update combobox when new volume is added to MRML Scene.
-        # :BUG: List not updated when new volume loaded.
-        # self.observerTag = mrmlScene.AddObserver(vtkMRMLScene.NodeAddedEvent, self.updateCombobox)
+        self.observerTag = mrmlScene.AddObserver(
+            vtkMRMLScene.NodeAddedEvent, self.update_volume_list
+        )
 
     #
     # :TODO: Sort into CROPPING and TOOLS sections.
@@ -188,7 +194,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.start.append(self.panel_ui.findChild(QSpinBox, "s" + i))
             self.end.append(self.panel_ui.findChild(QSpinBox, "e" + i))
 
-    def onVolumeActivated(self, index):
+    def on_volume_activated(self, index):
         """
         Called when an item in the volume combobox is selected.
         Handles selection of a volume and updates the cropping parameters accordingly, and edition of the volume combobox.
@@ -202,18 +208,27 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             if name == "Delete current Volume":
                 print("[DEBUG]", name, "option not implemented yet!\n")
 
+                # print(
+                #     f"\"{self.currentVolume.GetName()}\" has been deleted."
+                # )
+
             if name == "Rename current Volume":
                 print("[DEBUG]", name, "option not implemented yet!\n")
-                # self.renameVolume()
+
+                # old_name = self.currentVolume.GetName()
+                # # ...
+                # print(
+                #     f"\"{old_name}\" has been renamed as {self.currentVolume.GetName()}."
+                # )
 
             self.currentVolumeIndex = -1
 
         else:
             self.currentVolumeIndex = index
+            # :DIRTY: -1 because "Select a Volume" is the first item in the combobox: needs to be fixed so indices are equal.
             self.currentVolume = self.volumes.GetItemAsObject(index - 1)
             volume_data = self.currentVolume.GetImageData()
             self.currentVolumeDim = volume_data.GetDimensions()
-            print("[DEBUG] Volume Dimensions:", self.currentVolumeDim)
             self.update_dimensions_display()
 
             for i in range(3):
@@ -238,8 +253,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def sitk_to_vtk(self, sitk_image):
         """
         Converts a SimpleITK image to a VTK Volume Node.
-        :param sitk_image: SimpleITK image to be converted.
-        :return: VTK Volume Node.
+
+        Parameters:
+            sitk_image: SimpleITK image to be converted.
+
+        Returns:
+            VTK Volume Node.
         """
 
         np_array = sitk.GetArrayFromImage(sitk_image)
@@ -252,7 +271,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         vtk_image.SetAndObserveImageData(vtk_image_data)
         return vtk_image
 
-    # :GLITCH: Black image on slice visualization but 3D image ok.
     # :GLITCH: [VTK] Warning: In /Volumes/D/S/S-0/Modules/Loadable/VolumeRendering/Logic/vtkSlicerVolumeRenderingLogic.cxx, line 674
     #          [VTK] vtkSlicerVolumeRenderingLogic (0x600002bb0420): CopyDisplayToVolumeRenderingDisplayNode: No display node to copy.
     # This error appears when the cropped volume is selected in the volume rendering module but it is displayed though.
@@ -260,16 +278,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Crops a volume using the selected algorithm.
         """
-        # :DEBUGGING:
-        # print("[DEBUG] Size of volumes:", self.volumes.GetNumberOfItems())
 
         # :COMMENT: Do not do anything if crop button clicked but no volume selected.
         # :TODO: Solve, knowing that it works for the "Select a Volume" case.
         if self.currentVolumeIndex < 0:
             return
-
-        print("[DEBUG] Current volume name:", self.currentVolume.GetName())
-        print("[DEBUG] Current volume index:", self.currentVolumeIndex)
 
         # :COMMENT: Retrieve coordinates input.
         start_val = []
@@ -311,19 +324,26 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Add the VTK Volume Node to the scene.
         self.add_new_volume(vtk_image, "cropped")
 
-        # :DEBUGGING:
-        # print("[DEBUG] Size of volumes:", self.volumes.GetNumberOfItems())
+        new_size = vtk_image.GetImageData().GetDimensions()
+        print(
+            f'"{self.currentVolume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{vtk_image.GetName()}".'
+        )
 
-    # :BUG: Doesn't update the list of available volumes.
-    # def updateCombobox(self, caller, event):
-    # # volumes = mrmlScene.GetNodesByClass("vtkMRMLNode")
-    # volumesNames = []
-    # for i in range(self.volumes.GetNumberOfItems()):
-    #     volume = self.volumes.GetItemAsObject(i)
-    #     if volume.GetName() != "":
-    #         volumesNames.append(volume.GetName())
-    # self.volumeComboBox.clear()
-    # self.volumeComboBox.addItems(volumesNames)
+    def update_volume_list(self, caller, event):
+        """
+        Updates the list of volumes in the volume combobox when a change is detected in the MRML Scene.
+
+        Parameters:
+            caller: The widget calling this method.
+            event: The event that triggered this method.
+        """
+
+        node = caller.GetNthNode(caller.GetNumberOfNodes() - 1)
+        numberOfNonNodes = 2  # number of non-node options in the combobox
+        if node.IsA("vtkMRMLVolumeNode"):
+            newNodeIndex = self.volumeComboBox.count - numberOfNonNodes
+            self.volumeComboBox.insertItem(newNodeIndex, node.GetName())
+            self.volumes.AddItem(node)
 
     def update_dimensions_display(self):
         """
@@ -342,7 +362,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def add_new_volume(self, volume, name: str):
         """
         Adds a new volume to the scene.
-        :param volume: VTK Volume Node to be added.
+
+        Parameters:
+            volume: VTK Volume Node to be added.
         """
 
         # :COMMENT: Generate and assign a unique name to the volume.
@@ -353,17 +375,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Update the MRML scene.
         mrmlScene.AddNode(volume)
 
-        # :TRICKY: Refresh the volume combobox but should be handled by the observer.
-        # self.volumeComboBox.insertItem(self.currentVolumeIndex + 1, new_volume_node.GetName())
-        # self.volumeComboBox.setCurrentIndex(self.currentVolumeIndex + 1)
-
         # :COMMENT: Useful for exporting.
         # sitk.WriteImage(cropped_image, '/Users/iantsaprovost/Desktop/test.nrrd')
 
     def error_message(self, message):
         """
         Displays an error message.
-        :param message: Message to be displayed.
+
+        Parameters:
+            message: Message to be displayed.
         """
 
         msg = QMessageBox()
