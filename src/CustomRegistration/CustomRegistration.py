@@ -80,6 +80,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.moving_image_combo_box.addItems([volume.GetName() for volume in self.volumes])
 
         # :COMMENT: Link settings UI and code
+        self.metrics_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMetrics")
+        self.interpolator_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxInterpolator")
+        print(self.interpolator_combo_box.currentText)
+        self.optimizers_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboOptimizers")
+
         self.volume_name = self.panel_ui.findChild(qt.QLineEdit, "lineEditNewVolumeName")
         self.histogram_bin_count_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxBinCount")
         self.sampling_strat_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxSamplingStrat")
@@ -94,6 +99,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: handle button
         self.button_registration = self.panel_ui.findChild(ctk.ctkPushButton, "PushButtonRegistration")
         self.button_registration.clicked.connect(self.rigid_registration)
+        self.initUiComboBox()
+
 
 
 
@@ -222,6 +229,26 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         volumeNode.SetAndObserveImageData(itk_moved_volume)
         slicer.util.setSliceViewerLayers(volumeNode, fit=True)
         print(f"[DEBUG]: new volume {volumeNode.GetName()} created !")
+
+    def initUiComboBox(self):
+        self.metrics_combo_box.addItems(["Mean Squares",
+                                            "Demons",
+                                            "Correlation",
+                                            "ANTS Neighborhood Correlation",
+                                            "Joint Histogram Mutual Information"
+                                            "Mattes Mutual Information"])
+        self.optimizers_combo_box.addItems(["Gradient Descent",
+                                            "Exhaustive",
+                                            "Nelder-Mead downhill simplex",
+                                            "Powell",
+                                            "1+1 evolutionary optimizer"])
+        self.interpolator_combo_box.addItems(["Linear",
+                                            "Nearest Neighbors",
+                                            "BSpline1",
+                                            "BSpline2",
+                                            "Gaussian"])
+        self.sampling_strat_combo_box.addItems(["Regular",
+                                                "Random"])
 
 
 

@@ -160,15 +160,6 @@ p, li { white-space: pre-wrap; }
            </item>
           </widget>
          </item>
-         <item row="3" column="1">
-          <widget class="ctkComboBox" name="ComboBox">
-           <item>
-            <property name="text">
-             <string>Interpolator</string>
-            </property>
-           </item>
-          </widget>
-         </item>
          <item row="1" column="0">
           <widget class="QLabel" name="labelMoving">
            <property name="maximumSize">
@@ -189,15 +180,18 @@ p, li { white-space: pre-wrap; }
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
-          <widget class="QLineEdit" name="lineEditNewVolumeName"/>
-         </item>
          <item row="3" column="0">
           <widget class="ctkComboBox" name="ComboMetrics">
            <property name="minimumSize">
             <size>
              <width>0</width>
              <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>16777215</height>
             </size>
            </property>
            <item>
@@ -277,7 +271,7 @@ p, li { white-space: pre-wrap; }
              <widget class="QComboBox" name="comboBoxSamplingStrat">
               <item>
                <property name="text">
-                <string>Random</string>
+                <string>None</string>
                </property>
               </item>
              </widget>
@@ -370,6 +364,18 @@ p, li { white-space: pre-wrap; }
              </widget>
             </item>
            </layout>
+          </widget>
+         </item>
+         <item row="2" column="1" colspan="2">
+          <widget class="QLineEdit" name="lineEditNewVolumeName"/>
+         </item>
+         <item row="3" column="1">
+          <widget class="QComboBox" name="comboBoxInterpolator">
+           <item>
+            <property name="text">
+             <string>Interpolator</string>
+            </property>
+           </item>
           </widget>
          </item>
         </layout>
