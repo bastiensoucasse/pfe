@@ -119,35 +119,24 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the widget for the module by adding a welcome message to the layout.
         """
 
-        # :COMMENT: Initialize setup from Slicer.
+        # Initialize the widget.
         ScriptedLoadableModuleWidget.setup(self)
 
-        # :COMMENT: Initialize the logic of the module.
+        # Initialize the logic.
         self.logic = CustomRegistrationLogic()
 
-        # Initialize the logic of the module.
-        self.logic = CustomRegistrationLogic()
-
-        self.logic = CustomRegistrationLogic()
-
-        # :COMMENT: Load UI file.
+        # Load the UI.
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
 
-        # :DEBUG: Run the Resampling algorithm test.
-        # self.logic.run(self.resourcePath("Scripts/Resampling.py"), "test_resample")
-
-        # :DEBUG: Run the ROI Selection algorithm.
-        # self.logic.run(
-        #     self.resourcePath("Scripts/ROISelection.py"),
-        #     "select_roi",
-        #     sitk.Image((512, 512, 512), sitk.sitkFloat32),
-        #     threshold=0.2,
-        # )
-
+        # Setup the preprocessing.
         self.preprocessing_setup()
         self.cropping_setup()
         self.resampling_setup()
+
+    #
+    # PREPROCESSING
+    #
 
     def preprocessing_setup(self):
         """
@@ -179,6 +168,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :BUG: List not updated when new volume loaded.
         # self.observerTag = mrmlScene.AddObserver(vtkMRMLScene.NodeAddedEvent, self.updateCombobox)
 
+    #
+    # :TODO: Sort into CROPPING and TOOLS sections.
+    #
+
     def cropping_setup(self):
         """
         Sets up the cropping widget by retrieving the crop button and coordinates input widgets.
@@ -194,13 +187,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         for i in ["x", "y", "z"]:
             self.start.append(self.panel_ui.findChild(QSpinBox, "s" + i))
             self.end.append(self.panel_ui.findChild(QSpinBox, "e" + i))
-
-    def resampling_setup(self):
-        """
-        Sets up the resampling widget by retrieving the images and the resample button.
-        """
-
-        # :TODO: Implement resampling setup and the call to the resample algorithm.
 
     def onVolumeActivated(self, index):
         """
@@ -323,7 +309,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         vtk_image.SetIJKToRASDirectionMatrix(data_backup[2])
 
         # :COMMENT: Add the VTK Volume Node to the scene.
-        self.add_new_volume(vtk_image)
+        self.add_new_volume(vtk_image, "cropped")
 
         # :DEBUGGING:
         # print("[DEBUG] Size of volumes:", self.volumes.GetNumberOfItems())
@@ -353,7 +339,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
         )
 
-    def add_new_volume(self, volume):
+    def add_new_volume(self, volume, name: str):
         """
         Adds a new volume to the scene.
         :param volume: VTK Volume Node to be added.
@@ -361,7 +347,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Generate and assign a unique name to the volume.
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        new_name = f"{self.currentVolume.GetName()}_cropped_{current_time}"
+        new_name = f"{self.currentVolume.GetName()}_{name}_{current_time}"
         volume.SetName(new_name)
 
         # :COMMENT: Update the MRML scene.
@@ -431,3 +417,109 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     # selected_index = self.volumeComboBox.currentIndex
     # selected_volume = self.volumes.GetItemAsObject(selected_index)
     # print(selected_volume)
+
+    #
+    # RESAMPLING
+    #
+
+    def resampling_setup(self):
+        """
+        Sets up the resampling widget by linking the UI to the scene and algorithm.
+        """
+
+        # Retrieve the resampling target image combo box and connect it to its on changed event.
+        self.resampling_target_image_combo_box = self.panel_ui.findChild(
+            QComboBox, "ResamplingTargetImageComboBox"
+        )
+        self.resampling_target_image_combo_box.activated.connect(
+            self.on_resampling_target_image_changed
+        )
+
+        # Add the available images to the resampling target image combo box.
+        for i in range(self.volumes.GetNumberOfItems()):
+            image_name = self.volumes.GetItemAsObject(i).GetName()
+            self.resampling_target_image_combo_box.addItem(image_name)
+
+        # Link the resample button to the algorithm.
+        self.resample_button = self.panel_ui.findChild(QPushButton, "ResampleButton")
+        self.resample_button.clicked.connect(self.resample)
+
+    def on_resampling_target_image_changed(self):
+        """
+        Updates the resampling target image in memory.
+
+        Called when the resampling target image combo box is changed.
+        """
+
+        # Retrieve the resampling target image name in the combo box.
+        resampling_target_image_name = (
+            self.resampling_target_image_combo_box.currentText
+        )
+
+        # Update the resampling target image.
+        self.resampling_target_image = self.get_image_by_name(
+            resampling_target_image_name
+        )
+
+        # Log the resampling target image change.
+        print(f'Resampling target image: "{resampling_target_image_name}."')
+
+    def resample(self):
+        """
+        Retrieves the selected and target images and runs the resampling algorithm.
+        """
+
+        # Retrieve the preprocessing selected and target images.
+        selected_image = self.currentVolume
+        target_image = self.resampling_target_image
+
+        if selected_image is None or target_image is None:
+            self.error_message("Please select an image to process and a target image.")
+            return
+
+        # Log the resampling running.
+        print(
+            f'Resampling "{selected_image.GetName()}" to match "{target_image.GetName()}"…'
+        )
+
+        # Call the resampling algorithm.
+        resampled_image = self.sitk_to_vtk(
+            self.logic.run(
+                self.resourcePath("Scripts/Resampling.py"),
+                "resample",
+                self.vtk_to_sitk(selected_image),
+                self.vtk_to_sitk(target_image),
+            )
+        )
+
+        # Save the resampled image.
+        self.add_new_volume(resampled_image, "resampled")
+
+        # Log the resampling done.
+        print(
+            f'"{selected_image.GetName()}" has been resampled to match "{target_image.GetName()}" as "{resampled_image.GetName()}".'
+        )
+
+    #
+    # UTILITIES
+    #
+
+    def get_image_by_name(self, name: str):
+        """
+        Retrieves the image by its name.
+
+        Parameters:
+            name: The name of the image to retrieve.
+
+        Returns:
+            The VTK image.
+        """
+
+        # Search for the image by its name.
+        for i in range(self.volumes.GetNumberOfItems()):
+            image = self.volumes.GetItemAsObject(i)
+            if image.GetName() == name:
+                return image
+
+        # Return None if the image was not found.
+        return None
