@@ -69,7 +69,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
 
-          # :COMMENT: Get all volumes, (merci Iantsa pour le code).
+        # :COMMENT: Get all volumes, (merci Iantsa pour le code).
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
 
         # :COMMENT: insert volumes for fixed and moving images
@@ -82,7 +82,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Link settings UI and code
         self.metrics_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxInterpolator")
-        print(self.interpolator_combo_box.currentText)
         self.optimizers_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboOptimizers")
 
         self.volume_name = self.panel_ui.findChild(qt.QLineEdit, "lineEditNewVolumeName")
@@ -187,7 +186,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: User settings retrieve
         bin_count = self.histogram_bin_count_spin_box.value
-        sampling_strat = self.sampling_strat_combo_box.currentText
+            # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
+        sampling_strat = self.sampling_strat_combo_box.currentIndex
         sampling_perc = self.sampling_perc.value
 
         # :COMMENT: settings for gradients only
@@ -199,8 +199,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: FROM simpleitk docs : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod1_docs.html
         # a simple 3D rigid registration method
         R = sitk.ImageRegistrationMethod()
-        R.SetMetricAsMattesMutualInformation(numberOfHistogramBins=bin_count)
-        R.SetMetricSamplingStrategy(R.RANDOM)
+        self.selectMetrics(R, bin_count)
+        R.SetMetricSamplingStrategy(sampling_strat)
+        print(f"sampling strat random enum: {R.RANDOM}")
+        print(f"selected sampling strat index:{sampling_strat}")
         R.SetMetricSamplingPercentage(sampling_perc)
         R.SetOptimizerAsGradientDescent(learningRate=learning_rate, numberOfIterations=nb_iteration, convergenceMinimumValue=float(convergence_min_val), convergenceWindowSize=convergence_win_size)
         initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
@@ -211,15 +213,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         R.SetInterpolator(sitk.sitkLinear)
         R.SetOptimizerScalesFromPhysicalShift()
 
-        final_transform = R.Execute(fixed_image, moving_image)
+        # final_transform = R.Execute(fixed_image, moving_image)
 
-        print("-------")
-        print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
-        print(f" Iteration: {R.GetOptimizerIteration()}")
-        print(f" Metric value: {R.GetMetricValue()}")
+        # print("-------")
+        # print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
+        # print(f" Iteration: {R.GetOptimizerIteration()}")
+        # print(f" Metric value: {R.GetMetricValue()}")
         
-        moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
-        self.create_volume(moving_resampled, fixed_image)
+        # moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
+        # self.create_volume(moving_resampled, fixed_image)
     
     # create a new volume
     def create_volume(self, sitkimg, fixed_img):
@@ -235,7 +237,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                                             "Demons",
                                             "Correlation",
                                             "ANTS Neighborhood Correlation",
-                                            "Joint Histogram Mutual Information"
+                                            "Joint Histogram Mutual Information",
                                             "Mattes Mutual Information"])
         self.optimizers_combo_box.addItems(["Gradient Descent",
                                             "Exhaustive",
@@ -250,8 +252,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.sampling_strat_combo_box.addItems(["Regular",
                                                 "Random"])
 
-
-
+    # :COMMENT: call the selected metrics by the user
+    # :TRICKY: getattr calls the function from object R, provided by metrics combo box
+    def selectMetrics(self, R, bin_count):
+        metrics = self.metrics_combo_box.currentText.replace(" ", "")
+        print(f"[DEBUG]: metrics: {metrics}")
+        metrics_function = getattr(R, f"SetMetricAs{metrics}")
+        metrics_function(bin_count)
 
 
 
