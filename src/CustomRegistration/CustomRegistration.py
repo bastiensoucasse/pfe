@@ -83,13 +83,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.metrics_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxInterpolator")
         self.optimizers_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboOptimizers")
-
+        self.optimizers_combo_box.currentIndexChanged.connect(self.updateGUI)
         self.volume_name = self.panel_ui.findChild(qt.QLineEdit, "lineEditNewVolumeName")
         self.histogram_bin_count_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxBinCount")
         self.sampling_strat_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxSamplingStrat")
         self.sampling_perc = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxSamplingPerc")
 
         # :COMMENT: Gradients parameters
+        self.gradients_box = self.panel_ui.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBoxGradient")
         self.learning_rate_spin_box = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxLearningR")
         self.nb_of_iter_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxNbIter")
         self.conv_min_val = self.panel_ui.findChild(qt.QLineEdit, "lineEditConvMinVal")
@@ -204,25 +205,26 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print(f"sampling strat random enum: {R.RANDOM}")
         print(f"selected sampling strat index:{sampling_strat}")
         R.SetMetricSamplingPercentage(sampling_perc)
-        R.SetOptimizerAsGradientDescent(learningRate=learning_rate, numberOfIterations=nb_iteration, convergenceMinimumValue=float(convergence_min_val), convergenceWindowSize=convergence_win_size)
+        optimizer = self.selectOptimizers(R)
+
+        optimizer(learningRate=learning_rate, numberOfIterations=nb_iteration, convergenceMinimumValue=float(convergence_min_val), convergenceWindowSize=convergence_win_size)
         initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
                                                       moving_image, 
                                                       sitk.Euler3DTransform(), 
                                                       sitk.CenteredTransformInitializerFilter.GEOMETRY)
         R.SetInitialTransform(initial_transform, inPlace=False)
         self.selectInterpolator(R)
-        #R.SetInterpolator(sitk.sitkLinear)
         R.SetOptimizerScalesFromPhysicalShift()
 
-        # final_transform = R.Execute(fixed_image, moving_image)
+        final_transform = R.Execute(fixed_image, moving_image)
 
-        # print("-------")
-        # print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
-        # print(f" Iteration: {R.GetOptimizerIteration()}")
-        # print(f" Metric value: {R.GetMetricValue()}")
+        print("-------")
+        print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
+        print(f" Iteration: {R.GetOptimizerIteration()}")
+        print(f" Metric value: {R.GetMetricValue()}")
         
-        # moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
-        # self.create_volume(moving_resampled, fixed_image)
+        moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
+        self.create_volume(moving_resampled, fixed_image)
     
     # create a new volume
     def create_volume(self, sitkimg, fixed_img):
@@ -266,6 +268,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         interpolator = getattr(sitk, f"sitk{interpolator}")
         print(f"[DEBUG]: interpolator: {interpolator}")
         R.SetInterpolator(interpolator)
+
+    def selectOptimizers(self, R):
+        optimizer = self.optimizers_combo_box.currentText.replace(" ", "")
+        print(f"[DEBUG]: optimizer {optimizer}")
+        optimizer = getattr(R, f"SetOptimizerAs{optimizer}")
+        return optimizer
+
+    def updateGUI(self):
+        if self.optimizers_combo_box.currentText == "Gradient Descent":
+            self.gradients_box.setEnabled(True)
+            self.gradients_box.collapsed = 0
+        else :
+            self.gradients_box.setEnabled(False)
+            self.gradients_box.collapsed = 1
+
 
 
 

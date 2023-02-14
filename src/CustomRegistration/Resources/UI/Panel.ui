@@ -277,9 +277,15 @@ p, li { white-space: pre-wrap; }
              </widget>
             </item>
             <item row="3" column="0" colspan="3">
-             <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
+             <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBoxGradient">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
               <property name="title">
                <string>gradients only</string>
+              </property>
+              <property name="collapsed">
+               <bool>true</bool>
               </property>
               <layout class="QGridLayout" name="gridLayout_4">
                <item row="0" column="0">
