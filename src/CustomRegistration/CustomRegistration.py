@@ -210,7 +210,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                                                       sitk.Euler3DTransform(), 
                                                       sitk.CenteredTransformInitializerFilter.GEOMETRY)
         R.SetInitialTransform(initial_transform, inPlace=False)
-        R.SetInterpolator(sitk.sitkLinear)
+        self.selectInterpolator(R)
+        #R.SetInterpolator(sitk.sitkLinear)
         R.SetOptimizerScalesFromPhysicalShift()
 
         # final_transform = R.Execute(fixed_image, moving_image)
@@ -253,13 +254,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                                                 "Random"])
 
     # :COMMENT: call the selected metrics by the user
-    # :TRICKY: getattr calls the function from object R, provided by metrics combo box
+    # :TRICKY: getattr calls the function from object R, function is provided by metrics combo box
     def selectMetrics(self, R, bin_count):
         metrics = self.metrics_combo_box.currentText.replace(" ", "")
         print(f"[DEBUG]: metrics: {metrics}")
         metrics_function = getattr(R, f"SetMetricAs{metrics}")
         metrics_function(bin_count)
 
+    def selectInterpolator(self, R):
+        interpolator = self.interpolator_combo_box.currentText.replace(" ", "")
+        interpolator = getattr(sitk, f"sitk{interpolator}")
+        print(f"[DEBUG]: interpolator: {interpolator}")
+        R.SetInterpolator(interpolator)
 
 
 
