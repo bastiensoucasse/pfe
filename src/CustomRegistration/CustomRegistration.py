@@ -7,19 +7,10 @@ import datetime
 import numpy as np
 import SimpleITK as sitk
 import vtk
-from qt import (  # QDialog,; QInputDialog,; QLineEdit,
-    QComboBox,
-    QLabel,
-    QMessageBox,
-    QPushButton,
-    QSpinBox,
-)
+from ctk import ctkComboBox
+from qt import QLabel, QMessageBox, QPushButton, QSlider, QSpinBox
 from slicer import mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
-from slicer.ScriptedLoadableModule import (
-    ScriptedLoadableModule,
-    ScriptedLoadableModuleLogic,
-    ScriptedLoadableModuleWidget,
-)
+from slicer.ScriptedLoadableModule import ScriptedLoadableModule, ScriptedLoadableModuleLogic, ScriptedLoadableModuleWidget
 
 
 class CustomRegistration(ScriptedLoadableModule):
@@ -41,12 +32,7 @@ class CustomRegistration(ScriptedLoadableModule):
         self.parent.title = "CustomRegistration"
         self.parent.categories = ["PFE"]
         self.parent.dependencies = []
-        self.parent.contributors = [
-            "Wissam Boussella (Université de Bordeaux)",
-            "Iantsa Provost (Université de Bordeaux)",
-            "Bastien Soucasse (Université de Bordeaux)",
-            "Tony Wolff (Université de Bordeaux)",
-        ]
+        self.parent.contributors = ["Wissam Boussella (Université de Bordeaux)", "Iantsa Provost (Université de Bordeaux)", "Bastien Soucasse (Université de Bordeaux)", "Tony Wolff (Université de Bordeaux)"]
         self.parent.helpText = "This module provides features for 3D images registration, based on the ITK library."
         self.parent.acknowledgementText = "This project is supported and supervised by the reseacher and professor Fabien Baldacci (Université de Bordeaux)."
 
@@ -58,6 +44,72 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
 
     def __init__(self) -> None:
         ScriptedLoadableModuleLogic.__init__(self)
+
+    #
+    # ROI SELECTION
+    #
+
+    def select_roi(self, image: sitk.Image, threshold: int) -> sitk.Image:
+        """
+        Selects as ROI the largest connected component after a threshold.
+
+        Parameters:
+            image: The SimpleITK image.
+            threshold: The threshold value.
+
+        Returns:
+            The ROI SimpleITK image.
+        """
+
+        # Apply threshold filter.
+        binary_image = sitk.BinaryThreshold(image, lowerThreshold=threshold, upperThreshold=1000000)
+
+        # Apply connected component filter.
+        label_map = sitk.ConnectedComponent(binary_image)
+
+        # Find largest connected component.
+        label_shape_stats = sitk.LabelShapeStatisticsImageFilter()
+        label_shape_stats.Execute(label_map)
+
+        largest_label = 1
+        max_volume = 0
+        for label in range(1, label_shape_stats.GetNumberOfLabels() + 1):
+            volume = label_shape_stats.GetPhysicalSize(label)
+            if volume > max_volume:
+                max_volume = volume
+                largest_label = label
+
+        # Use binary image of largest connected component as ROI.
+        roi_binary = sitk.BinaryThreshold(label_map, lowerThreshold=largest_label, upperThreshold=largest_label)
+        roi = sitk.Mask(image, roi_binary)
+        return roi
+
+    #
+    # CROPPING
+    #
+
+    def crop(self, image: sitk.Image, start_val, size) -> sitk.Image:
+        """
+        Crops a volume using the selected algorithm.
+
+        Parameters:
+            image: The SimpleITK image to be cropped.
+            start_val: The start index of the cropping region.
+            size: The size of the cropping region.
+
+        Returns:
+            The cropped SimpleITK image.
+        """
+
+        crop_filter = sitk.ExtractImageFilter()
+        crop_filter.SetSize(size)
+        crop_filter.SetIndex(start_val)
+        cropped_image = crop_filter.Execute(image)
+        return cropped_image
+
+    #
+    # UTILITIES
+    #
 
     def run(self, script_file: str, function_name: str, *args, **kwargs):
         """
@@ -84,39 +136,22 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         # Run the function.
         return function(*args, **kwargs)
 
-    def cropping_algorithm(self, volume, start_val, size):
-        """
-        Crops a volume using the selected algorithm.
-
-        Parameters:
-            volume: The SimpleITK volume to be cropped.
-            start_val: The start index of the cropping region.
-            size: The size of the cropping region.
-
-        Returns:
-            The cropped SimpleITK image.
-        """
-
-        crop_filter = sitk.ExtractImageFilter()
-        crop_filter.SetSize(size)
-        crop_filter.SetIndex(start_val)
-        cropped_image = crop_filter.Execute(volume)
-        return cropped_image
-
-    # :IDK: Could change class.
-    def cleanup(self):
+    def cleanup(self) -> None:
         """
         Cleans up the module.
+
+        :IDK: Could change class.
         """
 
         # Remove the observer.
         mrmlScene.RemoveObserver(self.observerTag)
 
 
-# :TODO: Homogenise the names of variables (image, node, volume)
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     """
     Widget class for the Custom Registration module used to define the module's panel interface.
+
+    :TODO: Homogenise the names of variables (image, node, volume)
     """
 
     def __init__(self, parent=None) -> None:
@@ -139,6 +174,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Setup the preprocessing.
         self.preprocessing_setup()
+        self.roi_selection_setup()
         self.cropping_setup()
         self.resampling_setup()
 
@@ -151,31 +187,109 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the preprocessing widget by retrieving the volume selection widget and initializing it.
         """
 
-        # :COMMENT: Get the volume combobox widget.
-        self.volumeComboBox = self.panel_ui.findChild(QComboBox, "volume")
-        self.volumeComboBox.activated.connect(self.on_volume_activated)
-
-        # :COMMENT: Add the available volumes and options to the combobox.
+        # Retrieve the volumes in memory.
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
 
-        # :BUG: Supposed to be a placeholder, but still appears in list (shouldn't)
-        self.volumeComboBox.insertItem(0, "Select a Volume")
+        # Initialize the preprocessing selected volume.
+        self.currentVolume = None
         self.currentVolumeIndex = -1
 
+        # Get the selected volume combo box.
+        self.volumeComboBox = self.panel_ui.findChild(ctkComboBox, "SelectedVolumeComboBox")
+        assert self.volumeComboBox
+
+        # Connect the selected volume combo box to its "on cahnged" function.
+        self.volumeComboBox.activated.connect(self.on_volume_activated)
+
+        # Fill the selected volume combo box with the available volumes and utility options.
         for i in range(self.volumes.GetNumberOfItems()):
             volume = self.volumes.GetItemAsObject(i)
             self.volumeComboBox.addItem(volume.GetName())
+        self.volumeComboBox.addItem("Rename current volume…")
+        self.volumeComboBox.addItem("Delete current volume…")
+        self.volumeComboBox.setCurrentIndex(-1)
 
-        self.volumeComboBox.addItem("Rename current Volume")
-        self.volumeComboBox.addItem("Delete current Volume")
-
-        # :COMMENT: Add observer to update combobox when new volume is added to MRML Scene.
-        self.observerTag = mrmlScene.AddObserver(
-            vtkMRMLScene.NodeAddedEvent, self.update_volume_list
-        )
+        # Add observer to update combobox when new volume is added to MRML Scene.
+        self.observerTag = mrmlScene.AddObserver(vtkMRMLScene.NodeAddedEvent, self.update_volume_list)
 
     #
-    # :TODO: Sort into CROPPING and TOOLS sections.
+    # ROI SELECTION
+    #
+
+    def roi_selection_setup(self):
+        """
+        Sets up the ROI selection widget.
+        """
+
+        # Initialize the ROI.
+        self.selected_volume_roi = None
+
+        # Get the ROI selection threshold slider.
+        self.roi_selection_threshold_slider = self.panel_ui.findChild(QSlider, "ROISelectionThresholdSlider")
+        assert self.roi_selection_threshold_slider
+
+        # Get the ROI selection threshold value label.
+        self.roi_selection_threshold_value_label = self.panel_ui.findChild(QLabel, "ROISelectionThresholdValueLabel")
+        assert self.roi_selection_threshold_value_label
+
+        # Connect the ROI selection threshold slider to its "on changed" function.
+        self.roi_selection_threshold_slider.valueChanged.connect(self.on_roi_selection_threshold_slider_value_changed)
+
+        # Get the ROI selection button.
+        self.roi_selection_button = self.panel_ui.findChild(QPushButton, "ROISelectionButton")
+        assert self.roi_selection_button
+
+        # Connect the ROI selection button to the algorithm.
+        self.roi_selection_button.clicked.connect(self.select_roi)
+
+    def on_roi_selection_threshold_slider_value_changed(self):
+        """
+        Updates the ROI selection threshold value to match the slider.
+
+        Called when the ROI selection threshold slider value is changed.
+        """
+
+        # Retrieve the threshold value.
+        threshold = self.roi_selection_threshold_slider.value
+
+        # Update the label accordingly.
+        self.roi_selection_threshold_value_label.setText(str(threshold))
+
+    def reset_roi(self) -> None:
+        """
+        Resets the ROI selection.
+        """
+
+        # Reset the ROI selection.
+        self.selected_volume_roi = None
+
+        # Update the label accordingly.
+        self.roi_selection_threshold_slider.setValue(0)
+        self.roi_selection_threshold_value_label.setText("0")
+
+    def select_roi(self):
+        """
+        Selects the ROI.
+        """
+
+        # Ensure that a volume is selected.
+        if not self.currentVolume:
+            self.error_message("Please select a volume to select a ROI from.")
+            return
+
+        # Retrieve the threshold value.
+        threshold = self.roi_selection_threshold_slider.value
+
+        # Call the ROI selection algorithm.
+        self.selected_volume_roi = self.logic.select_roi(self.vtk_to_sitk(self.currentVolume), threshold)
+
+        # Log the ROI selection.
+        print(f'ROI has been selected with a threshold value of {threshold} in "{self.currentVolume.GetName()}".')
+
+    #
+    # CROPPING
+    #
+    # :TODO: Sort functions and move utilities to the end.
     #
 
     def cropping_setup(self):
@@ -200,19 +314,19 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Handles selection of a volume and updates the cropping parameters accordingly, and edition of the volume combobox.
         """
 
-        options = ["Select a Volume", "Delete current Volume", "Rename current Volume"]
+        options = ["Delete current volume…", "Rename current volume…"]
 
         name = self.volumeComboBox.currentText
         if name in options:
             # :TODO: Add renaming and deleting features.
-            if name == "Delete current Volume":
+            if name == "Delete current volume…":
                 print("[DEBUG]", name, "option not implemented yet!\n")
 
                 # print(
                 #     f"\"{self.currentVolume.GetName()}\" has been deleted."
                 # )
 
-            if name == "Rename current Volume":
+            if name == "Rename current volume…":
                 print("[DEBUG]", name, "option not implemented yet!\n")
 
                 # old_name = self.currentVolume.GetName()
@@ -225,8 +339,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         else:
             self.currentVolumeIndex = index
-            # :DIRTY: -1 because "Select a Volume" is the first item in the combobox: needs to be fixed so indices are equal.
-            self.currentVolume = self.volumes.GetItemAsObject(index - 1)
+            self.currentVolume = self.volumes.GetItemAsObject(index)
             volume_data = self.currentVolume.GetImageData()
             self.currentVolumeDim = volume_data.GetDimensions()
             self.update_dimensions_display()
@@ -234,6 +347,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             for i in range(3):
                 self.start[i].setMaximum(self.currentVolumeDim[i])
                 self.end[i].setMaximum(self.currentVolumeDim[i])
+
+            # :COMMENT: Remove the previously computed ROI.
+            self.reset_roi()
+
+            # :COMMENT: Update the available target volumes list.
+            self.update_resampling_available_targets()
+
+            # :COMMENT: Log the selected volume change.
+            print(f'"{self.currentVolume.GetName()}" has been selected.')
 
     def vtk_to_sitk(self, vtk_image):
         """
@@ -284,6 +406,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if self.currentVolumeIndex < 0:
             return
 
+        # :COMMENT: Ensure that a volume is selected.
+        assert self.currentVolume
+
         # :COMMENT: Retrieve coordinates input.
         start_val = []
         end_val = []
@@ -311,7 +436,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         size = [end_val[i] - start_val[i] + 1 for i in range(3)]
 
         # :COMMENT: Crop the image.
-        cropped_image = self.logic.cropping_algorithm(sitk_image, start_val, size)
+        cropped_image = self.logic.crop(sitk_image, start_val, size)
 
         # :COMMENT: Convert the cropped SimpleITK image back to a VTK Volume Node.
         vtk_image = self.sitk_to_vtk(cropped_image)
@@ -350,7 +475,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Updates the display of the dimensions according to the selected volume.
         """
 
-        dim_label = self.panel_ui.findChild(QLabel, "dim_label")
+        dim_label = self.panel_ui.findChild(QLabel, "SelectedVolumeDimensionsValueLabel")
         dim_label.setText(
             "{} x {} x {}".format(
                 self.currentVolumeDim[0],
@@ -366,6 +491,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Parameters:
             volume: VTK Volume Node to be added.
         """
+
+        # :COMMENT: Ensure that a volume is selected.
+        assert self.currentVolume
 
         # :COMMENT: Generate and assign a unique name to the volume.
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -447,99 +575,130 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the resampling widget by linking the UI to the scene and algorithm.
         """
 
-        # Retrieve the resampling target image combo box and connect it to its on changed event.
-        self.resampling_target_image_combo_box = self.panel_ui.findChild(
-            QComboBox, "ResamplingTargetImageComboBox"
-        )
-        self.resampling_target_image_combo_box.activated.connect(
-            self.on_resampling_target_image_changed
-        )
+        # Initialize the resampling target volume.
+        self.resampling_target_volume = None
 
-        # Add the available images to the resampling target image combo box.
+        # Get the resampling target volume combo box.
+        self.resampling_target_volume_combo_box = self.panel_ui.findChild(ctkComboBox, "ResamplingTargetVolumeComboBox")
+        assert self.resampling_target_volume_combo_box
+
+        # Connect the resampling target volume combo box to its "on changed" function.
+        self.resampling_target_volume_combo_box.activated.connect(self.on_resampling_target_volume_changed)
+
+        # Fill the resampling target volume combo box with the available resampling targets.
+        self.update_resampling_available_targets()
+
+        # Get the resampling button.
+        self.resampling_button = self.panel_ui.findChild(QPushButton, "ResamplingButton")
+        assert self.resampling_button
+
+        # Connect the resampling button to the algorithm.
+        self.resampling_button.clicked.connect(self.resample)
+
+    def on_resampling_target_volume_changed(self):
+        """
+        Updates the resampling target volumes in memory.
+
+        Called when the resampling target volumes combo box is changed.
+        """
+
+        # Retrieve the resampling target volume name in the combo box.
+        name = self.resampling_target_volume_combo_box.currentText
+
+        # Update the resampling target volume.
+        self.resampling_target_volume = self.get_volume_by_name(name)
+
+        # Log the resampling target volume change.
+        print(f'Resampling Target Volume: "{name}."')
+
+    def update_resampling_available_targets(self):
+        """
+        Updates the list of available resampling targets in the resampling target volume combo box.
+        """
+
+        # Reset the resampling target volume.
+        self.resampling_target_volume = None
+
+        # Clear the resampling target volume combo box.
+        self.resampling_target_volume_combo_box.clear()
+
+        # Add the available volumes to the resampling target volume combo box.
         for i in range(self.volumes.GetNumberOfItems()):
-            image_name = self.volumes.GetItemAsObject(i).GetName()
-            self.resampling_target_image_combo_box.addItem(image_name)
-
-        # Link the resample button to the algorithm.
-        self.resample_button = self.panel_ui.findChild(QPushButton, "ResampleButton")
-        self.resample_button.clicked.connect(self.resample)
-
-    def on_resampling_target_image_changed(self):
-        """
-        Updates the resampling target image in memory.
-
-        Called when the resampling target image combo box is changed.
-        """
-
-        # Retrieve the resampling target image name in the combo box.
-        resampling_target_image_name = (
-            self.resampling_target_image_combo_box.currentText
-        )
-
-        # Update the resampling target image.
-        self.resampling_target_image = self.get_image_by_name(
-            resampling_target_image_name
-        )
-
-        # Log the resampling target image change.
-        print(f'Resampling target image: "{resampling_target_image_name}."')
+            name = self.volumes.GetItemAsObject(i).GetName()
+            if not self.currentVolume or self.currentVolume.GetName() != name:
+                self.resampling_target_volume_combo_box.addItem(name)
+        self.resampling_target_volume_combo_box.setCurrentIndex(-1)
 
     def resample(self):
         """
-        Retrieves the selected and target images and runs the resampling algorithm.
+        Retrieves the selected and target volumes and runs the resampling algorithm.
         """
 
-        # Retrieve the preprocessing selected and target images.
-        selected_image = self.currentVolume
-        target_image = self.resampling_target_image
-
-        if selected_image is None or target_image is None:
-            self.error_message("Please select an image to process and a target image.")
+        # Ensure that a volume is selected as well as a resampling target volume.
+        if not self.currentVolume:
+            self.error_message("Please select a volume to resample.")
+            return
+        if not self.resampling_target_volume:
+            self.error_message("Please select a resampling target volume.")
             return
 
-        # Log the resampling running.
-        print(
-            f'Resampling "{selected_image.GetName()}" to match "{target_image.GetName()}"…'
-        )
-
         # Call the resampling algorithm.
-        resampled_image = self.sitk_to_vtk(
-            self.logic.run(
-                self.resourcePath("Scripts/Resampling.py"),
-                "resample",
-                self.vtk_to_sitk(selected_image),
-                self.vtk_to_sitk(target_image),
-            )
-        )
+        resampled_volume = self.sitk_to_vtk(self.logic.run(
+            self.resourcePath("Scripts/Resampling.py"),
+            "resample",
+            self.vtk_to_sitk(self.currentVolume),
+            self.vtk_to_sitk(self.resampling_target_volume),
+        ))
 
-        # Save the resampled image.
-        self.add_new_volume(resampled_image, "resampled")
+        # Transfer the volume metadata.
+        self.transfer_volume_metadata(self.currentVolume, resampled_volume)
 
-        # Log the resampling done.
-        print(
-            f'"{selected_image.GetName()}" has been resampled to match "{target_image.GetName()}" as "{resampled_image.GetName()}".'
-        )
+        # Save the resampled volume.
+        self.add_new_volume(resampled_volume, "resampled")
+
+        # Log the resampling.
+        print(f'"{self.currentVolume.GetName()}" has been resampled to match "{self.resampling_target_volume.GetName()}" as "{resampled_volume.GetName()}".')
 
     #
     # UTILITIES
     #
 
-    def get_image_by_name(self, name: str):
+    def get_volume_by_name(self, name: str):
         """
-        Retrieves the image by its name.
+        Retrieves a volume by its name.
 
         Parameters:
-            name: The name of the image to retrieve.
+            name: The name of the volume to retrieve.
 
         Returns:
-            The VTK image.
+            The VTK volume.
         """
 
-        # Search for the image by its name.
+        # Search for the volume by its name.
         for i in range(self.volumes.GetNumberOfItems()):
-            image = self.volumes.GetItemAsObject(i)
-            if image.GetName() == name:
-                return image
+            volume = self.volumes.GetItemAsObject(i)
+            if volume.GetName() == name:
+                return volume
 
-        # Return None if the image was not found.
+        # Return None if the volume was not found.
         return None
+
+    def transfer_volume_metadata(self, source_volume: vtkMRMLScalarVolumeNode, target_volume: vtkMRMLScalarVolumeNode) -> None:
+        """
+        Copies the metadata from the source volume to the target volume.
+
+        Parameters:
+            source_volume: The volume to copy the metadata from.
+            target_volume: The volume to copy the metadata to.
+        """
+
+        # Retrieve the metadata from the source volume.
+        spacing = source_volume.GetSpacing()
+        origin = source_volume.GetOrigin()
+        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
+        source_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+
+        # Apply the metadata to the target volume.
+        target_volume.SetSpacing(spacing)
+        target_volume.SetOrigin(origin)
+        target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)

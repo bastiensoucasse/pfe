@@ -2,14 +2,6 @@
 <ui version="4.0">
  <class>Panel</class>
  <widget class="qSlicerWidget" name="Panel">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>373</width>
-    <height>819</height>
-   </rect>
-  </property>
   <property name="windowTitle">
    <string>Custom Registration</string>
   </property>
@@ -32,7 +24,7 @@
    <item>
     <widget class="QLabel" name="Name">
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;h1 align=&quot;center&quot; style=&quot; margin-top:18px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:xx-large; font-weight:600; color:#b0b6d1;&quot;&gt;Custom Registration&lt;/span&gt;&lt;/h1&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;h1 style=&quot;color:#b0b6d1; text-align: center;&quot;&gt;Custom Registration&lt;/h1&gt;</string>
      </property>
     </widget>
    </item>
@@ -60,7 +52,7 @@
      <property name="collapsed">
       <bool>false</bool>
      </property>
-     <layout class="QVBoxLayout" name="PreprocessingVerticalLayout" stretch="0,0,0,0,0">
+     <layout class="QVBoxLayout" name="PreprocessingVerticalLayout" stretch="0,0,0,0">
       <property name="spacing">
        <number>12</number>
       </property>
@@ -77,62 +69,120 @@
        <number>12</number>
       </property>
       <item>
-       <widget class="ctkFittedTextBrowser" name="PreprocessingTextBrowser">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Ignored" vsizetype="Minimum">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="verticalScrollBarPolicy">
-         <enum>Qt::ScrollBarAlwaysOff</enum>
-        </property>
-        <property name="html">
-         <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Sans Serif'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;h2 style=&quot; margin-top:16px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:x-large; font-weight:600;&quot;&gt;Preprocessing&lt;/span&gt;&lt;/h2&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Here, you will find every implemented preprocessing tool.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-        </property>
-        <property name="openExternalLinks">
-         <bool>true</bool>
+       <layout class="QVBoxLayout" name="SelectedVolumeLayout">
+        <item>
+         <widget class="QLabel" name="SelectedVolumeLabel">
+          <property name="text">
+           <string>Volume to process:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="ctkComboBox" name="SelectedVolumeComboBox">
+          <property name="defaultText">
+           <string>Select a volume…</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="SelectedVolumeDimensionsLayout">
+          <item>
+           <widget class="QLabel" name="SelectedVolumeDimensionsTextLabel">
+            <property name="text">
+             <string>Dimensions:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="SelectedVolumeDimensionsValueLabel">
+            <property name="text">
+             <string>…</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="ctkCollapsibleButton" name="ROISelectionCollapsibleWidget">
+        <property name="text">
+         <string>ROI Selection</string>
         </property>
         <property name="collapsed">
          <bool>false</bool>
         </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QComboBox" name="volume">
-        <property name="currentText">
-         <string/>
+        <property name="flat">
+         <bool>false</bool>
         </property>
-        <property name="placeholderText">
-         <string/>
-        </property>
+        <layout class="QVBoxLayout" name="ROISelectionVerticalLayout">
+         <property name="spacing">
+          <number>12</number>
+         </property>
+         <property name="leftMargin">
+          <number>12</number>
+         </property>
+         <property name="topMargin">
+          <number>12</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>12</number>
+         </property>
+         <item>
+          <widget class="QLabel" name="ROISelectionDescription">
+           <property name="text">
+            <string>Select a ROI using a threshold value.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="ROISelectionThresholdLayout">
+           <item>
+            <widget class="QSlider" name="ROISelectionThresholdSlider">
+             <property name="maximum">
+              <number>255</number>
+             </property>
+             <property name="tracking">
+              <bool>true</bool>
+             </property>
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="invertedAppearance">
+              <bool>false</bool>
+             </property>
+             <property name="invertedControls">
+              <bool>false</bool>
+             </property>
+             <property name="tickPosition">
+              <enum>QSlider::NoTicks</enum>
+             </property>
+             <property name="tickInterval">
+              <number>10</number>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="ROISelectionThresholdValueLabel">
+             <property name="text">
+              <string>0</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QPushButton" name="ROISelectionButton">
+           <property name="text">
+            <string>Select ROI</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="image_data">
-        <item>
-         <widget class="QLabel" name="dim_text_label">
-          <property name="text">
-           <string>Image Dimensions:</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="dim_label">
-          <property name="text">
-           <string>…</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
       </item>
       <item>
        <widget class="ctkCollapsibleButton" name="CroppingCollapsibleWidget">
@@ -248,30 +298,30 @@ p, li { white-space: pre-wrap; }
          <item>
           <widget class="QLabel" name="ResamplingDescription">
            <property name="text">
-            <string>Resample the selected image to match a target.</string>
+            <string>Resample the selected volume to match a target.</string>
            </property>
           </widget>
          </item>
          <item>
-          <layout class="QHBoxLayout" name="ResamplingTargetLayout">
+          <layout class="QVBoxLayout" name="ResamplingTargetVolumeLayout">
            <item>
-            <widget class="QLabel" name="ResamplingTargetImageLabel">
+            <widget class="QLabel" name="ResamplingTargetVolumeLabel">
              <property name="text">
-              <string>Target Image:</string>
+              <string>Volume to target:</string>
              </property>
             </widget>
            </item>
            <item>
-            <widget class="QComboBox" name="ResamplingTargetImageComboBox">
-             <property name="placeholderText">
-              <string>Select a Volume</string>
+            <widget class="ctkComboBox" name="ResamplingTargetVolumeComboBox">
+             <property name="defaultText">
+              <string>Select a volume…</string>
              </property>
             </widget>
            </item>
           </layout>
          </item>
          <item>
-          <widget class="QPushButton" name="ResampleButton">
+          <widget class="QPushButton" name="ResamplingButton">
            <property name="text">
             <string>Resample</string>
            </property>
@@ -326,36 +376,6 @@ p, li { white-space: pre-wrap; }
       <property name="bottomMargin">
        <number>12</number>
       </property>
-      <item>
-       <widget class="ctkFittedTextBrowser" name="RegistrationTextBrowser">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Ignored" vsizetype="Minimum">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="verticalScrollBarPolicy">
-         <enum>Qt::ScrollBarAlwaysOff</enum>
-        </property>
-        <property name="html">
-         <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Sans Serif'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;h2 style=&quot; margin-top:16px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:x-large; font-weight:600;&quot;&gt;Registration&lt;/span&gt;&lt;/h2&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Here, you will find every implemented registration tool.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-        </property>
-        <property name="openExternalLinks">
-         <bool>true</bool>
-        </property>
-        <property name="collapsed">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
      </layout>
     </widget>
    </item>
@@ -386,9 +406,9 @@ p, li { white-space: pre-wrap; }
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>ctkFittedTextBrowser</class>
-   <extends>QTextBrowser</extends>
-   <header>ctkFittedTextBrowser.h</header>
+   <class>ctkComboBox</class>
+   <extends>QComboBox</extends>
+   <header>ctkComboBox.h</header>
   </customwidget>
   <customwidget>
    <class>qSlicerWidget</class>
