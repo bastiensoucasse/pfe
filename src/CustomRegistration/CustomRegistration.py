@@ -171,6 +171,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         assert self.panel
         self.layout.addWidget(self.panel)
 
+        # :TODO:Bastien: Add something for the collapsible panels to be closed by default.
+
         # Setup the preprocessing.
         self.volume_selection_setup()
         self.roi_selection_setup()
@@ -326,6 +328,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         if self.selected_volume and self.selected_volume_index >= 0:
+            self.selected_volume_combo_box.setCurrentIndex(self.selected_volume_index)
             self.selected_volume_combo_box.setItemText(
                 self.selected_volume_index, self.selected_volume.GetName()
             )
@@ -368,6 +371,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :TODO:Iantsa: Fix the unused second parameter.
 
         node = caller.GetNthNode(caller.GetNumberOfNodes() - 1)
+        # :DIRTY: numberOfNonNodes should be global.
         numberOfNonNodes = 2  # number of non-node options in the combobox
         if node.IsA("vtkMRMLVolumeNode"):
             newNodeIndex = self.selected_volume_combo_box.count - numberOfNonNodes
@@ -777,6 +781,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         volume.SetAndObserveImageData(volume_image_data)
         return volume
 
+    # :DIRTY: Unused function, to determine.
     def destroy_observers(self) -> None:
         """
         Cleans up the module from any observer.
