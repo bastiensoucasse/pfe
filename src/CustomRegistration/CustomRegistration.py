@@ -7,8 +7,10 @@ import datetime
 import numpy as np
 import SimpleITK as sitk
 import vtk
-from qt import (  # QDialog,; QInputDialog,; QLineEdit,
+from qt import (
     QComboBox,
+    QDialog,
+    QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -109,11 +111,12 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         Cleans up the module.
         """
 
-        # Remove the observer.
+        # Remove the observers.
         mrmlScene.RemoveObserver(self.observerTag)
+        # mrmlScene.RemoveObserver(self.observerTag2)
 
 
-# :TODO: Homogenise the names of variables (image, node, volume)
+# :TODO: Homogenise the names of variables (image, node, volume).
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     """
     Widget class for the Custom Registration module used to define the module's panel interface.
@@ -160,7 +163,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :BUG: Supposed to be a placeholder, but still appears in list (shouldn't)
         self.volumeComboBox.insertItem(0, "Select a Volume")
-        self.currentVolumeIndex = -1
+        self.optionSelected = False
 
         for i in range(self.volumes.GetNumberOfItems()):
             volume = self.volumes.GetItemAsObject(i)
@@ -169,10 +172,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.volumeComboBox.addItem("Rename current Volume")
         self.volumeComboBox.addItem("Delete current Volume")
 
-        # :COMMENT: Add observer to update combobox when new volume is added to MRML Scene.
+        # :COMMENT: Add an observer to update volume list when an event (node adding, removing or name changing) occurs.
         self.observerTag = mrmlScene.AddObserver(
             vtkMRMLScene.NodeAddedEvent, self.update_volume_list
         )
+
+        # :TODO:
+        # self.observerTag3 = mrmlScene.AddObserver(
+        #     vtkMRMLScene.NodeRemovedEvent, self.update_volume_list
+        # )
 
     #
     # :TODO: Sort into CROPPING and TOOLS sections.
@@ -199,12 +207,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Called when an item in the volume combobox is selected.
         Handles selection of a volume and updates the cropping parameters accordingly, and edition of the volume combobox.
         """
-
-        options = ["Select a Volume", "Delete current Volume", "Rename current Volume"]
+        # :TODO: Update dimension display (put "..." if an option is selected).
+        options = ["Select a Volume", "Rename current Volume", "Delete current Volume"]
 
         name = self.volumeComboBox.currentText
         if name in options:
-            # :TODO: Add renaming and deleting features.
+            self.optionSelected = True
+            if name == "Rename current Volume":
+                self.rename_volume()
+
+            # :TODO: Add deleting functionnality.
             if name == "Delete current Volume":
                 print("[DEBUG]", name, "option not implemented yet!\n")
 
@@ -212,18 +224,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 #     f"\"{self.currentVolume.GetName()}\" has been deleted."
                 # )
 
-            if name == "Rename current Volume":
-                print("[DEBUG]", name, "option not implemented yet!\n")
-
-                # old_name = self.currentVolume.GetName()
-                # # ...
-                # print(
-                #     f"\"{old_name}\" has been renamed as {self.currentVolume.GetName()}."
-                # )
-
-            self.currentVolumeIndex = -1
-
         else:
+            self.optionSelected = False
             self.currentVolumeIndex = index
             # :DIRTY: -1 because "Select a Volume" is the first item in the combobox: needs to be fixed so indices are equal.
             self.currentVolume = self.volumes.GetItemAsObject(index - 1)
@@ -280,8 +282,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # :COMMENT: Do not do anything if crop button clicked but no volume selected.
-        # :TODO: Solve, knowing that it works for the "Select a Volume" case.
-        if self.currentVolumeIndex < 0:
+        if self.optionSelected:
             return
 
         # :COMMENT: Retrieve coordinates input.
@@ -345,6 +346,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.volumeComboBox.insertItem(newNodeIndex, node.GetName())
             self.volumes.AddItem(node)
 
+    def update_name_list(self):
+        # :TODO: Write a description.
+        self.volumeComboBox.setItemText(
+            self.currentVolumeIndex, self.currentVolume.GetName()
+        )
+
     def update_dimensions_display(self):
         """
         Updates the display of the dimensions according to the selected volume.
@@ -392,51 +399,28 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         msg.setWindowTitle("Error")
         msg.exec_()
 
-    # :BUG: None of these versions are working.
-    # def rename_volume(self):
-    #     volume = self.volumes.GetItemAsObject(self.currentVolumeIndex)
-    #     new_name, ok = QInputDialog.getText(
-    #         self,
-    #         "Rename Volume",
-    #         "Enter the new name for the volume:",
-    #         text=volume.GetName(),
-    #     )
-    #     if ok and new_name != "":
-    #         volume.SetName(new_name)
+    def rename_volume(self):
+        # :TODO: Write description.
+        self.old_name = self.currentVolume.GetName()
+        self.input_dialog = QInputDialog(None)
+        self.input_dialog.setWindowTitle("Rename Volume")
+        self.input_dialog.setLabelText("Enter new name:")
+        self.input_dialog.setModal(True)
+        self.input_dialog.setTextValue(self.currentVolume.GetName())
+        self.input_dialog.finished.connect(self.handle_rename_volume)
+        self.input_dialog.show()
 
-    # def rename_volume(self):
-    #     print(self.currentVolumeIndex)
-    #     self.input_dialog = QInputDialog(None)
-    #     self.input_dialog.setWindowTitle('Rename Volume')
-    #     self.input_dialog.setLabelText('Enter new name:')
-    #     self.input_dialog.setModal(True)
-    #     self.input_dialog.finished.connect(self.handleRenameVolume)
-    #     self.input_dialog.show()
+    def handle_rename_volume(self, result):
+        # :TODO: Write description.
+        if result == QDialog.Accepted:
+            new_name = self.input_dialog.textValue()
+            self.currentVolume.SetName(new_name)
+            self.volumeComboBox.setCurrentIndex(self.currentVolumeIndex)
+            self.update_name_list()
 
-    # def handleRenameVolume(self, result):
-    #     print(self.currentVolumeIndex)
-    #     if result == QDialog.Accepted:
-    #         new_name = self.input_dialog.textValue()
-    #         print(self.currentVolumeIndex)
-    #         selected_volume = self.volumes.GetItemAsObject(self.currentVolumeIndex)
-    #         print(self.currentVolumeIndex)
-    #         print(selected_volume)
-    #         selected_volume.SetName(new_name)
-
-    # def rename_volume(self):
-    # new_name, ok = QInputDialog.getText(
-    #     self, "Rename Volume", "Enter new volume name:", QLineEdit.Normal
-    # )
-    # if ok:
-    #     selected_index = self.volumeComboBox.currentIndex()
-    #     if selected_index > 0:
-    #         selected_volume = self.volumes.GetItemAsObject(selected_index - 1)
-    #         selected_volume.SetName(new_name)
-    #         self.volumeComboBox.setItemText(selected_index, new_name)
-    #         self.currentVolumeIndex = selected_index
-    # selected_index = self.volumeComboBox.currentIndex
-    # selected_volume = self.volumes.GetItemAsObject(selected_index)
-    # print(selected_volume)
+            print(
+                f'"{self.old_name}" has been renamed as "{self.currentVolume.GetName()}".'
+            )
 
     #
     # RESAMPLING
