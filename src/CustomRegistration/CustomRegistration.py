@@ -215,7 +215,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         R.SetInitialTransform(initial_transform, inPlace=False)
         self.selectInterpolator(R)
         R.SetOptimizerScalesFromPhysicalShift()
-
+        R.AddCommand(sitk.sitkIterationEvent, lambda: self.command_iteration(R))
         final_transform = R.Execute(fixed_image, moving_image)
 
         print("-------")
@@ -261,7 +261,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         metrics = self.metrics_combo_box.currentText.replace(" ", "")
         print(f"[DEBUG]: metrics: {metrics}")
         metrics_function = getattr(R, f"SetMetricAs{metrics}")
-        metrics_function(bin_count)
+        if(metrics=="MattesMutualInformation"):
+            metrics_function(bin_count)
+        else:
+            metrics_function()
 
     def selectInterpolator(self, R):
         interpolator = self.interpolator_combo_box.currentText.replace(" ", "")
@@ -282,6 +285,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         else :
             self.gradients_box.setEnabled(False)
             self.gradients_box.collapsed = 1
+
+    def command_iteration(self, method):
+        if method.GetOptimizerIteration() == 0:
+            print("Estimated Scales: ", method.GetOptimizerScales())
+        print(
+            f"{method.GetOptimizerIteration():3} "
+            + f"= {method.GetMetricValue():7.5f} "
+            + f": {method.GetOptimizerPosition()}"
+        )
 
 
 
