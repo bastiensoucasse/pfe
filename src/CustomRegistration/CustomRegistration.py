@@ -194,7 +194,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Initialize the preprocessing selected volume.
         self.selected_volume = None
-        self.selection_is_option = False
 
         # Get the selected volume combo box.
         self.selected_volume_combo_box = self.panel.findChild(
@@ -208,6 +207,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
         # Fill the selected volume combo box with the available volumes and utility options.
+        # :DIRTY: Code repetition to fix.
         for i in range(self.volumes.GetNumberOfItems()):
             volume = self.volumes.GetItemAsObject(i)
             self.selected_volume_combo_box.addItem(volume.GetName())
@@ -219,11 +219,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.observer_tag = mrmlScene.AddObserver(
             vtkMRMLScene.NodeAddedEvent, self.update_volume_list
         )
-
-        # :TODO:Iantsa: Fix/remove commented code.
-        # self.observer_tag_3 = mrmlScene.AddObserver(
-        #     vtkMRMLScene.NodeRemovedEvent, self.update_volume_list
-        # )
 
     def on_selected_volume_combo_box_changed(self, index: int) -> None:
         """
@@ -242,8 +237,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Handle the different options.
         if name in OPTIONS:
-            self.selection_is_option = True
-
             if self.volumes.GetNumberOfItems() < 1:
                 self.display_error_message("No volumes imported.")
                 self.update_selected_volume_combo_box()
@@ -262,8 +255,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Select a new volume.
         else:
-            self.selection_is_option = False
-
             self.selected_volume_index = index
             self.selected_volume = self.volumes.GetItemAsObject(index)
             assert self.selected_volume
@@ -273,8 +264,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.update_dimensions_display()
 
             for i in range(3):
-                self.cropping_start[i].setMaximum(self.selected_volume_dimensions[i])
-                self.cropping_end[i].setMaximum(self.selected_volume_dimensions[i])
+                self.cropping_start[i].setMaximum(
+                    self.selected_volume_dimensions[i] - 1
+                )
+                self.cropping_end[i].setMaximum(self.selected_volume_dimensions[i] - 1)
 
             # :COMMENT: Remove the previously computed ROI.
             self.reset_roi()
@@ -327,23 +320,34 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Updates the selected volume combo box.
         """
 
-        if self.selected_volume and self.selected_volume_index >= 0:
+        self.selected_volume_combo_box.clear()
+        for i in range(self.volumes.GetNumberOfItems()):
+            volume = self.volumes.GetItemAsObject(i)
+            self.selected_volume_combo_box.addItem(volume.GetName())
+        self.selected_volume_combo_box.addItem("Rename current volume…")
+        self.selected_volume_combo_box.addItem("Delete current volume…")
+
+        if self.selected_volume and self.selected_volume_index:
             self.selected_volume_combo_box.setCurrentIndex(self.selected_volume_index)
-            self.selected_volume_combo_box.setItemText(
-                self.selected_volume_index, self.selected_volume.GetName()
-            )
         else:
             self.selected_volume_combo_box.setCurrentIndex(-1)
-            self.selected_volume_dimensions.setText("…")
+
+        self.update_dimensions_display()
 
     def delete_volume(self) -> None:
         """
         Deletes the currently selected volume.
         """
 
-        # :TODO:Iantsa: Implement the deletion of the currently selected volume.
+        assert self.selected_volume
+        mrmlScene.RemoveNode(self.selected_volume)
 
-        raise NotImplementedError
+        name = self.selected_volume.GetName()
+        self.selected_volume = None
+        self.selected_volume_index = None
+        self.update_volume_list()
+
+        print(f'"{name}" has been deleted.')
 
     def update_dimensions_display(self) -> None:
         """
@@ -351,15 +355,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         dim_label = self.panel.findChild(QLabel, "SelectedVolumeDimensionsValueLabel")
-        dim_label.setText(
-            "{} x {} x {}".format(
-                self.selected_volume_dimensions[0],
-                self.selected_volume_dimensions[1],
-                self.selected_volume_dimensions[2],
+        if self.selected_volume:
+            dim_label.setText(
+                "{} x {} x {}".format(
+                    self.selected_volume_dimensions[0],
+                    self.selected_volume_dimensions[1],
+                    self.selected_volume_dimensions[2],
+                )
             )
-        )
+        else:
+            dim_label.setText("…")
 
-    def update_volume_list(self, caller, event) -> None:
+    def update_volume_list(self, caller=None, event=None) -> None:
         """
         Updates the list of volumes in the volume combobox when a change is detected in the MRML Scene.
 
@@ -368,15 +375,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             event: The event that triggered this method.
         """
 
-        # :TODO:Iantsa: Fix the unused second parameter.
-
-        node = caller.GetNthNode(caller.GetNumberOfNodes() - 1)
-        # :DIRTY: numberOfNonNodes should be global.
-        numberOfNonNodes = 2  # number of non-node options in the combobox
-        if node.IsA("vtkMRMLVolumeNode"):
-            newNodeIndex = self.selected_volume_combo_box.count - numberOfNonNodes
-            self.selected_volume_combo_box.insertItem(newNodeIndex, node.GetName())
-            self.volumes.AddItem(node)
+        self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
+        self.update_selected_volume_combo_box()
 
     #
     # ROI SELECTION
@@ -563,6 +563,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Sets up the resampling widget by linking the UI to the scene and algorithm.
         """
+        # :GLITCH:Bastien: Update combobox with the scene observer.
 
         # Initialize the resampling target volume.
         self.resampling_target_volume = None
@@ -789,5 +790,3 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Remove the observers.
         mrmlScene.RemoveObserver(self.observer_tag)
-        # :TODO:Iantsa: Fix/remove commented code.
-        # mrmlScene.RemoveObserver(self.observerTag2)
