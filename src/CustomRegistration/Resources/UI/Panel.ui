@@ -142,7 +142,35 @@ p, li { white-space: pre-wrap; }
          <string>Rigid Registration</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_2">
+         <item row="3" column="1" colspan="2">
+          <widget class="QLineEdit" name="lineEditNewVolumeName"/>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>New volume name</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QComboBox" name="comboBoxInterpolator">
+           <item>
+            <property name="text">
+             <string>Interpolator</string>
+            </property>
+           </item>
+          </widget>
+         </item>
          <item row="1" column="1" colspan="2">
+          <widget class="ctkComboBox" name="ComboFixedImage">
+           <item>
+            <property name="text">
+             <string>None</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="2" column="1" colspan="2">
           <widget class="ctkComboBox" name="ComboMovingImage">
            <item>
             <property name="text">
@@ -151,36 +179,7 @@ p, li { white-space: pre-wrap; }
            </item>
           </widget>
          </item>
-         <item row="3" column="2">
-          <widget class="ctkComboBox" name="ComboOptimizers">
-           <item>
-            <property name="text">
-             <string>Optimizers</string>
-            </property>
-           </item>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="labelMoving">
-           <property name="maximumSize">
-            <size>
-             <width>100</width>
-             <height>16777215</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>Moving Image</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="label">
-           <property name="text">
-            <string>New volume name</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
+         <item row="4" column="0">
           <widget class="ctkComboBox" name="ComboMetrics">
            <property name="minimumSize">
             <size>
@@ -201,8 +200,24 @@ p, li { white-space: pre-wrap; }
            </item>
           </widget>
          </item>
-         <item row="0" column="0">
-          <widget class="QLabel" name="labelFixed">
+         <item row="6" column="0" colspan="3">
+          <widget class="ctkPushButton" name="PushButtonRegistration">
+           <property name="text">
+            <string>Start Registration</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="2">
+          <widget class="ctkComboBox" name="ComboOptimizers">
+           <item>
+            <property name="text">
+             <string>Optimizers</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="labelMoving">
            <property name="maximumSize">
             <size>
              <width>100</width>
@@ -210,73 +225,17 @@ p, li { white-space: pre-wrap; }
             </size>
            </property>
            <property name="text">
-            <string>Fixed Image</string>
+            <string>Moving Image</string>
            </property>
-          </widget>
-         </item>
-         <item row="0" column="1" colspan="2">
-          <widget class="ctkComboBox" name="ComboFixedImage">
-           <item>
-            <property name="text">
-             <string>None</string>
-            </property>
-           </item>
           </widget>
          </item>
          <item row="5" column="0" colspan="3">
-          <widget class="ctkPushButton" name="PushButtonRegistration">
-           <property name="text">
-            <string>Start Registration</string>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="0" colspan="3">
           <widget class="ctkCollapsibleButton" name="CollapsibleButton">
            <property name="text">
             <string>Settings</string>
            </property>
            <layout class="QGridLayout" name="gridLayout_3">
-            <item row="0" column="0">
-             <widget class="QLabel" name="label_2">
-              <property name="text">
-               <string>Histogram bin count</string>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="0">
-             <widget class="QLabel" name="label_3">
-              <property name="text">
-               <string>Sampling strategy</string>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="2">
-             <widget class="QSpinBox" name="spinBoxBinCount">
-              <property name="maximum">
-               <number>255</number>
-              </property>
-              <property name="value">
-               <number>50</number>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="0">
-             <widget class="QLabel" name="label_4">
-              <property name="text">
-               <string>Sampling percentage</string>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="2">
-             <widget class="QComboBox" name="comboBoxSamplingStrat">
-              <item>
-               <property name="text">
-                <string>None</string>
-               </property>
-              </item>
-             </widget>
-            </item>
-            <item row="3" column="0" colspan="3">
+            <item row="4" column="0" colspan="3">
              <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBoxGradient">
               <property name="enabled">
                <bool>false</bool>
@@ -288,17 +247,34 @@ p, li { white-space: pre-wrap; }
                <bool>true</bool>
               </property>
               <layout class="QGridLayout" name="gridLayout_4">
+               <item row="1" column="0">
+                <widget class="QLabel" name="label_6">
+                 <property name="text">
+                  <string>Number of iterations</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QSpinBox" name="spinBoxNbIter">
+                 <property name="maximum">
+                  <number>100000</number>
+                 </property>
+                 <property name="value">
+                  <number>100</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QSpinBox" name="spinBoxConvWinSize">
+                 <property name="value">
+                  <number>10</number>
+                 </property>
+                </widget>
+               </item>
                <item row="0" column="0">
                 <widget class="QLabel" name="label_5">
                  <property name="text">
                   <string>learning rate</string>
-                 </property>
-                </widget>
-               </item>
-               <item row="3" column="0">
-                <widget class="QLabel" name="label_8">
-                 <property name="text">
-                  <string>Convergence Window Size</string>
                  </property>
                 </widget>
                </item>
@@ -322,23 +298,6 @@ p, li { white-space: pre-wrap; }
                  </property>
                 </widget>
                </item>
-               <item row="1" column="0">
-                <widget class="QLabel" name="label_6">
-                 <property name="text">
-                  <string>Number of iterations</string>
-                 </property>
-                </widget>
-               </item>
-               <item row="1" column="1">
-                <widget class="QSpinBox" name="spinBoxNbIter">
-                 <property name="maximum">
-                  <number>100000</number>
-                 </property>
-                 <property name="value">
-                  <number>100</number>
-                 </property>
-                </widget>
-               </item>
                <item row="2" column="1">
                 <widget class="QLineEdit" name="lineEditConvMinVal">
                  <property name="text">
@@ -346,14 +305,40 @@ p, li { white-space: pre-wrap; }
                  </property>
                 </widget>
                </item>
-               <item row="3" column="1">
-                <widget class="QSpinBox" name="spinBoxConvWinSize">
-                 <property name="value">
-                  <number>10</number>
+               <item row="3" column="0">
+                <widget class="QLabel" name="label_8">
+                 <property name="text">
+                  <string>Convergence Window Size</string>
                  </property>
                 </widget>
                </item>
               </layout>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="label_4">
+              <property name="text">
+               <string>Sampling percentage</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <widget class="QComboBox" name="comboBoxSamplingStrat">
+              <item>
+               <property name="text">
+                <string>None</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item row="0" column="2">
+             <widget class="QSpinBox" name="spinBoxBinCount">
+              <property name="maximum">
+               <number>255</number>
+              </property>
+              <property name="value">
+               <number>50</number>
+              </property>
              </widget>
             </item>
             <item row="2" column="2">
@@ -369,19 +354,91 @@ p, li { white-space: pre-wrap; }
               </property>
              </widget>
             </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="label_3">
+              <property name="text">
+               <string>Sampling strategy</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_2">
+              <property name="text">
+               <string>Histogram bin count</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="0" colspan="3">
+             <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBoxExhaustive">
+              <property name="enabled">
+               <bool>true</bool>
+              </property>
+              <property name="title">
+               <string>exhaustive only</string>
+              </property>
+              <property name="collapsed">
+               <bool>false</bool>
+              </property>
+              <layout class="QGridLayout" name="gridLayout_5">
+               <item row="2" column="0">
+                <widget class="QLabel" name="label_11">
+                 <property name="text">
+                  <string>optimizer scales</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="0">
+                <widget class="QLabel" name="label_9">
+                 <property name="text">
+                  <string>Number of Steps</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="label_10">
+                 <property name="text">
+                  <string>step length</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QLineEdit" name="lineEditSteps">
+                 <property name="text">
+                  <string>1, 1, 1, 0, 0, 0</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QLineEdit" name="lineEditLength">
+                 <property name="text">
+                  <string>pi</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QLineEdit" name="lineEditScale">
+                 <property name="text">
+                  <string>1,1,1,1,1,1</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
            </layout>
           </widget>
          </item>
-         <item row="2" column="1" colspan="2">
-          <widget class="QLineEdit" name="lineEditNewVolumeName"/>
-         </item>
-         <item row="3" column="1">
-          <widget class="QComboBox" name="comboBoxInterpolator">
-           <item>
-            <property name="text">
-             <string>Interpolator</string>
-            </property>
-           </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="labelFixed">
+           <property name="maximumSize">
+            <size>
+             <width>100</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Fixed Image</string>
+           </property>
           </widget>
          </item>
         </layout>

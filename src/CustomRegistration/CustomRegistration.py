@@ -88,7 +88,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.metrics_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxInterpolator")
         self.optimizers_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboOptimizers")
-        self.optimizers_combo_box.currentIndexChanged.connect(self.updateGUI)
         self.volume_name = self.panel_ui.findChild(qt.QLineEdit, "lineEditNewVolumeName")
         self.histogram_bin_count_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxBinCount")
         self.sampling_strat_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxSamplingStrat")
@@ -101,6 +100,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.conv_min_val = self.panel_ui.findChild(qt.QLineEdit, "lineEditConvMinVal")
         self.conv_win_size = self.panel_ui.findChild(qt.QSpinBox, "spinBoxConvWinSize")
 
+        # :COMMENT: exhaustive parameters
+        self.exhaustive_box = self.panel_ui.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBoxExhaustive")
+        self.step_length = self.panel_ui.findChild(qt.QLineEdit, "lineEditLength")
+        self.nb_steps = self.panel_ui.findChild(qt.QLineEdit, "lineEditSteps")
+        self.opti_scale = self.panel_ui.findChild(qt.QLineEdit, "lineEditScale")
+
+        self.optimizers_combo_box.currentIndexChanged.connect(self.updateGUI)
         # :COMMENT: handle button
         self.button_registration = self.panel_ui.findChild(ctk.ctkPushButton, "PushButtonRegistration")
         self.button_registration.clicked.connect(self.rigid_registration)
@@ -220,6 +226,23 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         convergence_min_val = self.conv_min_val.text
         convergence_win_size = self.conv_win_size.value
 
+        # :COMMENT: settings for exhaustive only
+        nb_of_steps = self.nb_steps.text
+        self.nb_of_steps = [int(step) for step in nb_of_steps.split(",")]
+        self.step_length = self.step_length.text
+        if self.step_length == "pi":
+            self.step_length = pi
+        else:
+            self.step_length = float(self.step_length)
+
+        self.optimizer_scale = self.opti_scale.text
+        self.optimizer_scale = [int(scale) for scale in self.optimizer_scale.split(",")]
+
+        print(f"step length: {self.step_length}")
+        print(f"nb steps : {self.nb_of_steps}")
+        print(f"optimizer scale: {self.optimizer_scale}")
+
+
         # :COMMENT: FROM simpleitk docs : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod1_docs.html
         # a simple 3D rigid registration method
         R = sitk.ImageRegistrationMethod()
@@ -311,17 +334,26 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if optimizerName == "GradientDescent":
             optimizer(learningRate=learning_rate, numberOfIterations=nb_iteration, convergenceMinimumValue=float(convergence_min_val), convergenceWindowSize=convergence_win_size)
         elif optimizerName == "Exhaustive":
-            optimizer(numberOfSteps=[0,1,1,0,0,0], stepLength = np.pi)
-            R.SetOptimizerScales([1,1,1,1,1,1])
+            optimizer(numberOfSteps=self.nb_of_steps, stepLength = self.step_length)
+            R.SetOptimizerScales(self.optimizer_scale)
 
     # :COMMENT: updateGUI based on the choice of the user concerning the optimizer function
     def updateGUI(self):
         if self.optimizers_combo_box.currentText == "Gradient Descent":
             self.gradients_box.setEnabled(True)
             self.gradients_box.collapsed = 0
-        else :
+            self.exhaustive_box.setEnabled(False)
+            self.exhaustive_box.collapsed = 1
+        elif self.optimizers_combo_box.currentText == "Exhaustive":
+            self.exhaustive_box.setEnabled(True)
+            self.exhaustive_box.collapsed = 0
             self.gradients_box.setEnabled(False)
             self.gradients_box.collapsed = 1
+        else:
+            self.gradients_box.setEnabled(False)
+            self.gradients_box.collapsed = 1      
+            self.exhaustive_box.setEnabled(False)
+            self.exhaustive_box.collapsed = 1  
 
     # :COMMENT: from doc : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod3_docs.html
     # Useful to analyse results during the registration process
