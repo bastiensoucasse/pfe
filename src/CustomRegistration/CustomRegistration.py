@@ -8,6 +8,7 @@ from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
     ScriptedLoadableModuleWidget,
+    ScriptedLoadableModuleTest
 )
 
 
@@ -65,13 +66,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Initialize setup from Slicer.
         ScriptedLoadableModuleWidget.setup(self)
-        self.addNewViewLayout()
         # Load UI file.
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
-
+        self.addNewViewLayout()
         # :COMMENT: 6 views layout
-        slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView)
+        #slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView)
 
         # :COMMENT: Get all volumes, (merci Iantsa pour le code).
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
@@ -106,31 +106,34 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.initUiComboBox()
     
 
+    # :COMMENT: new view layout with only slice views
+    # :BUG: not working, dunno why
+    # code from : https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html
     def addNewViewLayout(self):
         new_view_layout = """
-        "  <layout type=\"horizontal\">"
-        "   <item>"
-        "    <view class=\"vtkMRMLSliceNode\" singletontag=\"Red\">"
-        "     <property name=\"orientation\" action=\"default\">Axial</property>"
-        "     <property name=\"viewlabel\" action=\"default\">R</property>"
-        "     <property name=\"viewcolor\" action=\"default\">#F34A33</property>"
-        "    </view>"
-        "   </item>"
-        "   <item>"
-        "    <view class=\"vtkMRMLSliceNode\" singletontag=\"Green\">"
-        "     <property name=\"orientation\" action=\"default\">Coronal</property>"
-        "     <property name=\"viewlabel\" action=\"default\">G</property>"
-        "     <property name=\"viewcolor\" action=\"default\">#6EB04B</property>"
-        "    </view>"
-        "   </item>"
-        "   <item>"
-        "    <view class=\"vtkMRMLSliceNode\" singletontag=\"Yellow\">"
-        "     <property name=\"orientation\" action=\"default\">Sagittal</property>"
-        "     <property name=\"viewlabel\" action=\"default\">Y</property>"
-        "     <property name=\"viewcolor\" action=\"default\">#EDD54C</property>"
-        "    </view>"
-        "   </item>"
-        "  </layout>"
+        "<layout type="horizontal">"
+        " <item>"
+        "  <view class="vtkMRMLSliceNode" singletontag="Red">"
+        "   <property name="orientation" action="default">Axial</property>"
+        "   <property name="viewlabel" action="default">R</property>"
+        "   <property name="viewcolor" action="default">#F34A33</property>"
+        "  </view>"
+        " </item>"
+        " <item>"
+        "  <view class="vtkMRMLSliceNode" singletontag="Green">"
+        "   <property name="orientation" action="default">Coronal</property>"
+        "   <property name="viewlabel" action="default">G</property>"
+        "   <property name="viewcolor" action="default">#6EB04B</property>"
+        "  </view>"
+        " </item>"
+        " <item>"
+        "  <view class="vtkMRMLSliceNode" singletontag="Yellow">"
+        "   <property name="orientation" action="default">Sagittal</property>"
+        "   <property name="viewlabel" action="default">Y</property>"
+        "   <property name="viewcolor" action="default">#EDD54C</property>"
+        "  </view>"
+        " </item>"
+        "</layout>"
         """
         new_layout_id = 500
         layoutManager = slicer.app.layoutManager()
@@ -139,6 +142,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         viewToolBar = slicer.util.mainWindow().findChild("QToolBar", "ViewToolBar")
         layoutMenu = viewToolBar.widgetForAction(viewToolBar.actions()[0]).menu()
         layoutSwitchActionParent = layoutMenu
+        for action in layoutSwitchActionParent.actions():
+            if action.text == "3 plots (red, green, blue)":
+                return
         layoutSwitchAction = layoutSwitchActionParent.addAction("3 plots (red, green, blue)")
         layoutSwitchAction.setData(new_layout_id)
         layoutSwitchAction.setIcon(qt.QIcon(":Icons/Go.png"))
@@ -181,8 +187,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         volume.SetAndObserveImageData(volume_image_data)
         return volume
 
-    # Registration algorithme using simpleITK
-    # :BUG: the registration is not centered
+    # Registration algorithm using simpleITK
     def rigid_registration(self):
         # :COMMENT: if no image is selected
         if self.fixed_image_combo_box.currentIndex == 0 or self.moving_image_combo_box.currentIndex == 0:
@@ -256,13 +261,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         moved_volume.SetOrigin(origin)
         moved_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
 
-    # create a new volume
     def add_volume(self, volume):
         volume.SetName(self.volume_name.text)
         mrmlScene.AddNode(volume)
         slicer.util.setSliceViewerLayers(volume, fit=True)
         print(f"[DEBUG]: new volume {volume.GetName()} created !")
 
+    # :COMMENT: helper function to setup UI
     def initUiComboBox(self):
         self.metrics_combo_box.addItems(["Mean Squares",
                                             "Demons",
@@ -306,6 +311,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         optimizer = getattr(R, f"SetOptimizerAs{optimizer}")
         return optimizer
 
+    # :COMMENT: updateGUI based on the choice of the user concerning the optimizer function
     def updateGUI(self):
         if self.optimizers_combo_box.currentText == "Gradient Descent":
             self.gradients_box.setEnabled(True)
@@ -326,6 +332,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
 
+class CustomRegistrationTest(ScriptedLoadableModuleTest):
 
+    def setUp(self):
+        mrmlScene.Clear(0)
+        
+    def runTest(self):
+        self.setUp()
+        self.test_dummy()
 
-
+    def test_dummy(self):
+        print("TESTING : TODO")
