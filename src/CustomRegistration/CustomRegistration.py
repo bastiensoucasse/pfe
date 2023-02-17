@@ -65,14 +65,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Initialize setup from Slicer.
         ScriptedLoadableModuleWidget.setup(self)
-
+        self.addNewViewLayout()
         # Load UI file.
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
 
+        # :COMMENT: 6 views layout
+        slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView)
+
         # :COMMENT: Get all volumes, (merci Iantsa pour le code).
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
-
+        
         # :COMMENT: insert volumes for fixed and moving images
         self.fixed_image_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboFixedImage")
         self.fixed_image_combo_box.addItems([volume.GetName() for volume in self.volumes])
@@ -101,7 +104,45 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_registration = self.panel_ui.findChild(ctk.ctkPushButton, "PushButtonRegistration")
         self.button_registration.clicked.connect(self.rigid_registration)
         self.initUiComboBox()
+    
 
+    def addNewViewLayout(self):
+        new_view_layout = """
+        "  <layout type=\"horizontal\">"
+        "   <item>"
+        "    <view class=\"vtkMRMLSliceNode\" singletontag=\"Red\">"
+        "     <property name=\"orientation\" action=\"default\">Axial</property>"
+        "     <property name=\"viewlabel\" action=\"default\">R</property>"
+        "     <property name=\"viewcolor\" action=\"default\">#F34A33</property>"
+        "    </view>"
+        "   </item>"
+        "   <item>"
+        "    <view class=\"vtkMRMLSliceNode\" singletontag=\"Green\">"
+        "     <property name=\"orientation\" action=\"default\">Coronal</property>"
+        "     <property name=\"viewlabel\" action=\"default\">G</property>"
+        "     <property name=\"viewcolor\" action=\"default\">#6EB04B</property>"
+        "    </view>"
+        "   </item>"
+        "   <item>"
+        "    <view class=\"vtkMRMLSliceNode\" singletontag=\"Yellow\">"
+        "     <property name=\"orientation\" action=\"default\">Sagittal</property>"
+        "     <property name=\"viewlabel\" action=\"default\">Y</property>"
+        "     <property name=\"viewcolor\" action=\"default\">#EDD54C</property>"
+        "    </view>"
+        "   </item>"
+        "  </layout>"
+        """
+        new_layout_id = 500
+        layoutManager = slicer.app.layoutManager()
+        layoutManager.layoutLogic().GetLayoutNode().AddLayoutDescription(new_layout_id, new_view_layout)
+        # Add button to layout selector toolbar for this custom layout
+        viewToolBar = slicer.util.mainWindow().findChild("QToolBar", "ViewToolBar")
+        layoutMenu = viewToolBar.widgetForAction(viewToolBar.actions()[0]).menu()
+        layoutSwitchActionParent = layoutMenu
+        layoutSwitchAction = layoutSwitchActionParent.addAction("3 plots (red, green, blue)")
+        layoutSwitchAction.setData(new_layout_id)
+        layoutSwitchAction.setIcon(qt.QIcon(":Icons/Go.png"))
+        layoutSwitchAction.setToolTip("3D and slice view")
 
 
     def vtk_to_sitk(self, volume: slicer.vtkMRMLScalarVolumeNode) -> sitk.Image:
