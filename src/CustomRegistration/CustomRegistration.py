@@ -11,6 +11,7 @@ from slicer.ScriptedLoadableModule import (
 )
 
 
+
 class CustomRegistration(ScriptedLoadableModule):
     """
     Main class for the Custom Registration module used to define the module's metadata.
@@ -103,68 +104,41 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
 
 
+    def vtk_to_sitk(self, volume: slicer.vtkMRMLScalarVolumeNode) -> sitk.Image:
+        """
+        Converts a VTK volume into a SimpleITK image.
+        Parameters:
+            volume: The VTK volume to convert.
+        Returns:
+            The SimpleITK image.
+        """
 
-    def vtk2sitk(self, vtkimg):
-        np_array = vtk.util.numpy_support.vtk_to_numpy(vtkimg.GetPointData().GetScalars())
-        np_array = np.reshape(np_array, (vtkimg.GetDimensions()[::-1]))
-        sitk_image = sitk.GetImageFromArray(np_array)
-        sitk_image = sitk.Cast(sitk_image, sitk.sitkFloat32)
-        return sitk_image
+        volume_image_data = volume.GetImageData()
+        np_array = vtk.util.numpy_support.vtk_to_numpy(
+            volume_image_data.GetPointData().GetScalars()
+        )
+        np_array = np.reshape(np_array, volume_image_data.GetDimensions()[::-1])
+        image = sitk.GetImageFromArray(np_array)
+        return image
 
-    # from github : https://github.com/dave3d/dicom2stl/blob/main/utils/sitk2vtk.py
-    def sitk2vtk(self, sitkimg):
-        size = list(sitkimg.GetSize())
-        origin = list(sitkimg.GetOrigin())
-        spacing = list(sitkimg.GetSpacing())
-        ncomp = sitkimg.GetNumberOfComponentsPerPixel()
-        direction = sitkimg.GetDirection()
+    def sitk_to_vtk(self, image: sitk.Image) -> slicer.vtkMRMLScalarVolumeNode:
+        """
+        Converts a SimpleITK image to a VTK volume.
+        Parameters:
+            image: The SimpleITK image to convert.
+        Returns:
+            The VTK volume.
+        """
 
-        # there doesn't seem to be a way to specify the image orientation in VTK
-
-        # convert the SimpleITK image to a numpy array
-        i2 = sitk.GetArrayFromImage(sitkimg)
-
-        vtk_image = vtk.vtkImageData()
-
-        # VTK expects 3-dimensional parameters
-        if len(size) == 2:
-            size.append(1)
-
-        if len(origin) == 2:
-            origin.append(0.0)
-
-        if len(spacing) == 2:
-            spacing.append(spacing[0])
-
-        if len(direction) == 4:
-            direction = [
-                direction[0],
-                direction[1],
-                0.0,
-                direction[2],
-                direction[3],
-                0.0,
-                0.0,
-                0.0,
-                1.0,
-            ]
-
-        vtk_image.SetDimensions(size)
-        vtk_image.SetSpacing(spacing)
-        vtk_image.SetOrigin(origin)
-        vtk_image.SetExtent(0, size[0] - 1, 0, size[1] - 1, 0, size[2] - 1)
-
-        if vtk.vtkVersion.GetVTKMajorVersion() < 9:
-            print("Warning: VTK version <9.  No direction matrix.")
-        else:
-            vtk_image.SetDirectionMatrix(direction)
-
-        depth_array = vtk.util.numpy_support.numpy_to_vtk(i2.ravel())
-        depth_array.SetNumberOfComponents(ncomp)
-        vtk_image.GetPointData().SetScalars(depth_array)
-
-        vtk_image.Modified()
-        return vtk_image
+        np_array = sitk.GetArrayFromImage(image)
+        volume_image_data = vtk.vtkImageData()
+        volume_image_data.SetDimensions(np_array.shape[::-1])
+        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
+        volume_image_data.GetPointData().SetScalars(vtk_array)
+        volume = slicer.vtkMRMLScalarVolumeNode()
+        volume.SetAndObserveImageData(volume_image_data)
+        return volume
 
     # Registration algorithme using simpleITK
     # :BUG: the registration is not centered
@@ -178,16 +152,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         moving_image_index = self.moving_image_combo_box.currentIndex
         
         # :COMMENT: itk volume
-        self.fixedVolumeData = self.volumes.GetItemAsObject(fixed_image_index-1).GetImageData()
-        self.movingVolumeData = self.volumes.GetItemAsObject(moving_image_index-1).GetImageData()
+        self.fixedVolumeData = self.volumes.GetItemAsObject(fixed_image_index-1)
+        self.movingVolumeData = self.volumes.GetItemAsObject(moving_image_index-1)
 
         # :COMMENT: conversion to sitk volumes
-        fixed_image = self.vtk2sitk(self.fixedVolumeData)
-        moving_image = self.vtk2sitk(self.movingVolumeData)
+        fixed_image = self.vtk_to_sitk(self.fixedVolumeData)
+        moving_image = self.vtk_to_sitk(self.movingVolumeData)
+        fixed_image = sitk.Cast(fixed_image, sitk.sitkFloat32)
+        moving_image = sitk.Cast(moving_image, sitk.sitkFloat32)
 
         # :COMMENT: User settings retrieve
         bin_count = self.histogram_bin_count_spin_box.value
-            # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
+        # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
         sampling_strat = self.sampling_strat_combo_box.currentIndex
         sampling_perc = self.sampling_perc.value
 
@@ -202,10 +178,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         R = sitk.ImageRegistrationMethod()
         self.selectMetrics(R, bin_count)
         R.SetMetricSamplingStrategy(sampling_strat)
-        print(f"sampling strat random enum: {R.RANDOM}")
-        print(f"selected sampling strat index:{sampling_strat}")
         R.SetMetricSamplingPercentage(sampling_perc)
         optimizer = self.selectOptimizers(R)
+        print(f"convergence min val: {float(convergence_min_val)}")
 
         optimizer(learningRate=learning_rate, numberOfIterations=nb_iteration, convergenceMinimumValue=float(convergence_min_val), convergenceWindowSize=convergence_win_size)
         initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
@@ -215,6 +190,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         R.SetInitialTransform(initial_transform, inPlace=False)
         self.selectInterpolator(R)
         R.SetOptimizerScalesFromPhysicalShift()
+
         R.AddCommand(sitk.sitkIterationEvent, lambda: self.command_iteration(R))
         final_transform = R.Execute(fixed_image, moving_image)
 
@@ -224,16 +200,27 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print(f" Metric value: {R.GetMetricValue()}")
         
         moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
-        self.create_volume(moving_resampled, fixed_image)
-    
+        volume = self.sitk_to_vtk(moving_resampled)
+        self.transfer_volume_metadate(self.fixedVolumeData, volume)
+        self.add_volume(volume)
+        
+    def transfer_volume_metadate(self, original_volume, moved_volume):
+        spacing =  original_volume.GetSpacing()
+        origin =  original_volume.GetOrigin()
+        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
+        original_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+
+        # Apply the metadata to the target volume.
+        moved_volume.SetSpacing(spacing)
+        moved_volume.SetOrigin(origin)
+        moved_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+
     # create a new volume
-    def create_volume(self, sitkimg, fixed_img):
-        volumeNode=slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-        volumeNode.SetName(self.volume_name.text)
-        itk_moved_volume = self.sitk2vtk(sitkimg)
-        volumeNode.SetAndObserveImageData(itk_moved_volume)
-        slicer.util.setSliceViewerLayers(volumeNode, fit=True)
-        print(f"[DEBUG]: new volume {volumeNode.GetName()} created !")
+    def add_volume(self, volume):
+        volume.SetName(self.volume_name.text)
+        mrmlScene.AddNode(volume)
+        slicer.util.setSliceViewerLayers(volume, fit=True)
+        print(f"[DEBUG]: new volume {volume.GetName()} created !")
 
     def initUiComboBox(self):
         self.metrics_combo_box.addItems(["Mean Squares",
@@ -286,6 +273,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.gradients_box.setEnabled(False)
             self.gradients_box.collapsed = 1
 
+    # :COMMENT: from doc : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod3_docs.html
+    # Useful to analyse results during the registration process
     def command_iteration(self, method):
         if method.GetOptimizerIteration() == 0:
             print("Estimated Scales: ", method.GetOptimizerScales())
