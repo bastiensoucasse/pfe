@@ -4,6 +4,7 @@ The Custom Registration module for Slicer provides the features for 3D images re
 import vtk, qt, ctk, slicer, numpy as np
 import SimpleITK as sitk
 from slicer import util, mrmlScene
+from math import pi
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -71,7 +72,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.layout.addWidget(self.panel_ui)
         self.addNewViewLayout()
         # :COMMENT: 6 views layout
-        #slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView)
+        slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView)
 
         # :COMMENT: Get all volumes, (merci Iantsa pour le code).
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
@@ -225,10 +226,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.selectMetrics(R, bin_count)
         R.SetMetricSamplingStrategy(sampling_strat)
         R.SetMetricSamplingPercentage(sampling_perc)
-        optimizer = self.selectOptimizers(R)
-        print(f"convergence min val: {float(convergence_min_val)}")
+        self.selectOptimizersAndSetup(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size)
 
-        optimizer(learningRate=learning_rate, numberOfIterations=nb_iteration, convergenceMinimumValue=float(convergence_min_val), convergenceWindowSize=convergence_win_size)
         initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
                                                       moving_image, 
                                                       sitk.Euler3DTransform(), 
@@ -305,11 +304,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print(f"[DEBUG]: interpolator: {interpolator}")
         R.SetInterpolator(interpolator)
 
-    def selectOptimizers(self, R):
-        optimizer = self.optimizers_combo_box.currentText.replace(" ", "")
-        print(f"[DEBUG]: optimizer {optimizer}")
-        optimizer = getattr(R, f"SetOptimizerAs{optimizer}")
-        return optimizer
+    def selectOptimizersAndSetup(self, R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size):
+        optimizerName = self.optimizers_combo_box.currentText.replace(" ", "")
+        print(f"[DEBUG]: optimizer {optimizerName}")
+        optimizer = getattr(R, f"SetOptimizerAs{optimizerName}")
+        if optimizerName == "GradientDescent":
+            optimizer(learningRate=learning_rate, numberOfIterations=nb_iteration, convergenceMinimumValue=float(convergence_min_val), convergenceWindowSize=convergence_win_size)
+        elif optimizerName == "Exhaustive":
+            optimizer(numberOfSteps=[0,1,1,0,0,0], stepLength = np.pi)
+            R.SetOptimizerScales([1,1,1,1,1,1])
 
     # :COMMENT: updateGUI based on the choice of the user concerning the optimizer function
     def updateGUI(self):
@@ -330,7 +333,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             + f"= {method.GetMetricValue():7.5f} "
             + f": {method.GetOptimizerPosition()}"
         )
-
 
 class CustomRegistrationTest(ScriptedLoadableModuleTest):
 
