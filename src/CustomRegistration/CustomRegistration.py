@@ -249,7 +249,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     # VOLUME SELECTION
     #
 
-    # :GLITCH: If first volume renamed/cropped/resampled, selection set to "Select a volume..." instead of the given volume.
+    # :GLITCH:Bastien: If first volume renamed/cropped/resampled, selection set to "Select a volume..." instead of the given volume.
 
     def volume_selection_setup(self) -> None:
         """
@@ -278,7 +278,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.fill_selected_volume_combo_box()
 
         # Add observer to update combobox when new volume is added to MRML Scene.
-        # :TODO: Prevent loaded volumes from being displayed in the viewer.
+        # :TODO:Bastien: Prevent loaded volumes from being displayed in the viewer.
         self.observer_tag = mrmlScene.AddObserver(
             vtkMRMLScene.NodeAddedEvent, self.update_volume_list
         )
@@ -353,7 +353,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :COMMENT: Update the available target volumes list.
             self.update_resampling_available_targets()
 
-            # :TODO:Iantsa: Update the view (upper left visualization).
+            # :COMMENT: Update the view (upper left visualization).
             self.update_view(self.selected_volume, 0, "Axial")
 
     def rename_volume(self) -> None:
@@ -435,7 +435,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         else:
             dim_label.setText("…")
 
-    # :GLITCH: Name not updated if modified in the viewer combo box.
+    # :GLITCH:Bastien: Name not updated if modified in the viewer combo box (observer?).
     def update_volume_list(self, caller=None, event=None) -> None:
         """
         Updates the list of volumes in the volume combobox when a change is detected in the MRML Scene.
@@ -560,7 +560,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Crops a volume using the selected algorithm.
         """
 
-        # :GLITCH: An error appears when the cropped volume is selected in the volume rendering module but it is displayed though.
+        # :GLITCH:Bastien: An error appears when the cropped volume is selected in the volume rendering module but it is displayed though.
         # [VTK] Warning: In /Volumes/D/S/S-0/Modules/Loadable/VolumeRendering/Logic/vtkSlicerVolumeRenderingLogic.cxx, line 674
         # [VTK] vtkSlicerVolumeRenderingLogic (0x600002bb0420): CopyDisplayToVolumeRenderingDisplayNode: No display node to copy.
 
@@ -633,7 +633,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Sets up the resampling widget by linking the UI to the scene and algorithm.
         """
-        # :GLITCH:Bastien: Update combobox with the scene observer.
 
         # Initialize the resampling target volume.
         self.resampling_target_volume = None
@@ -812,7 +811,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         mrmlScene.AddNode(volume)
 
         # :COMMENT: Useful for exporting.
-        # :TODO:Iantsa: Fix/remove commented code.
+        # :DIRTY:Iantsa: Fix/remove commented code.
         # sitk.WriteImage(cropped_image, '/Users/iantsaprovost/Desktop/test.nrrd')
 
     def vtk_to_sitk(self, volume: vtkMRMLScalarVolumeNode) -> sitk.Image:
