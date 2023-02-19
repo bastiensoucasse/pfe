@@ -18,11 +18,11 @@ from qt import (
     QSpinBox,
 )
 from slicer import (  # qMRMLSliceWidget,; vtkMRMLSliceNode,
+    app,
     mrmlScene,
     util,
     vtkMRMLScalarVolumeNode,
     vtkMRMLScene,
-    app
 )
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
@@ -285,12 +285,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.update_resampling_available_targets()
 
             # :TODO:Iantsa: Update the view (upper left visualization).
-            app.applicationLogic().GetSelectionNode().SetReferenceActiveVolumeID(self.selected_volume.GetID())
-            app.applicationLogic().PropagateVolumeSelection()
+            # get the selected scalar volume node
+            scalarVolumeNode = self.selected_volume
 
-            # :COMMENT: Log the selected volume change.
-            print(f'"{self.selected_volume.GetName()}" has been selected.')
+            # get the red slice composite node
+            sliceCompositeNodeRed = mrmlScene.GetNodeByID('vtkMRMLSliceCompositeNodeRed')
 
+            # set the foreground volume to the selected scalar volume
+            sliceCompositeNodeRed.SetBackgroundVolumeID(scalarVolumeNode.GetID())
+
+            # update the slice view
+            sliceWidgetRed = app.layoutManager().sliceWidget('Red')
+            sliceLogicRed = sliceWidgetRed.sliceLogic()
+            sliceLogicRed.FitSliceToAll()
+
+    # :GLITCH: If first volume renamed, selection set to "Select a volume..." instead of the given volume.
     def rename_volume(self) -> None:
         """
         Loads the renaming feature with a minimal window.
@@ -374,6 +383,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         else:
             dim_label.setText("…")
 
+    # :GLITCH: Name not updated if modified in the viewer combo box.
     def update_volume_list(self, caller=None, event=None) -> None:
         """
         Updates the list of volumes in the volume combobox when a change is detected in the MRML Scene.
@@ -610,6 +620,24 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Update the resampling target volume.
         self.resampling_target_volume = self.get_volume_by_name(name)
 
+        # :TEST: Update the view (bottom left visualization).
+        # get the selected scalar volume node
+        assert self.resampling_target_volume
+        scalarVolumeNode = self.resampling_target_volume
+
+        # get the red slice composite node
+        sliceCompositeNodeGreen = mrmlScene.GetNodeByID('vtkMRMLSliceCompositeNodeGreen')
+
+        # set the foreground volume to the selected scalar volume
+        sliceCompositeNodeGreen.SetBackgroundVolumeID(scalarVolumeNode.GetID())
+
+        # update the slice view
+        sliceWidgetGreen = app.layoutManager().sliceWidget('Green')
+        sliceLogicGreen = sliceWidgetGreen.sliceLogic()
+        sliceLogicGreen.GetSliceNode().SetOrientationToAxial()
+        sliceLogicGreen.FitSliceToAll()
+        # :END_TEST:
+
         # Log the resampling target volume change.
         print(f'Resampling Target Volume: "{name}."')
 
@@ -630,6 +658,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             if not self.selected_volume or self.selected_volume.GetName() != name:
                 self.resampling_target_volume_combo_box.addItem(name)
         self.resampling_target_volume_combo_box.setCurrentIndex(-1)
+
+        # Clear the view (bottom left visualization).
+        # get the red slice composite node
+        sliceCompositeNodeGreen = mrmlScene.GetNodeByID('vtkMRMLSliceCompositeNodeGreen')
+        # clear the background volume
+        sliceCompositeNodeGreen.SetBackgroundVolumeID("")
 
     def resample(self) -> None:
         """
