@@ -17,7 +17,13 @@ from qt import (
     QSlider,
     QSpinBox,
 )
-from slicer import mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
+from slicer import (  # qMRMLSliceWidget,; vtkMRMLSliceNode,
+    mrmlScene,
+    util,
+    vtkMRMLScalarVolumeNode,
+    vtkMRMLScene,
+    app
+)
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -278,7 +284,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :COMMENT: Update the available target volumes list.
             self.update_resampling_available_targets()
 
-            # :TODO:Bastien: Update the view (upper left visualization).
+            # :TODO:Iantsa: Update the view (upper left visualization).
+            app.applicationLogic().GetSelectionNode().SetReferenceActiveVolumeID(self.selected_volume.GetID())
+            app.applicationLogic().PropagateVolumeSelection()
 
             # :COMMENT: Log the selected volume change.
             print(f'"{self.selected_volume.GetName()}" has been selected.')
