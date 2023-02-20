@@ -16,6 +16,9 @@ from qt import (
     QPushButton,
     QSlider,
     QSpinBox,
+    QWidget,
+    QHBoxLayout,
+    QSplitter,
 )
 from slicer import (  # qMRMLSliceWidget,; vtkMRMLSliceNode,
     app,
@@ -216,6 +219,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
             # :COMMENT: Clear the 2D view.
             self.slice_composite_nodes[i].SetBackgroundVolumeID("")
+
+        # :COMMENT: Hide the 3D view.
+        threeDWidget = app.layoutManager().threeDWidget(0)
+        threeDWidget.setVisible(False)
 
     def update_view(
         self, volume: vtkMRMLScalarVolumeNode, view_id: int, orientation: str
