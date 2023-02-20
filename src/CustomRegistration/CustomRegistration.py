@@ -4,6 +4,9 @@ The Custom Registration module for Slicer provides the features for 3D images re
 import vtk, qt, ctk, slicer, numpy as np
 import SimpleITK as sitk
 from slicer import util, mrmlScene
+import sys, os
+sys.path.append(os.path.join(os.path.join(os.path.dirname(__file__)), "..", "registration"))
+import registration as reg
 from math import pi
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
@@ -88,30 +91,29 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.metrics_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxInterpolator")
         self.optimizers_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboOptimizers")
-        self.volume_name = self.panel_ui.findChild(qt.QLineEdit, "lineEditNewVolumeName")
+        self.volume_name_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditNewVolumeName")
         self.histogram_bin_count_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxBinCount")
         self.sampling_strat_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxSamplingStrat")
-        self.sampling_perc = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxSamplingPerc")
+        self.sampling_perc_spin_box = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxSamplingPerc")
 
         # :COMMENT: Gradients parameters
         self.gradients_box = self.panel_ui.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBoxGradient")
         self.learning_rate_spin_box = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxLearningR")
         self.nb_of_iter_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxNbIter")
-        self.conv_min_val = self.panel_ui.findChild(qt.QLineEdit, "lineEditConvMinVal")
-        self.conv_win_size = self.panel_ui.findChild(qt.QSpinBox, "spinBoxConvWinSize")
+        self.conv_min_val_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditConvMinVal")
+        self.conv_win_size_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxConvWinSize")
 
         # :COMMENT: exhaustive parameters
         self.exhaustive_box = self.panel_ui.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBoxExhaustive")
-        self.step_length = self.panel_ui.findChild(qt.QLineEdit, "lineEditLength")
-        self.nb_steps = self.panel_ui.findChild(qt.QLineEdit, "lineEditSteps")
-        self.opti_scale = self.panel_ui.findChild(qt.QLineEdit, "lineEditScale")
+        self.step_length_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditLength")
+        self.nb_steps_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditSteps")
+        self.opti_scale_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditScale")
 
         self.optimizers_combo_box.currentIndexChanged.connect(self.updateGUI)
         # :COMMENT: handle button
         self.button_registration = self.panel_ui.findChild(ctk.ctkPushButton, "PushButtonRegistration")
         self.button_registration.clicked.connect(self.rigid_registration)
         self.initUiComboBox()
-    
 
     # :COMMENT: new view layout with only slice views
     # :BUG: not working, dunno why
@@ -218,24 +220,24 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         bin_count = self.histogram_bin_count_spin_box.value
         # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
         sampling_strat = self.sampling_strat_combo_box.currentIndex
-        sampling_perc = self.sampling_perc.value
+        sampling_perc = self.sampling_perc_spin_box.value
 
         # :COMMENT: settings for gradients only
         learning_rate = self.learning_rate_spin_box.value
         nb_iteration = self.nb_of_iter_spin_box.value
-        convergence_min_val = self.conv_min_val.text
-        convergence_win_size = self.conv_win_size.value
+        convergence_min_val = self.conv_min_val_edit.text
+        convergence_win_size = self.conv_win_size_spin_box.value
 
         # :COMMENT: settings for exhaustive only
-        nb_of_steps = self.nb_steps.text
+        nb_of_steps = self.nb_steps_edit.text
         self.nb_of_steps = [int(step) for step in nb_of_steps.split(",")]
-        self.step_length = self.step_length.text
+        self.step_length = self.step_length_edit.text
         if self.step_length == "pi":
             self.step_length = pi
         else:
             self.step_length = float(self.step_length)
 
-        self.optimizer_scale = self.opti_scale.text
+        self.optimizer_scale = self.opti_scale_edit.text
         self.optimizer_scale = [int(scale) for scale in self.optimizer_scale.split(",")]
 
         print(f"step length: {self.step_length}")
@@ -249,6 +251,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.selectMetrics(R, bin_count)
         R.SetMetricSamplingStrategy(sampling_strat)
         R.SetMetricSamplingPercentage(sampling_perc)
+        self.parametersToPrint = ""
         self.selectOptimizersAndSetup(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size)
 
         initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
@@ -259,9 +262,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.selectInterpolator(R)
         R.SetOptimizerScalesFromPhysicalShift()
 
-        R.AddCommand(sitk.sitkIterationEvent, lambda: self.command_iteration(R))
+        #R.AddCommand(sitk.sitkIterationEvent, lambda: self.command_iteration(R))
         final_transform = R.Execute(fixed_image, moving_image)
-
+        # parameters = {}
+        # parameters["R"] = R
+        # parameters["fixed_image"] = fixed_image
+        # parameters["moving_image"] = moving_image
+        # parameters["output"] = []
+        #cliNode = slicer.cli.run(slicer.modules.registration, None, parameters)
+        #cliNode.AddObserver('ModifiedEvent', self.onProcessingStatusUpdate)
+        #final_transform = cliNode.GetParameterAsString("output")
         print("-------")
         print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
         print(f" Iteration: {R.GetOptimizerIteration()}")
@@ -271,6 +281,31 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         volume = self.sitk_to_vtk(moving_resampled)
         self.transfer_volume_metadate(self.fixedVolumeData, volume)
         self.add_volume(volume)
+        print(f"[DEBUG]: {self.movingVolumeData.GetName()}  as been registrated with parameters :\n< {self.parametersToPrint}> as {volume.GetName()}.")
+
+    # :COMMENT: helper function to determine when the threaded registration ends
+    # transfer metadata and add the volume
+    def onProcessingStatusUpdate(self, cliNode, event):
+        if cliNode.GetStatus() & cliNode.Completed:
+            if cliNode.GetStatus() & cliNode.ErrorsMask:
+                errorText = cliNode.GetErrorText()
+                print("CLI execution failed: " + errorText)
+            else:
+                output = cliNode.GetParameterAsString("output")
+                fixed_image = output[0]
+                moving_image = output[1]
+                final_transform = output[2]
+                R = output[3]
+                print("-------")
+                print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
+                print(f" Iteration: {R.GetOptimizerIteration()}")
+                print(f" Metric value: {R.GetMetricValue()}")
+                
+                moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
+                volume = self.sitk_to_vtk(moving_resampled)
+                self.transfer_volume_metadate(self.fixedVolumeData, volume)
+                self.add_volume(volume)
+                print(f"[DEBUG]: {moving_image.GetName()}  as been registrated with parameters :\n< {self.parametersToPrint}> as {volume.GetName()}.")
         
     def transfer_volume_metadate(self, original_volume, moved_volume):
         spacing =  original_volume.GetSpacing()
@@ -284,10 +319,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         moved_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
 
     def add_volume(self, volume):
-        volume.SetName(self.volume_name.text)
+        volume.SetName(self.volume_name_edit.text)
         mrmlScene.AddNode(volume)
         slicer.util.setSliceViewerLayers(volume, fit=True)
-        print(f"[DEBUG]: new volume {volume.GetName()} created !")
 
     # :COMMENT: helper function to setup UI
     def initUiComboBox(self):
@@ -332,8 +366,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print(f"[DEBUG]: optimizer {optimizerName}")
         optimizer = getattr(R, f"SetOptimizerAs{optimizerName}")
         if optimizerName == "GradientDescent":
+            self.parametersToPrint = f" Learning rate: {learning_rate}\n number of iterations: {nb_iteration}\n convergence minimum value: {convergence_min_val}\n convergence window size: {convergence_win_size}"
             optimizer(learningRate=learning_rate, numberOfIterations=nb_iteration, convergenceMinimumValue=float(convergence_min_val), convergenceWindowSize=convergence_win_size)
         elif optimizerName == "Exhaustive":
+            self.parametersToPrint = f" number of steps: {self.nb_of_steps}\n step length: {self.step_length}\n optimizer scale: {self.optimizer_scale}"
             optimizer(numberOfSteps=self.nb_of_steps, stepLength = self.step_length)
             R.SetOptimizerScales(self.optimizer_scale)
 

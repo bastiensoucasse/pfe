@@ -17,6 +17,7 @@ include(${Slicer_USE_FILE})
 
 #-----------------------------------------------------------------------------
 add_subdirectory(CustomRegistration)
+add_subdirectory(registration)
 
 #-----------------------------------------------------------------------------
 include(${Slicer_EXTENSION_GENERATE_CONFIG})
