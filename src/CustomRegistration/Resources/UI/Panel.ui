@@ -162,22 +162,10 @@ p, li { white-space: pre-wrap; }
           </widget>
          </item>
          <item row="1" column="1" colspan="2">
-          <widget class="ctkComboBox" name="ComboFixedImage">
-           <item>
-            <property name="text">
-             <string>None</string>
-            </property>
-           </item>
-          </widget>
+          <widget class="ctkComboBox" name="ComboFixedImage"/>
          </item>
          <item row="2" column="1" colspan="2">
-          <widget class="ctkComboBox" name="ComboMovingImage">
-           <item>
-            <property name="text">
-             <string>None</string>
-            </property>
-           </item>
-          </widget>
+          <widget class="ctkComboBox" name="ComboMovingImage"/>
          </item>
          <item row="4" column="0">
           <widget class="ctkComboBox" name="ComboMetrics">

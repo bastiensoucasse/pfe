@@ -73,52 +73,23 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Load UI file.
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
-        self.addNewViewLayout()
+
+        # :COMMENT: layout with 3 views
+        self.add_new_view_layout()
         # :COMMENT: 6 views layout
         slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView)
 
-        # :COMMENT: Get all volumes, (merci Iantsa pour le code).
-        self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
-        
-        # :COMMENT: insert volumes for fixed and moving images
-        self.fixed_image_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboFixedImage")
-        self.fixed_image_combo_box.addItems([volume.GetName() for volume in self.volumes])
+        self.volume_selection_setup()
+        self.reloadButton = qt.QPushButton("Reload")
+        self.reloadButton.toolTip = "Reload this module."
+        self.reloadButton.name = "ScriptedLoadableModuleTemplate Reload"
+        self.reloadButton.connect('clicked()', self.onReload)
 
-        self.moving_image_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMovingImage")
-        self.moving_image_combo_box.addItems([volume.GetName() for volume in self.volumes])
-
-        # :COMMENT: Link settings UI and code
-        self.metrics_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMetrics")
-        self.interpolator_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxInterpolator")
-        self.optimizers_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboOptimizers")
-        self.volume_name_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditNewVolumeName")
-        self.histogram_bin_count_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxBinCount")
-        self.sampling_strat_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxSamplingStrat")
-        self.sampling_perc_spin_box = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxSamplingPerc")
-
-        # :COMMENT: Gradients parameters
-        self.gradients_box = self.panel_ui.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBoxGradient")
-        self.learning_rate_spin_box = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxLearningR")
-        self.nb_of_iter_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxNbIter")
-        self.conv_min_val_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditConvMinVal")
-        self.conv_win_size_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxConvWinSize")
-
-        # :COMMENT: exhaustive parameters
-        self.exhaustive_box = self.panel_ui.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBoxExhaustive")
-        self.step_length_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditLength")
-        self.nb_steps_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditSteps")
-        self.opti_scale_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditScale")
-
-        self.optimizers_combo_box.currentIndexChanged.connect(self.updateGUI)
-        # :COMMENT: handle button
-        self.button_registration = self.panel_ui.findChild(ctk.ctkPushButton, "PushButtonRegistration")
-        self.button_registration.clicked.connect(self.rigid_registration)
-        self.initUiComboBox()
 
     # :COMMENT: new view layout with only slice views
     # :BUG: not working, dunno why
     # code from : https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html
-    def addNewViewLayout(self):
+    def add_new_view_layout(self) -> None:
         new_view_layout = """
         "<layout type="horizontal">"
         " <item>"
@@ -158,6 +129,44 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         layoutSwitchAction.setData(new_layout_id)
         layoutSwitchAction.setIcon(qt.QIcon(":Icons/Go.png"))
         layoutSwitchAction.setToolTip("3D and slice view")
+
+    def volume_selection_setup(self) -> None:
+        """
+        Sets up the preprocessing widget by retrieving the volume selection widget and initializing it.
+        """
+
+        # :COMMENT: Link settings UI and code
+        self.metrics_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMetrics")
+        self.interpolator_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxInterpolator")
+        self.optimizers_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboOptimizers")
+        self.volume_name_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditNewVolumeName")
+        self.histogram_bin_count_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxBinCount")
+        self.sampling_strat_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxSamplingStrat")
+        self.sampling_perc_spin_box = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxSamplingPerc")
+
+        # :COMMENT: Gradients parameters
+        self.gradients_box = self.panel_ui.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBoxGradient")
+        self.learning_rate_spin_box = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxLearningR")
+        self.nb_of_iter_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxNbIter")
+        self.conv_min_val_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditConvMinVal")
+        self.conv_win_size_spin_box = self.panel_ui.findChild(qt.QSpinBox, "spinBoxConvWinSize")
+
+        # :COMMENT: exhaustive parameters
+        self.exhaustive_box = self.panel_ui.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBoxExhaustive")
+        self.step_length_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditLength")
+        self.nb_steps_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditSteps")
+        self.opti_scale_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditScale")
+
+        self.fill_combo_box()
+        # :COMMENT: handle button
+        self.button_registration = self.panel_ui.findChild(ctk.ctkPushButton, "PushButtonRegistration")
+        self.button_registration.clicked.connect(self.rigid_registration)
+
+        
+        self.fixed_image_combo_box.activated.connect(lambda index=self.fixed_image_combo_box.currentIndex, combobox=self.fixed_image_combo_box: self.on_volume_combo_box_changed(index, combobox))
+        self.moving_image_combo_box.activated.connect(lambda index=self.moving_image_combo_box.currentIndex, combobox=self.moving_image_combo_box: self.on_volume_combo_box_changed(index, combobox))
+        self.optimizers_combo_box.currentIndexChanged.connect(self.update_gui)
+        self.selected_volume = None
 
 
     def vtk_to_sitk(self, volume: slicer.vtkMRMLScalarVolumeNode) -> sitk.Image:
@@ -207,8 +216,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         moving_image_index = self.moving_image_combo_box.currentIndex
         
         # :COMMENT: itk volume
-        self.fixedVolumeData = self.volumes.GetItemAsObject(fixed_image_index-1)
-        self.movingVolumeData = self.volumes.GetItemAsObject(moving_image_index-1)
+        self.fixedVolumeData = self.volumes.GetItemAsObject(fixed_image_index)
+        self.movingVolumeData = self.volumes.GetItemAsObject(moving_image_index)
 
         # :COMMENT: conversion to sitk volumes
         fixed_image = self.vtk_to_sitk(self.fixedVolumeData)
@@ -248,18 +257,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: FROM simpleitk docs : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod1_docs.html
         # a simple 3D rigid registration method
         R = sitk.ImageRegistrationMethod()
-        self.selectMetrics(R, bin_count)
+        self.select_metrics(R, bin_count)
         R.SetMetricSamplingStrategy(sampling_strat)
         R.SetMetricSamplingPercentage(sampling_perc)
         self.parametersToPrint = ""
-        self.selectOptimizersAndSetup(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size)
+        self.select_optimizer_and_setup(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size)
 
         initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
                                                       moving_image, 
                                                       sitk.Euler3DTransform(), 
                                                       sitk.CenteredTransformInitializerFilter.GEOMETRY)
         R.SetInitialTransform(initial_transform, inPlace=False)
-        self.selectInterpolator(R)
+        self.select_interpolator(R)
         R.SetOptimizerScalesFromPhysicalShift()
 
         #R.AddCommand(sitk.sitkIterationEvent, lambda: self.command_iteration(R))
@@ -285,7 +294,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     # :COMMENT: helper function to determine when the threaded registration ends
     # transfer metadata and add the volume
-    def onProcessingStatusUpdate(self, cliNode, event):
+    def onProcessingStatusUpdate(self, cliNode, event) -> None:
         if cliNode.GetStatus() & cliNode.Completed:
             if cliNode.GetStatus() & cliNode.ErrorsMask:
                 errorText = cliNode.GetErrorText()
@@ -307,7 +316,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.add_volume(volume)
                 print(f"[DEBUG]: {moving_image.GetName()}  as been registrated with parameters :\n< {self.parametersToPrint}> as {volume.GetName()}.")
         
-    def transfer_volume_metadate(self, original_volume, moved_volume):
+    def transfer_volume_metadate(self, original_volume, moved_volume) -> None:
         spacing =  original_volume.GetSpacing()
         origin =  original_volume.GetOrigin()
         ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
@@ -318,13 +327,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         moved_volume.SetOrigin(origin)
         moved_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
 
-    def add_volume(self, volume):
+    def add_volume(self, volume) -> None:
         volume.SetName(self.volume_name_edit.text)
         mrmlScene.AddNode(volume)
         slicer.util.setSliceViewerLayers(volume, fit=True)
 
     # :COMMENT: helper function to setup UI
-    def initUiComboBox(self):
+    def fill_combo_box(self) -> None:
         self.metrics_combo_box.addItems(["Mean Squares",
                                             "Demons",
                                             "Correlation",
@@ -344,9 +353,145 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.sampling_strat_combo_box.addItems(["Regular",
                                                 "Random"])
 
-    # :COMMENT: call the selected metrics by the user
+        self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
+        
+        # :COMMENT: insert volumes for fixed and moving images
+        self.fixed_image_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboFixedImage")
+        self.fixed_image_combo_box.addItems([volume.GetName() for volume in self.volumes])
+
+        self.moving_image_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMovingImage")
+        self.moving_image_combo_box.addItems([volume.GetName() for volume in self.volumes])
+
+        self.fixed_image_combo_box.addItem("Rename current volume…")
+        self.fixed_image_combo_box.addItem("Delete current volume…")
+        self.moving_image_combo_box.addItem("Rename current volume…")
+        self.moving_image_combo_box.addItem("Delete current volume…")
+
+    def on_volume_combo_box_changed(self, index: int, combo_box: ctk.ctkComboBox) -> None:
+        """
+        Handles the selection of volume for fixed and moving combo box, updates it
+
+        Parameters:
+            index: the selected volume or option
+        """
+        
+        OPTIONS = ["Delete current volume…", "Rename current volume…"]
+        name = combo_box.currentText
+        self.active_combo_box = combo_box
+        print(combo_box.currentText)
+        print(f"index: {index}")
+        # :COMMENT: Handle the different options.
+        if name in OPTIONS:
+            if self.volumes.GetNumberOfItems() < 1:
+                self.display_error_message("No volumes imported.")
+                self.update_active_combo_box()
+                return
+
+            if not self.selected_volume:
+                self.display_error_message("Please select a volume first.")
+                self.update_active_combo_box()
+                return
+
+            if name == "Rename current volume…":
+                self.rename_volume()
+
+            if name == "Delete current volume…":
+                self.delete_volume()
+
+        # :COMMENT: Select a new volume.
+        else:
+            self.selected_volume_index = index
+            self.selected_volume = self.volumes.GetItemAsObject(index)
+
+    def rename_volume(self) -> None:
+        """
+        Loads the renaming feature with a minimal window.
+        """
+
+        assert self.selected_volume
+        self.renaming_old_name = self.selected_volume.GetName()
+        self.renaming_input_dialog = qt.QInputDialog(None)
+        self.renaming_input_dialog.setWindowTitle("Rename Volume")
+        self.renaming_input_dialog.setLabelText("Enter the new name:")
+        self.renaming_input_dialog.setModal(True)
+        self.renaming_input_dialog.setTextValue(self.selected_volume.GetName())
+        self.renaming_input_dialog.finished.connect(self.handle_rename_volume)
+        self.renaming_input_dialog.show()
+
+    def handle_rename_volume(self, result) -> None:
+        """
+        Applies the renaming of the selected volume.
+        Parameters:
+            result: The result of the input dialog.
+        """
+
+        if result == qt.QDialog.Accepted:
+            assert self.selected_volume
+            new_name = self.renaming_input_dialog.textValue()
+            self.selected_volume.SetName(new_name)
+            print(
+                f'"{self.renaming_old_name}" has been renamed to "{self.selected_volume.GetName()}".'
+            )
+        self.update_active_combo_box()
+
+    def update_active_combo_box(self) -> None:
+        """
+        Updates the selected volume combo box.
+        """
+
+        self.active_combo_box.clear()
+        self.active_combo_box.addItems([volume.GetName() for volume in self.volumes])
+        self.active_combo_box.addItem("Rename current volume…")
+        self.active_combo_box.addItem("Delete current volume…")
+        if self.selected_volume and self.selected_volume_index != -1 :
+            self.active_combo_box.setCurrentIndex(self.selected_volume_index)
+        else:
+            print(self.selected_volume)
+            self.active_combo_box.setCurrentIndex(-1)
+
+    def delete_volume(self) -> None:
+        """
+        Deletes the currently selected volume.
+        """
+
+        assert self.selected_volume
+        mrmlScene.RemoveNode(self.selected_volume)
+
+        name = self.selected_volume.GetName()
+        self.selected_volume = None
+        self.selected_volume_index = None
+        self.update_volume_list()
+
+        print(f'"{name}" has been deleted.')
+
+    def update_volume_list(self, caller=None, event=None) -> None:
+        """
+        Updates the list of volumes in the volume combobox when a change is detected in the MRML Scene.
+        Parameters:
+            caller: The widget calling this method.
+            event: The event that triggered this method.
+        """
+
+        self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
+        self.update_active_combo_box()
+
+    def reset_all_combo_box(self) -> None:
+        """
+        as name states
+        """
+        self.fixed_image_combo_box.clear()
+        self.moving_image_combo_box.clear()
+        self.metrics_combo_box.clear()
+        self.optimizers_combo_box.clear()
+        self.interpolator_combo_box.clear()
+        self.fixed_image_combo_box.setCurrentIndex(-1)
+        self.moving_image_combo_box.setCurrentIndex(-1)
+
     # :TRICKY: getattr calls the function from object R, function is provided by metrics combo box
-    def selectMetrics(self, R, bin_count):
+    def select_metrics(self, R, bin_count) -> None:
+        """
+        call the selected metrics by the user
+        """
         metrics = self.metrics_combo_box.currentText.replace(" ", "")
         print(f"[DEBUG]: metrics: {metrics}")
         metrics_function = getattr(R, f"SetMetricAs{metrics}")
@@ -355,13 +500,19 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         else:
             metrics_function()
 
-    def selectInterpolator(self, R):
+    def select_interpolator(self, R) -> None:
+        """
+        set the interpolator selected by the user
+        """
         interpolator = self.interpolator_combo_box.currentText.replace(" ", "")
         interpolator = getattr(sitk, f"sitk{interpolator}")
         print(f"[DEBUG]: interpolator: {interpolator}")
         R.SetInterpolator(interpolator)
 
-    def selectOptimizersAndSetup(self, R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size):
+    def select_optimizer_and_setup(self, R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size) -> None:
+        """
+        set the optimizer (gradient descent, exhaustive...) and their respective parameters to be executed.
+        """
         optimizerName = self.optimizers_combo_box.currentText.replace(" ", "")
         print(f"[DEBUG]: optimizer {optimizerName}")
         optimizer = getattr(R, f"SetOptimizerAs{optimizerName}")
@@ -373,8 +524,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             optimizer(numberOfSteps=self.nb_of_steps, stepLength = self.step_length)
             R.SetOptimizerScales(self.optimizer_scale)
 
-    # :COMMENT: updateGUI based on the choice of the user concerning the optimizer function
-    def updateGUI(self):
+    def update_gui(self) -> None:
+        """
+        updates the UI based on the choice of the user concerning the optimizer function
+        """
         if self.optimizers_combo_box.currentText == "Gradient Descent":
             self.gradients_box.setEnabled(True)
             self.gradients_box.collapsed = 0
@@ -401,6 +554,29 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             + f"= {method.GetMetricValue():7.5f} "
             + f": {method.GetOptimizerPosition()}"
         )
+
+    def display_error_message(self, message: str) -> None:
+        """
+        Displays an error message.
+        Parameters:
+            message: Message to be displayed.
+        """
+
+        msg = qt.QMessageBox()
+        msg.setIcon(qt.QMessageBox.Critical)
+        msg.setText(message)
+        msg.setWindowTitle("Error")
+        msg.exec_()
+
+    def onReload(self):
+            """
+            Reload scripted module widget representation.
+            """
+            print('Reloading module: ' + self.moduleName)
+            slicer.util.reloadScriptedModule(self.moduleName)
+            self.reset_all_combo_box()
+            self.fill_combo_box()
+
 
 class CustomRegistrationTest(ScriptedLoadableModuleTest):
 
