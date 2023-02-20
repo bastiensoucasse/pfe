@@ -7,7 +7,7 @@ import datetime
 import numpy as np
 import SimpleITK as sitk
 import vtk
-from ctk import ctkComboBox
+from ctk import ctkCollapsibleButton, ctkComboBox
 from qt import (
     QDialog,
     QInputDialog,
@@ -16,17 +16,8 @@ from qt import (
     QPushButton,
     QSlider,
     QSpinBox,
-    QWidget,
-    QHBoxLayout,
-    QSplitter,
 )
-from slicer import (  # qMRMLSliceWidget,; vtkMRMLSliceNode,
-    app,
-    mrmlScene,
-    util,
-    vtkMRMLScalarVolumeNode,
-    vtkMRMLScene,
-)
+from slicer import app, mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -180,7 +171,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         assert self.panel
         self.layout.addWidget(self.panel)
 
-        # :TODO:Bastien: Add something for the collapsible panels to be closed by default.
+        # Collapse the collapsible buttons.
+        self.collapse_all()
 
         # Set up the viewer interface.
         self.viewer_setup()
@@ -190,6 +182,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.roi_selection_setup()
         self.cropping_setup()
         self.resampling_setup()
+
+    def collapse_all(self) -> None:
+        """
+        Collapses all the collapsible widgets.
+        """
+
+        collapsible_buttons = self.panel.findChildren(ctkCollapsibleButton)
+        for collapsible_widget in collapsible_buttons:
+            collapsible_widget.collapsed = True
 
     #
     # VIEWER
