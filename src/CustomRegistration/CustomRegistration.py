@@ -2,6 +2,7 @@
 The Custom Registration module for Slicer provides the features for 3D images registration, based on the ITK library.
 """
 
+import concurrent.futures
 import datetime
 
 import numpy as np
@@ -159,27 +160,36 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         outputImage.SetDimensions(dims1)
         outputImage.AllocateScalars(vtk.VTK_FLOAT, 1)
 
-        mini = 100000
-        maxi = 0
-        for z in range(dims1[2]):
-            print("z= ", z)
-            for y in range(dims1[1]):
-                for x in range(dims1[0]):
-                    pixel1 = imageData1.GetImageData().GetScalarComponentAsFloat(
-                        x, y, z, 0
-                    )
-                    pixel2 = imageData2.GetImageData().GetScalarComponentAsFloat(
-                        x, y, z, 0
-                    )
-                    diff = abs(pixel1 - pixel2)
-                    if diff < mini:
-                        mini = diff
+        # Define the worker function to process a portion of the loops
+        def process_portion(z_range):
+            for z in z_range:
+                for y in range(dims1[1]):
+                    for x in range(dims1[0]):
+                        pixel1 = imageData1.GetImageData().GetScalarComponentAsFloat(
+                            x, y, z, 0
+                        )
+                        pixel2 = imageData2.GetImageData().GetScalarComponentAsFloat(
+                            x, y, z, 0
+                        )
+                        diff = abs(pixel1 - pixel2)
+                        outputImage.SetScalarComponentFromFloat(z, y, x, 0, diff)
 
-                    elif diff > maxi:
-                        maxi = diff
-                    outputImage.SetScalarComponentFromFloat(z, y, x, 0, diff)
+        # Define the number of threads to use
+        num_threads = 4
 
-        print("mini maxi : ", mini, maxi)
+        # Divide the loops over z into equal portions for each thread
+        z_ranges = [
+            (z_start, z_start + dims1[2] // num_threads)
+            for z_start in range(0, dims1[2], dims1[2] // num_threads)
+        ]
+
+        # Execute the worker function using multiple threads
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = [
+                executor.submit(process_portion, z_range) for z_range in z_ranges
+            ]
+            concurrent.futures.wait(futures)
+
         outputNode = vtkMRMLScalarVolumeNode()
         outputNode.SetAndObserveImageData(outputImage)
         outputNode.SetName("SquareDifference")
@@ -210,7 +220,6 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             for y in range(dimensions[1]):
                 for x in range(dimensions[0]):
                     # :DIRTY:Wissam: Unused variable.
-                    pixelIndex = [x, y, z, 0]
                     pixelValue1 = imageData1.GetScalarComponentAsDouble(x, y, z, 0)
                     pixelValue2 = imageData2.GetScalarComponentAsDouble(x, y, z, 0)
 
@@ -864,3 +873,19 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Remove the observers.
         mrmlScene.RemoveObserver(self.observer_tag)
+
+    #
+    # DIFFERENCE MAP
+    #
+
+    def setup_difference_map(self):
+        # :TODO:Wissam: Choisir la fonction disponible, dans le menu déroulant, l'appliquer avec le bouton, afficher la moyenne
+        function = ["Différence absolue"]
+        self.actual_function = self.panel.findChild(ctkComboBox, "mapFunction")
+        self.selected_volume_combo_box.addItem()
+        pass
+
+    def plotDifferenceMap(self, differenceMap):
+        # :TODO:Wissam: Afficher la carte de différence dans yellow
+
+        pass
