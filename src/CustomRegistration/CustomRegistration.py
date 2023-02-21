@@ -77,15 +77,16 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
 
                     elif diff>maxi :
                         maxi = diff
-                    outputImage.SetScalarComponentFromFloat(x, y, z, 0, diff)
-                    # outputImage.SetScalarComponentFromFloat(x, y, z, 1, diff)
-                    # outputImage.SetScalarComponentFromFloat(x, y, z, 2, diff)
+                    outputImage.SetScalarComponentFromFloat(z, y, x, 0, diff)
+                    
 
         print ("mini maxi : ",mini , maxi)
         outputNode = slicer.vtkMRMLScalarVolumeNode()
         outputNode.SetAndObserveImageData(outputImage)
         outputNode.SetName("SquareDifference")
         slicer.mrmlScene.AddNode(outputNode)
+
+        # return outputNode
 
 
     def mean(self, input1, input2):
