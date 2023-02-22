@@ -80,10 +80,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView)
 
         self.volume_selection_setup()
-        self.reloadButton = qt.QPushButton("Reload")
-        self.reloadButton.toolTip = "Reload this module."
-        self.reloadButton.name = "ScriptedLoadableModuleTemplate Reload"
-        self.reloadButton.connect('clicked()', self.onReload)
 
 
     # :COMMENT: new view layout with only slice views
@@ -158,6 +154,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.opti_scale_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditScale")
 
         self.fill_combo_box()
+        self.fixed_image_combo_box.setCurrentIndex(-1)
+        self.moving_image_combo_box.setCurrentIndex(-1)
         # :COMMENT: handle button
         self.button_registration = self.panel_ui.findChild(ctk.ctkPushButton, "PushButtonRegistration")
         self.button_registration.clicked.connect(self.rigid_registration)
@@ -208,7 +206,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     # Registration algorithm using simpleITK
     def rigid_registration(self):
         # :COMMENT: if no image is selected
-        if self.fixed_image_combo_box.currentIndex == 0 or self.moving_image_combo_box.currentIndex == 0:
+        if self.fixed_image_combo_box.currentIndex == -1 or self.moving_image_combo_box.currentIndex == -1:
             print("[DEBUG]: no volume selected !")
             return
 
@@ -256,41 +254,43 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: FROM simpleitk docs : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod1_docs.html
         # a simple 3D rigid registration method
-        R = sitk.ImageRegistrationMethod()
-        self.select_metrics(R, bin_count)
-        R.SetMetricSamplingStrategy(sampling_strat)
-        R.SetMetricSamplingPercentage(sampling_perc)
-        self.parametersToPrint = ""
-        self.select_optimizer_and_setup(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size)
+        parameters = {}
+        parameters["inputVolume"] = self.fixedVolumeData
+        parameters["inputVolume2"] = self.movingVolumeData
+        outputModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
+        parameters["outputVolume"] = outputModelNode
+        cliNode = slicer.cli.run(slicer.modules.registration, None, parameters)
+        cliNode.AddObserver('ModifiedEvent', self.onProcessingStatusUpdate)
 
-        initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
-                                                      moving_image, 
-                                                      sitk.Euler3DTransform(), 
-                                                      sitk.CenteredTransformInitializerFilter.GEOMETRY)
-        R.SetInitialTransform(initial_transform, inPlace=False)
-        self.select_interpolator(R)
-        R.SetOptimizerScalesFromPhysicalShift()
 
-        #R.AddCommand(sitk.sitkIterationEvent, lambda: self.command_iteration(R))
-        final_transform = R.Execute(fixed_image, moving_image)
-        # parameters = {}
-        # parameters["R"] = R
-        # parameters["fixed_image"] = fixed_image
-        # parameters["moving_image"] = moving_image
-        # parameters["output"] = []
-        #cliNode = slicer.cli.run(slicer.modules.registration, None, parameters)
-        #cliNode.AddObserver('ModifiedEvent', self.onProcessingStatusUpdate)
-        #final_transform = cliNode.GetParameterAsString("output")
-        print("-------")
-        print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
-        print(f" Iteration: {R.GetOptimizerIteration()}")
-        print(f" Metric value: {R.GetMetricValue()}")
+        # R = sitk.ImageRegistrationMethod()
+        # self.select_metrics(R, bin_count)
+        # R.SetMetricSamplingStrategy(sampling_strat)
+        # R.SetMetricSamplingPercentage(sampling_perc)
+        # self.parametersToPrint = ""
+        # self.select_optimizer_and_setup(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size)
+
+        # initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
+        #                                               moving_image, 
+        #                                               sitk.Euler3DTransform(), 
+        #                                               sitk.CenteredTransformInitializerFilter.GEOMETRY)
+        # R.SetInitialTransform(initial_transform, inPlace=False)
+        # self.select_interpolator(R)
+        # R.SetOptimizerScalesFromPhysicalShift()
+
+        # R.AddCommand(sitk.sitkIterationEvent, lambda: self.command_iteration(R))
+        # final_transform = R.Execute(fixed_image, moving_image)
+
+        # print("-------")
+        # print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
+        # print(f" Iteration: {R.GetOptimizerIteration()}")
+        # print(f" Metric value: {R.GetMetricValue()}")
         
-        moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
-        volume = self.sitk_to_vtk(moving_resampled)
-        self.transfer_volume_metadate(self.fixedVolumeData, volume)
-        self.add_volume(volume)
-        print(f"[DEBUG]: {self.movingVolumeData.GetName()}  as been registrated with parameters :\n< {self.parametersToPrint}> as {volume.GetName()}.")
+        # resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
+        # volume = self.sitk_to_vtk(resampled)
+        # self.transfer_volume_metadate(self.fixedVolumeData, volume)
+        # self.add_volume(volume)
+        #print(f"[DEBUG]: {self.movingVolumeData.GetName()}  as been registrated with parameters :\n< {self.parametersToPrint}> as {volume.GetName()}.")
 
     # :COMMENT: helper function to determine when the threaded registration ends
     # transfer metadata and add the volume
@@ -300,21 +300,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 errorText = cliNode.GetErrorText()
                 print("CLI execution failed: " + errorText)
             else:
-                output = cliNode.GetParameterAsString("output")
-                fixed_image = output[0]
-                moving_image = output[1]
-                final_transform = output[2]
-                R = output[3]
-                print("-------")
-                print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
-                print(f" Iteration: {R.GetOptimizerIteration()}")
-                print(f" Metric value: {R.GetMetricValue()}")
-                
-                moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
-                volume = self.sitk_to_vtk(moving_resampled)
-                self.transfer_volume_metadate(self.fixedVolumeData, volume)
-                self.add_volume(volume)
-                print(f"[DEBUG]: {moving_image.GetName()}  as been registrated with parameters :\n< {self.parametersToPrint}> as {volume.GetName()}.")
+                node_name = cliNode.GetParameterAsString("outputVolume")
+                output_volume = slicer.util.getNode(node_name)
+                #:TODO: transform string to node
+                #volume = self.sitk_to_vtk(resampled)
+                #self.transfer_volume_metadate(self.movingVolumeData, output_volume)
+                self.add_volume(output_volume)
+                #print(f"[DEBUG]: {moving_image.GetName()}  as been registrated with parameters :\n< {self.parametersToPrint}> as {volume.GetName()}.")
         
     def transfer_volume_metadate(self, original_volume, moved_volume) -> None:
         spacing =  original_volume.GetSpacing()
@@ -329,7 +321,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def add_volume(self, volume) -> None:
         volume.SetName(self.volume_name_edit.text)
-        mrmlScene.AddNode(volume)
+        #mrmlScene.AddNode(volume)
         slicer.util.setSliceViewerLayers(volume, fit=True)
 
     # :COMMENT: helper function to setup UI
@@ -567,15 +559,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         msg.setText(message)
         msg.setWindowTitle("Error")
         msg.exec_()
-
-    def onReload(self):
-            """
-            Reload scripted module widget representation.
-            """
-            print('Reloading module: ' + self.moduleName)
-            slicer.util.reloadScriptedModule(self.moduleName)
-            self.reset_all_combo_box()
-            self.fill_combo_box()
 
 
 class CustomRegistrationTest(ScriptedLoadableModuleTest):
