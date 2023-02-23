@@ -234,7 +234,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Update the volume combo boxes and information.
         self.update_volume_combo_boxes_and_information_labels("all")
 
-    def update_volume_combo_boxes_and_information_labels(self, variation: str = "all") -> None:
+    def update_volume_combo_boxes_and_information_labels(
+        self, variation: str = "all"
+    ) -> None:
         """
         Updates the volume combo boxes and information labels (dimensions, pixel size, spacing…).
 
