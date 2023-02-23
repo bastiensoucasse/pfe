@@ -232,20 +232,22 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
 
         # :COMMENT: Update the volume combo boxes and information.
-        self.update_volume_combo_boxes_and_information("all")
+        self.update_volume_combo_boxes_and_information_labels("all")
 
-    def update_volume_combo_boxes_and_information(self, variation: str = "all") -> None:
+    def update_volume_combo_boxes_and_information_labels(self, variation: str = "all") -> None:
         """
-        Updates the volume combo boxes.
+        Updates the volume combo boxes and information labels (dimensions, pixel size, spacing…).
 
         Parameters:
             variation: Either "selected", "target", or "all".
         """
 
+        # :TODO:Iantsa: Add pixel size and spacing to the information, along with the dimensions.
+
         # :COMMENT: Handle the "all" variation.
         if variation == "all":
-            self.update_volume_combo_boxes_and_information("selected")
-            self.update_volume_combo_boxes_and_information("target")
+            self.update_volume_combo_boxes_and_information_labels("selected")
+            self.update_volume_combo_boxes_and_information_labels("target")
             return
 
         # :COMMENT: Ensure the variation is valid.
