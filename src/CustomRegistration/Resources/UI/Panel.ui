@@ -318,6 +318,24 @@
              </property>
             </widget>
            </item>
+           <item>
+            <layout class="QHBoxLayout" name="ResamplingTargetVolumeDimensionsLayout">
+             <item>
+              <widget class="QLabel" name="ResamplingTargetVolumeDimensionsTextLabel">
+               <property name="text">
+                <string>Dimensions:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="ResamplingTargetVolumeDimensionsValueLabel">
+               <property name="text">
+                <string>…</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
           </layout>
          </item>
          <item>
