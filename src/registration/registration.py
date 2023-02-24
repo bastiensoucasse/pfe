@@ -3,12 +3,6 @@ import SimpleITK as sitk
 import sys
 
 def main(fixed_image, moving_image, output):
-    # reader = sitk.ImageFileReader()
-    # reader.SetFileName(fixed_image)
-    # fixed_image = reader.Execute()
-
-    # reader.SetFileName(moving_image)
-    # moving_image = reader.Execute()
     fixed_image = sitk.ReadImage(fixed_image)
     moving_image = sitk.ReadImage(moving_image)
     fixed_image = sitk.Cast(fixed_image, sitk.sitkFloat32)
@@ -40,7 +34,7 @@ def main(fixed_image, moving_image, output):
     caster = sitk.CastImageFilter()
     caster.SetOutputPixelType(pixelID)
     image = caster.Execute(resampled)
-
+    print(output)
     writer = sitk.ImageFileWriter()
     writer.SetFileName(output)
     writer.Execute(image)

@@ -4,9 +4,8 @@ The Custom Registration module for Slicer provides the features for 3D images re
 import vtk, qt, ctk, slicer, numpy as np
 import SimpleITK as sitk
 from slicer import util, mrmlScene
+from Processes import Process, ProcessesLogic
 import sys, os
-sys.path.append(os.path.join(os.path.join(os.path.dirname(__file__)), "..", "registration"))
-import registration as reg
 from math import pi
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
@@ -73,64 +72,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Load UI file.
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
-
-        # :COMMENT: layout with 3 views
-        self.add_new_view_layout()
         # :COMMENT: 6 views layout
         slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView)
-
         self.volume_selection_setup()
-
-
-    # :COMMENT: new view layout with only slice views
-    # :BUG: not working, dunno why
-    # code from : https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html
-    def add_new_view_layout(self) -> None:
-        new_view_layout = """
-        "<layout type="horizontal">"
-        " <item>"
-        "  <view class="vtkMRMLSliceNode" singletontag="Red">"
-        "   <property name="orientation" action="default">Axial</property>"
-        "   <property name="viewlabel" action="default">R</property>"
-        "   <property name="viewcolor" action="default">#F34A33</property>"
-        "  </view>"
-        " </item>"
-        " <item>"
-        "  <view class="vtkMRMLSliceNode" singletontag="Green">"
-        "   <property name="orientation" action="default">Coronal</property>"
-        "   <property name="viewlabel" action="default">G</property>"
-        "   <property name="viewcolor" action="default">#6EB04B</property>"
-        "  </view>"
-        " </item>"
-        " <item>"
-        "  <view class="vtkMRMLSliceNode" singletontag="Yellow">"
-        "   <property name="orientation" action="default">Sagittal</property>"
-        "   <property name="viewlabel" action="default">Y</property>"
-        "   <property name="viewcolor" action="default">#EDD54C</property>"
-        "  </view>"
-        " </item>"
-        "</layout>"
-        """
-        new_layout_id = 500
-        layoutManager = slicer.app.layoutManager()
-        layoutManager.layoutLogic().GetLayoutNode().AddLayoutDescription(new_layout_id, new_view_layout)
-        # Add button to layout selector toolbar for this custom layout
-        viewToolBar = slicer.util.mainWindow().findChild("QToolBar", "ViewToolBar")
-        layoutMenu = viewToolBar.widgetForAction(viewToolBar.actions()[0]).menu()
-        layoutSwitchActionParent = layoutMenu
-        for action in layoutSwitchActionParent.actions():
-            if action.text == "3 plots (red, green, blue)":
-                return
-        layoutSwitchAction = layoutSwitchActionParent.addAction("3 plots (red, green, blue)")
-        layoutSwitchAction.setData(new_layout_id)
-        layoutSwitchAction.setIcon(qt.QIcon(":Icons/Go.png"))
-        layoutSwitchAction.setToolTip("3D and slice view")
 
     def volume_selection_setup(self) -> None:
         """
         Sets up the preprocessing widget by retrieving the volume selection widget and initializing it.
         """
-
         # :COMMENT: Link settings UI and code
         self.metrics_combo_box = self.panel_ui.findChild(ctk.ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxInterpolator")
@@ -165,7 +114,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.moving_image_combo_box.activated.connect(lambda index=self.moving_image_combo_box.currentIndex, combobox=self.moving_image_combo_box: self.on_volume_combo_box_changed(index, combobox))
         self.optimizers_combo_box.currentIndexChanged.connect(self.update_gui)
         self.selected_volume = None
-
 
     def vtk_to_sitk(self, volume: slicer.vtkMRMLScalarVolumeNode) -> sitk.Image:
         """
@@ -251,32 +199,36 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print(f"nb steps : {self.nb_of_steps}")
         print(f"optimizer scale: {self.optimizer_scale}")
 
-
         # :COMMENT: FROM simpleitk docs : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod1_docs.html
         # a simple 3D rigid registration method
-        parameters = {}
-        parameters["inputVolume"] = self.fixedVolumeData
-        parameters["inputVolume2"] = self.movingVolumeData
-        outputModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-        parameters["outputVolume"] = outputModelNode
-        cliNode = slicer.cli.run(slicer.modules.registration, None, parameters)
-        cliNode.AddObserver('ModifiedEvent', self.onProcessingStatusUpdate)
+        """
+        CLI MODULE
+        """
+        # parameters = {}
+        # parameters["inputVolume"] = self.fixedVolumeData
+        # parameters["inputVolume2"] = self.movingVolumeData
+        # outputModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
+        # parameters["outputVolume"] = outputModelNode
+        # cliNode = slicer.cli.run(slicer.modules.registration, None, parameters)
+        # cliNode.AddObserver('ModifiedEvent', self.onProcessingStatusUpdate)
 
+        """
+        MODULE WITHOUT THREADING
+        """
+        R = sitk.ImageRegistrationMethod()
+        self.select_metrics(R, bin_count)
+        R.SetMetricSamplingStrategy(sampling_strat)
+        R.SetMetricSamplingPercentage(sampling_perc)
+        self.parametersToPrint = ""
+        self.select_optimizer_and_setup(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size)
 
-        # R = sitk.ImageRegistrationMethod()
-        # self.select_metrics(R, bin_count)
-        # R.SetMetricSamplingStrategy(sampling_strat)
-        # R.SetMetricSamplingPercentage(sampling_perc)
-        # self.parametersToPrint = ""
-        # self.select_optimizer_and_setup(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size)
-
-        # initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
-        #                                               moving_image, 
-        #                                               sitk.Euler3DTransform(), 
-        #                                               sitk.CenteredTransformInitializerFilter.GEOMETRY)
-        # R.SetInitialTransform(initial_transform, inPlace=False)
-        # self.select_interpolator(R)
-        # R.SetOptimizerScalesFromPhysicalShift()
+        initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
+                                                      moving_image, 
+                                                      sitk.Euler3DTransform(), 
+                                                      sitk.CenteredTransformInitializerFilter.GEOMETRY)
+        R.SetInitialTransform(initial_transform, inPlace=False)
+        self.select_interpolator(R)
+        R.SetOptimizerScalesFromPhysicalShift()
 
         # R.AddCommand(sitk.sitkIterationEvent, lambda: self.command_iteration(R))
         # final_transform = R.Execute(fixed_image, moving_image)
@@ -291,6 +243,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # self.transfer_volume_metadate(self.fixedVolumeData, volume)
         # self.add_volume(volume)
         #print(f"[DEBUG]: {self.movingVolumeData.GetName()}  as been registrated with parameters :\n< {self.parametersToPrint}> as {volume.GetName()}.")
+        """
+        USING PARALLEL PROCESSING EXTENSION
+        """
+        def onProcessesCompleted(testClass):
+            # when test finishes, we succeeded!
+            print(logic.state())
+            print('Test passed!')
+
+        logic = ProcessesLogic(completedCallback=lambda : onProcessesCompleted(self))
+        thisPath = qt.QFileInfo(__file__).path()
+        scriptPath = os.path.join(thisPath, "..", "scripts", "reg2.py")
+        regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image)
+        logic.addProcess(regProcess)
+        logic.run()
+
 
     # :COMMENT: helper function to determine when the threaded registration ends
     # transfer metadata and add the volume
@@ -560,6 +527,36 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         msg.setWindowTitle("Error")
         msg.exec_()
 
+import pickle
+class RegistrationProcess(Process):
+
+  def __init__(self, scriptPath, fixedImageVolume, movingImageVolume):
+    Process.__init__(self, scriptPath)
+    self.fixedImageVolume = fixedImageVolume
+    self.movingImageVolume = movingImageVolume
+
+  def prepareProcessInput(self):
+    input = {}
+    input['fixed_image'] = self.fixedImageVolume
+    input['moving_image'] = self.movingImageVolume
+    return pickle.dumps(input)
+
+  def useProcessOutput(self, processOutput):
+    import abc
+    output = pickle.loads(processOutput)
+    thisPath = qt.QFileInfo(__file__).path()
+    image_resampled= output['image_resampled']
+    pixelID = output["pixelID"]
+    caster = sitk.CastImageFilter()
+    caster.SetOutputPixelType(pixelID)
+    image = caster.Execute(image_resampled)
+    thisPath = os.path.join(thisPath, "registered_image.mha")
+    sitk.WriteImage(image, thisPath)
+    loadedVolumeNode = slicer.util.loadVolume(thisPath)
+    loadedVolumeNode.SetSpacing(image.GetSpacing())
+    loadedVolumeNode.SetOrigin(image.GetOrigin())
+
+    
 
 class CustomRegistrationTest(ScriptedLoadableModuleTest):
 
