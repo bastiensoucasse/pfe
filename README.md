@@ -1,33 +1,17 @@
-# 3D Image Registration Software
+# Custom Registration
+
+![Custom Registration Logo](logo.png)
 
 **Members:** [Wissam Boussella](mailto:wissamboussella@gmail.com), [Iantsa Provost](mailto:iantsa.provost@gmail.com), [Bastien Soucasse](mailto:bastien.soucasse@icloud.com), and [Tony Wolff](mailto:toto.wolff@live.fr).
 
 **Supervisor:** [Fabien Baldacci](mailto:fabien.baldacci@u-bordeaux.fr).
 
-## Presentation
+## Welcome to Custom Registration
 
-The 3D image registration software allows to apply classical image registration algorithms with the following steps.
+Custom Registration is a 3D image registration extension for 3D Slicer. It allows applying preprocessing to the images (ROI selection, cropping, and resampling), running rigid and non-rigid registration algorithms, computing and visualizing difference maps, and running your algorithms with your graphical interface plugged in.
 
-- Loading two 3D images.
-- Applying pre-processing (cropping, resampling, ROI selection…).
-- Applying a registration algorithm (rigid or non-rigid).
-- Visualizing the result with a difference map.
+## Getting Started
 
-The development is based on [Slicer](https://slicer.org) for the interface part and [ITK](https://itk.org) for the algorithmic part. The languages used are Python for the Slicer extension and C++ to interact with the algorithms.
+### 3D Slicer
 
-## Requirements
-
-On your system, a Python 3 installation is required and it is recommended to use a dedicated virtual environment. You then need to install the Slicer application and the Python requirements (including ITK) for the project.
-
-### Automatic Installation
-
-If your system is an Apple macOS or a Linux distrubution, you can simply run the script `requirements/install_dependencies.sh` which should automatically install the Slicer application and all the Python requirements. Make sure to run this script inside your virtual environment if you do use one.
-
-### Manual Installation
-
-1. Follow the instructions from the Slicer documentation to install the application manually on your system.
-2. Install the Python requirements with the `requirements/requirements.txt` file. You can use the following command from the root folder. Make sure to run this command inside your virtual environment if you do use one. (You might need to use `pip3` instead of `pip` depending on your system.)
-
-```shell
-pip install -r requirements/requirements.txt
-```
+You must have [3D Slicer](https://slicer.org) installed on your system. You can download the software from [the download page](https://download.slicer.org) and install it on your system by following [the instructions in the documentation](https://slicer.readthedocs.io/en/latest/user_guide/getting_started.html).
