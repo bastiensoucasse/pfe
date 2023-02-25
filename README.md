@@ -32,7 +32,7 @@ Activate the developer mode in 3D Slicer if not already done. You can achieve th
 
 To import the extension into 3D Slicer, you need to open the _Extension Wizard_ (in the _Developer Tools_ section of the module selector). Hit _Select Extension_ and open the `src` directory containing the sources of the extension. In the next dialog, make sure to load the _Custom Registration_ module.
 
-#### Launching the Extension Module
+### Launching the Extension Module
 
 In Slicer, you can now find the Custom Registration module in the module selector (inside the _PFE_ section).
 
