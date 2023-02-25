@@ -159,8 +159,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the widget for the module by adding a welcome message to the layout.
         """
 
-        # :TODO:Bastien: Prevent loaded volumes from being displayed in the viewer.
-
         # :COMMENT: Initialize the widget.
         ScriptedLoadableModuleWidget.setup(self)
 
@@ -234,6 +232,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Update the volume combo boxes and information.
         self.update_volume_combo_boxes_and_information_labels("all")
 
+        # :COMMENT: Reset the view.
+        # :GLITCH: Flash when loading volume.
+        self.reset_view()
+
     def update_volume_combo_boxes_and_information_labels(
         self, variation: str = "all"
     ) -> None:
@@ -262,7 +264,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             volume_dimensions_label = self.panel.findChild(
                 QLabel, "SelectedVolumeDimensionsValueLabel"
             )
-        else:  # variation == "target":
+        else:
             volume_combo_box = self.target_volume_combo_box
             volume_dimensions_label = self.panel.findChild(
                 QLabel, "ResamplingTargetVolumeDimensionsValueLabel"
@@ -361,10 +363,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Parameters:
             volume: The selected volume.
             view_id: The 2D view ID.
-            orientation: The orientation of the 2D view.
+            orientation: The orientation of the 2D view ("Axial", "Coronal", or "Sagittal").
         """
 
-        assert volume
+        # :COMMENT: Set to blank if no volume.
+        if not volume:
+            self.slice_composite_nodes[view_id].SetBackgroundVolumeID("")
+            return
+
+        # :COMMENT: Ensure the orientation is valid.
+        assert orientation in ["Axial", "Coronal", "Sagittal"]
 
         # :COMMENT: Display the selected volume.
         self.slice_composite_nodes[view_id].SetBackgroundVolumeID(volume.GetID())
@@ -380,11 +388,29 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         self.slice_logic[view_id].FitSliceToAll()
 
+    def reset_view(self) -> None:
+        """
+        Sets all the view to their volume, or to blank if there is no volume assigned.
+        """
+
+        if self.selected_volume:
+            self.update_view(self.selected_volume, 0, "Axial")
+        else:
+            self.update_view(None, 0, "Axial")
+
+        if self.target_volume:
+            self.update_view(self.target_volume, 1, "Axial")
+        else:
+            self.update_view(None, 1, "Axial")
+
+        # :MERGE: Add support for difference map.
+        self.update_view(None, 2, "Axial")
+
     #
     # ROI SELECTION
     #
 
-    def setup_roi_selection(self):
+    def setup_roi_selection(self) -> None:
         """
         Sets up the ROI selection widget.
         """
@@ -445,12 +471,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.roi_selection_threshold_slider.setValue(0)
         self.roi_selection_threshold_value_label.setText("0")
 
-    def select_roi(self):
+    def select_roi(self) -> None:
         """
         Selects the ROI.
         """
 
-        # E:COMMENT: nsure that a volume is selected.
+        # :COMMENT: Ensure that a volume is selected.
         if not self.selected_volume:
             self.display_error_message("Please select a volume to select a ROI from.")
             return
@@ -1004,10 +1030,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Update the MRML scene.
         mrmlScene.AddNode(volume)
-
-        # :COMMENT: Useful for exporting.
-        # :DIRTY:Iantsa: Fix/remove commented code.
-        # sitk.WriteImage(cropped_image, '/Users/iantsaprovost/Desktop/test.nrrd')
 
     def vtk_to_sitk(self, volume: vtkMRMLScalarVolumeNode) -> sitk.Image:
         """
