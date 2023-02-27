@@ -38,6 +38,6 @@ resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkL
 
 output = {}
 output['image_resampled'] = resampled
-output["pixelID"] = moving_image.GetPixelID()
+output["pixelID"] = fixed_image.GetPixelID()
 
 sys.stdout.buffer.write(pickle.dumps(output))

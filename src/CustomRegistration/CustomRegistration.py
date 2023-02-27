@@ -72,8 +72,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Load UI file.
         self.panel_ui = util.loadUI(self.resourcePath("UI/Panel.ui"))
         self.layout.addWidget(self.panel_ui)
-        # :COMMENT: 6 views layout
-        slicer.app.layoutManager().setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutThreeOverThreeView)
+        # :COMMENT: hide 3D view
+        threeDWidget = slicer.app.layoutManager().threeDWidget(0)
+        threeDWidget.setVisible(False)
         self.volume_selection_setup()
 
     def volume_selection_setup(self) -> None:
@@ -250,6 +251,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # when test finishes, we succeeded!
             print(logic.state())
             print('Test passed!')
+            self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
+            new_volume = self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems()-1)
+            self.transfer_volume_metadate(self.fixedVolumeData, new_volume)
+            slicer.util.setSliceViewerLayers(background=new_volume, foreground=self.fixedVolumeData)
+            slicer.util.resetSliceViews()
+            #slicer.app.layoutManager().sliceWidget("Red").sliceLogic().FitSliceToAll()
 
         logic = ProcessesLogic(completedCallback=lambda : onProcessesCompleted(self))
         thisPath = qt.QFileInfo(__file__).path()
