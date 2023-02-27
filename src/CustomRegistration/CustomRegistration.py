@@ -146,87 +146,56 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         # Run the function.
         return function(*args, **kwargs)
 
-    def mseDisplay(self, imageData1, imageData2):
+    def mse_difference_map(self, imageData1, imageData2, name):
+        # :TODO:Wissam: Modifier la fonction pour utiliser un itérateur, renvoyer un noeud et ne pas l'ajouter
         # :DIRTY:Wissam: Add documentation and comments.
         # :DIRTY:Wissam: Remove commented code.
-
         dims1 = imageData1.GetImageData().GetDimensions()
         dims2 = imageData2.GetImageData().GetDimensions()
 
         if dims1 != dims2:
             raise ValueError("Images must have the same dimensions")
 
+        mean = 0.0
+        # Create an iterator over the image data
+        it1 = vtk.vtkImageIterator()
+        it1.SetImage(imageData1.GetImageData())
+
+        it2 = vtk.vtkImageIterator()
+        it2.SetImage(imageData2.GetImageData())
+
+        # Create the output image
         outputImage = vtk.vtkImageData()
         outputImage.SetDimensions(dims1)
         outputImage.AllocateScalars(vtk.VTK_FLOAT, 1)
 
         # Define the worker function to process a portion of the loops
-        def process_portion(z_range):
-            for z in z_range:
-                for y in range(dims1[1]):
-                    for x in range(dims1[0]):
-                        pixel1 = imageData1.GetImageData().GetScalarComponentAsFloat(
-                            x, y, z, 0
-                        )
-                        pixel2 = imageData2.GetImageData().GetScalarComponentAsFloat(
-                            x, y, z, 0
-                        )
-                        diff = abs(pixel1 - pixel2)
-                        outputImage.SetScalarComponentFromFloat(z, y, x, 0, diff)
+        def worker_func(pixel1, pixel2):
+            diff = abs(pixel1 - pixel2)
+            return diff
 
-        # Define the number of threads to use
-        num_threads = 4
+        # Iterate over the image data and compute the output image
+        it_out = vtk.vtkImageIterator()
+        it_out.SetImage(outputImage)
+        it_out.SetNumberOfComponents(1)
+        it_out.GoToBegin()
 
-        # Divide the loops over z into equal portions for each thread
-        z_ranges = [
-            (z_start, z_start + dims1[2] // num_threads)
-            for z_start in range(0, dims1[2], dims1[2] // num_threads)
-        ]
+        while not it_out.IsAtEnd():
+            pixel1 = it1.Get()
+            pixel2 = it2.Get()
+            diff = worker_func(pixel1, pixel2)
+            mean = mean + diff
+            it_out.Set(diff)
+            it1.NextPixel()
+            it2.NextPixel()
+            it_out.NextPixel()
 
-        # Execute the worker function using multiple threads
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = [
-                executor.submit(process_portion, z_range) for z_range in z_ranges
-            ]
-            concurrent.futures.wait(futures)
-
+        # Create and add the output node to the scene
         outputNode = vtkMRMLScalarVolumeNode()
         outputNode.SetAndObserveImageData(outputImage)
-        outputNode.SetName("SquareDifference")
-        mrmlScene.AddNode(outputNode)
+        outputNode.SetName(name)
 
-        # return outputNode
-
-    def mean(self, input1, input2):
-        # :DIRTY:Wissam: Add documentation and comments.
-        # :DIRTY:Wissam: Remove commented code.
-        # :DIRTY:Wissam: Explain link.
-
-        # :TODO:Wissam: renvoyer la moyenne d'erreur entre les deux input
-        # Que faire quand ils n'ont pas la meme résolution ??
-
-        # https://discourse.itk.org/t/compute-a-mse-metric-for-a-fixed-and-moving-image-manual-registration/5161/3
-        imageData1 = input1.GetImageData()
-        imageData2 = input2.GetImageData()
-        dimensions = imageData1.GetDimensions()
-
-        # :DIRTY:Wissam: Unused variable.
-        numberOfScalarComponents = imageData1.GetNumberOfScalarComponents()
-
-        mean = 0
-
-        for z in range(dimensions[2]):
-            print("slice z = ", z)
-            for y in range(dimensions[1]):
-                for x in range(dimensions[0]):
-                    # :DIRTY:Wissam: Unused variable.
-                    pixelValue1 = imageData1.GetScalarComponentAsDouble(x, y, z, 0)
-                    pixelValue2 = imageData2.GetScalarComponentAsDouble(x, y, z, 0)
-
-                    mean = mean + abs(pixelValue1 - pixelValue2)
-
-        return mean / (dimensions[2] * dimensions[1] * dimensions[0])
-        # Do something with the pixel value
+        return outputNode, mean / (dims1[0] * dims1[1] * dims1[2])
 
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
@@ -261,6 +230,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.roi_selection_setup()
         self.cropping_setup()
         self.resampling_setup()
+        self.difference_map_setup()
 
     #
     # VOLUME SELECTION
@@ -878,14 +848,64 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     # DIFFERENCE MAP
     #
 
-    def setup_difference_map(self):
-        # :TODO:Wissam: Choisir la fonction disponible, dans le menu déroulant, l'appliquer avec le bouton, afficher la moyenne
-        function = ["Différence absolue"]
-        self.actual_function = self.panel.findChild(ctkComboBox, "mapFunction")
-        self.selected_volume_combo_box.addItem()
-        pass
+    def difference_map_setup(self):
+        # :COMMENT: Difference map algorithms list
+        algorithms_difference_map = ["Mean squared error", "Gradient"]
 
-    def plotDifferenceMap(self, differenceMap):
-        # :TODO:Wissam: Afficher la carte de différence dans yellow
+        self.algorithms_difference_map_combo_box = self.panel.findChild(
+            ctkComboBox, "mapFunction"
+        )
 
+        assert self.algorithms_difference_map_combo_box
+
+        for i in algorithms_difference_map:
+            self.algorithms_difference_map_combo_box.addItem(i)
+
+        self.algorithms_difference_map_combo_box.setCurrentIndex(-1)
+
+        self.difference_map_button_apply = self.panel.findChild(
+            QPushButton, "processMapFunction"
+        )
+
+        assert self.difference_map_button_apply
+
+        self.difference_map_list = []
+        self.number_of_difference_map = 0
+        self.difference_map_current_algorithme = None
+
+        self.difference_map_button_apply.clicked.connect(
+            self.on_apply_button_difference_map
+        )
+
+    def on_apply_button_difference_map(self):
+        # :TODO:Wissam: Appel des fonctions
+
+        # :GOTCHA: Modifier l'acces du target volume quand Tony aura fini
+        if self.resampling_target_volume is None:
+            self.display_error_message("No target volume selected")
+            return
+        if self.selected_volume is None:
+            self.display_error_message("No current volume selected")
+            return
+
+        self.difference_map_current_node = None
+        self.mean_difference_map = 0
+        name = self.algorithms_difference_map_combo_box.currentText
+
+        if name == "Mean squared error":
+            (
+                self.difference_map_current_node,
+                self.mean_difference_map,
+            ) = self.logic.mse_difference_map(
+                self.selected_volume,
+                self.resampling_target_volume,
+                "Difference Map(MSE) " + str(self.number_of_difference_map),
+            )
+            self.number_of_difference_map += 1
+        # :TODO:Wissam: Ajouter la fonction quand je l'aurai implémenté
+        if name == "Gradient":
+            return
+        mrmlScene.AddNode(self.difference_map_current_node)
+
+    def plot_difference_map_on_yellow_window(self, node):
         pass
