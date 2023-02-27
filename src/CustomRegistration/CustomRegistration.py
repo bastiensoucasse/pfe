@@ -170,6 +170,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
 
         # :COMMENT: Load the panel UI.
+        # :GLITCH:Iantsa: 3D view reappearing when layout changed.
         self.panel = util.loadUI(self.resourcePath("UI/Panel.ui"))
         assert self.panel
 
@@ -574,6 +575,35 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Add the VTK Volume Node to the scene.
         self.add_new_volume(vtk_image, "cropped")
+
+        # :DIRTY/TRICKY:Iantsa: Brute test that only works for one case.
+        # Create a new ROI markup node
+        roiNode = mrmlScene.AddNewNodeByClass(
+            "vtkMRMLMarkupsROINode", "Cropping Boundary Test"
+        )
+
+        # Get the bounds of the volume
+        bounds = [0, 0, 0, 0, 0, 0]
+        vtk_image.GetBounds(bounds)
+
+        # Calculate the center and radius of the volume
+        center = [(bounds[i] + bounds[i+1]) / 2 for i in range(0, 5, 2)]
+        radius = [size[i]/2 for i in range(3)]
+
+        print("[DEBUG] Cropped volume dimensions:", vtk_image.GetImageData().GetDimensions())
+
+        # Set the center of the ROI to the center of the volume
+        roiNode.SetXYZ(center)
+
+        rad = [radius[2] * 1.3, radius[0], radius[1]]
+
+        roiNode.SetRadiusXYZ(rad)
+
+        print("[DEBUG] Radius:", rad)
+
+        roiDimensions = roiNode.GetSize()
+        print(f"[DEBUG] ROI dimensions: {roiDimensions}")
+        # :END_DIRTY/TRICKY:Iantsa:
 
         # :COMMENT: Log the cropping.
         new_size = vtk_image.GetImageData().GetDimensions()
