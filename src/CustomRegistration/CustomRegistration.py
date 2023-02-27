@@ -156,46 +156,31 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         if dims1 != dims2:
             raise ValueError("Images must have the same dimensions")
 
-        mean = 0.0
-        # Create an iterator over the image data
-        it1 = vtk.vtkImageIterator()
-        it1.SetImage(imageData1.GetImageData())
+        volume_image_data1 = imageData1.GetImageData()
+        np_array = vtk.util.numpy_support.vtk_to_numpy(
+            volume_image_data1.GetPointData().GetScalars()
+        )
+        np_array1 = np.reshape(np_array, volume_image_data1.GetDimensions()[::-1])
 
-        it2 = vtk.vtkImageIterator()
-        it2.SetImage(imageData2.GetImageData())
+        volume_image_data2 = imageData2.GetImageData()
+        np_array = vtk.util.numpy_support.vtk_to_numpy(
+            volume_image_data2.GetPointData().GetScalars()
+        )
+        np_array2 = np.reshape(np_array, volume_image_data2.GetDimensions()[::-1])
 
-        # Create the output image
-        outputImage = vtk.vtkImageData()
-        outputImage.SetDimensions(dims1)
-        outputImage.AllocateScalars(vtk.VTK_FLOAT, 1)
+        outputNode = np.abs(np_array1 - np_array2)
 
-        # Define the worker function to process a portion of the loops
-        def worker_func(pixel1, pixel2):
-            diff = abs(pixel1 - pixel2)
-            return diff
+        volume_image_data = vtk.vtkImageData()
+        volume_image_data.SetDimensions(outputNode.shape[::-1])
+        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
+        volume_image_data.GetPointData().SetScalars(vtk_array)
+        volume = vtkMRMLScalarVolumeNode()
+        volume.SetAndObserveImageData(volume_image_data)
 
-        # Iterate over the image data and compute the output image
-        it_out = vtk.vtkImageIterator()
-        it_out.SetImage(outputImage)
-        it_out.SetNumberOfComponents(1)
-        it_out.GoToBegin()
+        mean = 0
 
-        while not it_out.IsAtEnd():
-            pixel1 = it1.Get()
-            pixel2 = it2.Get()
-            diff = worker_func(pixel1, pixel2)
-            mean = mean + diff
-            it_out.Set(diff)
-            it1.NextPixel()
-            it2.NextPixel()
-            it_out.NextPixel()
-
-        # Create and add the output node to the scene
-        outputNode = vtkMRMLScalarVolumeNode()
-        outputNode.SetAndObserveImageData(outputImage)
-        outputNode.SetName(name)
-
-        return outputNode, mean / (dims1[0] * dims1[1] * dims1[2])
+        return volume, mean
 
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
