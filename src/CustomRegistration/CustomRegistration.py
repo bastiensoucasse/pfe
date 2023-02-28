@@ -234,7 +234,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.update_volume_combo_boxes_and_information_labels("all")
 
         # :COMMENT: Reset the view.
-        # :GLITCH: Flash when loading volume.
+        # :GLITCH:Bastien: Flash when loading volume.
         self.reset_view()
 
     def update_volume_combo_boxes_and_information_labels(
@@ -259,7 +259,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         assert variation in ["selected", "target"]
 
         # :COMMENT: Define the combo boxes.
-        # :MERGE: Add support for the second volume combo boxes.
+        # :MERGE:Bastien: Add support for the second volume combo boxes (selected and target).
         if variation == "selected":
             volume_combo_box = self.selected_volume_combo_box
             volume_dimensions_label = self.panel.findChild(
@@ -432,7 +432,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         else:
             self.update_view(None, 1, "Axial")
 
-        # :MERGE: Add support for difference map.
+        # :MERGE:Bastien: Add support for the difference map.
         self.update_view(None, 2, "Axial")
 
     #
@@ -734,7 +734,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
         )
 
-        # :COMMENT: Transfer the volume metadata.
+        # :COMMENT: Transfer the initial volume metadata.
         self.transfer_volume_metadata(self.selected_volume, resampled_volume)
 
         # :COMMENT: Save the resampled volume.
@@ -810,7 +810,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             on_selected_volume_combo_box_changed
         )
 
-        # :MERGE: Get the second selected volume combo box.
+        # :MERGE:Bastien: Add support for the second selected volume combo boxes.
 
     def reset_selected_volume(self) -> None:
         """
@@ -971,7 +971,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             on_target_volume_combo_box_changed
         )
 
-        # :MERGE: Get the second target volume combo box.
+        # :MERGE:Bastien: Add support for the second target volume combo boxes.
 
     def reset_target_volume(self) -> None:
         """
@@ -1150,9 +1150,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         volume_image_data = volume.GetImageData()
-        np_array = vtk.util.numpy_support.vtk_to_numpy(
-            volume_image_data.GetPointData().GetScalars()
-        )
+        np_array = vtk.util.numpy_support.vtk_to_numpy(volume_image_data.GetPointData().GetScalars())  # type: ignore
         np_array = np.reshape(np_array, volume_image_data.GetDimensions()[::-1])
         image = sitk.GetImageFromArray(np_array)
         return image
@@ -1172,7 +1170,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         volume_image_data = vtk.vtkImageData()
         volume_image_data.SetDimensions(np_array.shape[::-1])
         volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
-        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())  # type: ignore
         volume_image_data.GetPointData().SetScalars(vtk_array)
         volume = vtkMRMLScalarVolumeNode()
         volume.SetAndObserveImageData(volume_image_data)
