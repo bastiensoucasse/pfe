@@ -668,14 +668,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if not self.cropped_volume:  # and not self.cropping_box:
             return
 
-        # :GLITCH: This appears when cropping button clicked:
-        # [VTK] Generic Warning: In /Volumes/D/S/S-0/Libs/MRML/Core/vtkMRMLSubjectHierarchyNode.cxx, line 3663
-        # [VTK] vtkMRMLSubjectHierarchyNode::GetSubjectHierarchyNode: Invalid scene given
-        # [Qt] void qSlicerSubjectHierarchyPluginLogic::onNodeAboutToBeRemoved(vtkObject *, vtkObject *) : Failed to access subject hierarchy node
-        # [VTK] GetReferencingNodes: null node or referenced node
-        # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
-        mrmlScene.RemoveNode(self.cropping_box)
-
         # :COMMENT: Add the VTK Volume Node to the scene.
         self.add_new_volume(self.cropped_volume, "cropped")
 
@@ -687,6 +679,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Select the cropped volume.
         self.choose_selected_volume(self.volumes.GetNumberOfItems() - 1)
+
+        # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
+        mrmlScene.RemoveNode(self.cropping_box)
 
     #
     # RESAMPLING
