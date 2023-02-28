@@ -17,34 +17,25 @@ def resample(reference_image: sitk.Image, input_image: sitk.Image) -> sitk.Image
         The resampled image.
     """
 
-    # Get the reference image's size, spacing, and origin.
-    reference_size = reference_image.GetSize()
-    reference_spacing = reference_image.GetSpacing()
-    reference_origin = reference_image.GetOrigin()
+    # Use the default transform.
+    transform = sitk.Transform()
 
-    # Set the output size, spacing, and origin to be the same as the reference image.
-    output_size = reference_size
-    output_spacing = reference_spacing
-    output_origin = reference_origin
-
-    # Use linear interpolation.
+    # Use the default interpolation.
     interpolator = sitk.sitkLinear
 
     # Resample the input image to match the reference image's size, spacing, and origin.
     resampled_image = sitk.Resample(
         input_image,
-        output_size,
-        sitk.Transform(),  # No transform is used.
+        reference_image,
+        transform,
         interpolator,
-        output_origin,
-        output_spacing,
     )
 
     # Return the resampled image.
     return resampled_image
 
 
-def test_resample():
+def test_resample() -> None:
     """
     Tests the resampling function by generating a reference image and multiple test images.
 
@@ -104,7 +95,7 @@ def test_resample():
     print("\nAll tests passed.")
 
 
-def usage():
+def usage() -> None:
     """
     Displays the usage message.
     """
