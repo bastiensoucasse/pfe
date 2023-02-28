@@ -241,13 +241,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self, variation: str = "all"
     ) -> None:
         """
-        Updates the volume combo boxes and information labels (dimensions, pixel size, spacing…).
+        Updates the volume combo boxes and information labels (dimensions, spacing…).
 
         Parameters:
             variation: Either "selected", "target", or "all".
         """
 
-        # :TODO:Iantsa: Add pixel size and spacing to the information, along with the dimensions.
+        # :TODO:Bastien: Factorize, if possible.
 
         # :COMMENT: Handle the "all" variation.
         if variation == "all":
@@ -265,10 +265,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             volume_dimensions_label = self.panel.findChild(
                 QLabel, "SelectedVolumeDimensionsValueLabel"
             )
+            volume_spacing_label = self.panel.findChild(
+                QLabel, "SelectedVolumeSpacingValueLabel"
+            )
         else:
             volume_combo_box = self.target_volume_combo_box
             volume_dimensions_label = self.panel.findChild(
                 QLabel, "ResamplingTargetVolumeDimensionsValueLabel"
+            )
+            volume_spacing_label = self.panel.findChild(
+                QLabel, "ResamplingTargetVolumeSpacingValueLabel"
             )
 
         # :COMMENT: Define the combo box filling.
@@ -299,6 +305,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if variation == "selected" and self.selected_volume:
             volume_combo_box.setCurrentIndex(self.selected_volume_index)
             volume_image_data = self.selected_volume.GetImageData()
+
             volume_dimensions = volume_image_data.GetDimensions()
             volume_dimensions_label.setText(
                 "{} x {} x {}".format(
@@ -307,9 +314,20 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     volume_dimensions[2],
                 )
             )
+
+            volume_spacing = self.selected_volume.GetSpacing()
+            volume_spacing_label.setText(
+                "{:.1f} x {:.1f} x {:.1f}".format(
+                    volume_spacing[0],
+                    volume_spacing[1],
+                    volume_spacing[2],
+                )
+            )
+
         elif variation == "target" and self.target_volume:
             volume_combo_box.setCurrentIndex(self.target_volume_index)
             volume_image_data = self.target_volume.GetImageData()
+
             volume_dimensions = volume_image_data.GetDimensions()
             volume_dimensions_label.setText(
                 "{} x {} x {}".format(
@@ -318,6 +336,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     volume_dimensions[2],
                 )
             )
+
+            volume_spacing = [self.target_volume.GetSpacing()[i] for i in range(3)]
+            volume_spacing_label.setText(
+                "{:.1f} x {:.1f} x {:.1f}".format(
+                    volume_spacing[0],
+                    volume_spacing[1],
+                    volume_spacing[2],
+                )
+            )
+
         else:
             volume_combo_box.setCurrentIndex(-1)
             volume_dimensions_label.setText("…")
