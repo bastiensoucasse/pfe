@@ -594,6 +594,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Create a new cropping box.
         # :DIRTY/GLITCH:Iantsa: Even if user never crops, the cropping box is still displayed.
+        # :GLITCH:Iantsa: Cropping box displayed in all views when should only be displayed in red view.
         # :TODO:Iantsa: Create a checkbox to enable/disable displaying of the cropping box.
         self.cropping_box = mrmlScene.AddNewNodeByClass(
             "vtkMRMLMarkupsROINode", "Cropping Preview"
@@ -622,6 +623,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropping_box.SetRadiusXYZ(transformed_radius)
         # :END_DIRTY/TRICKY:
 
+    # :GLITCH: This appears when cropping button clicked since preview cropping box was added:
+    # [VTK] Generic Warning: In /Volumes/D/S/S-0/Libs/MRML/Core/vtkMRMLSubjectHierarchyNode.cxx, line 3663
+    # [VTK] vtkMRMLSubjectHierarchyNode::GetSubjectHierarchyNode: Invalid scene given
+    # [Qt] void qSlicerSubjectHierarchyPluginLogic::onNodeAboutToBeRemoved(vtkObject *, vtkObject *) : Failed to access subject hierarchy node
+    # [VTK] GetReferencingNodes: null node or referenced node
     def crop(self) -> None:
         """
         Crops a volume using the selected algorithm.
@@ -647,6 +653,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print(
             f'"{self.selected_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{self.cropped_volume.GetName()}".'
         )
+
+        # :COMMENT: Select the cropped volume.
+        self.choose_selected_volume(self.volumes.GetNumberOfItems() - 1)
 
     #
     # RESAMPLING
