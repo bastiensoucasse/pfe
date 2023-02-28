@@ -622,11 +622,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Create a new cropping box.
         # :DIRTY/GLITCH:Iantsa: Even if user never crops, the cropping box is still displayed.
-        # :GLITCH:Iantsa: Cropping box displayed in all views when should only be displayed in red view.
         # :TODO:Iantsa: Create a checkbox to enable/disable displaying of the cropping box.
         self.cropping_box = mrmlScene.AddNewNodeByClass(
             "vtkMRMLMarkupsROINode", "Cropping Preview"
         )
+
+        # :COMMENT: Display cropping box only in red view.
+        self.cropping_box.GetDisplayNode().SetViewNodeIDs(["vtkMRMLSliceNodeRed"])
 
         # :COMMENT: Get the bounds of the volume.
         bounds = [0, 0, 0, 0, 0, 0]
@@ -637,25 +639,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
         radius = [size[i] / 2 for i in range(3)]
 
-        # :COMMENT: Set the center of the cropping box to the center of the cropped volume.
-        self.cropping_box.SetXYZ(center)
-
-        # :COMMENT: Transform the radius according to the volume's orientation and spacing, and set it to the cropping box.
-        np_transform_matrix = np.array(
-            [[abs(data_backup[2].GetElement(i, j)) for j in range(3)] for i in range(3)]
+        # :COMMENT: Transform the center and radius according to the volume's orientation and spacing.
+        transform_matrix = np.array(
+            [[data_backup[2].GetElement(i, j) for j in range(3)] for i in range(3)]
         )
-        np_radius = np.array(radius)
-        np_spacing = np.array(data_backup[0])
 
-        transformed_radius = np.matmul(np_transform_matrix, np_spacing * np_radius)
+        transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
+        transformed_radius = np.matmul(
+            transform_matrix, np.array(data_backup[0]) * np.array(radius)
+        )
+
+        # :COMMENT: Set the center and radius of the cropping box to the transformed center and radius.
+        self.cropping_box.SetXYZ(transformed_center)
         self.cropping_box.SetRadiusXYZ(transformed_radius)
         # :END_DIRTY/TRICKY:
 
-    # :GLITCH: This appears when cropping button clicked since preview cropping box was added:
-    # [VTK] Generic Warning: In /Volumes/D/S/S-0/Libs/MRML/Core/vtkMRMLSubjectHierarchyNode.cxx, line 3663
-    # [VTK] vtkMRMLSubjectHierarchyNode::GetSubjectHierarchyNode: Invalid scene given
-    # [Qt] void qSlicerSubjectHierarchyPluginLogic::onNodeAboutToBeRemoved(vtkObject *, vtkObject *) : Failed to access subject hierarchy node
-    # [VTK] GetReferencingNodes: null node or referenced node
     def crop(self) -> None:
         """
         Crops a volume using the selected algorithm.
@@ -670,6 +668,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if not self.cropped_volume:  # and not self.cropping_box:
             return
 
+        # :GLITCH: This appears when cropping button clicked:
+        # [VTK] Generic Warning: In /Volumes/D/S/S-0/Libs/MRML/Core/vtkMRMLSubjectHierarchyNode.cxx, line 3663
+        # [VTK] vtkMRMLSubjectHierarchyNode::GetSubjectHierarchyNode: Invalid scene given
+        # [Qt] void qSlicerSubjectHierarchyPluginLogic::onNodeAboutToBeRemoved(vtkObject *, vtkObject *) : Failed to access subject hierarchy node
+        # [VTK] GetReferencingNodes: null node or referenced node
         # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
         mrmlScene.RemoveNode(self.cropping_box)
 
