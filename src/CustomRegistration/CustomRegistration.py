@@ -536,6 +536,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropping_end[i].value = 0
 
     def preview_cropping(self) -> None:
+        """
+        Generates a bounding box to preview the cropping.
+        """
+
         # :DIRTY/TRICKY:Iantsa: Volume cropped each time a parameter is changed by user, even if the volume is not cropped in the end.
 
         # :COMMENT: Ensure that a volume is selected.
@@ -589,7 +593,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             mrmlScene.RemoveNode(self.cropping_box)
 
         # :COMMENT: Create a new cropping box.
-        # :DIRTY/GLITCH: Even if user never crops, the cropping box is still displayed. 
+        # :DIRTY/GLITCH:Iantsa: Even if user never crops, the cropping box is still displayed.
+        # :TODO:Iantsa: Create a checkbox to enable/disable displaying of the cropping box.
         self.cropping_box = mrmlScene.AddNewNodeByClass(
             "vtkMRMLMarkupsROINode", "Cropping Preview"
         )
@@ -600,21 +605,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Calculate the center and radius of the volume.
         # :BUG:Iantsa: If the starting value is changed, the center is not updated properly.
-        center = [(bounds[i] + bounds[i+1]) / 2 for i in range(0, 5, 2)]
-        radius = [size[i]/2 for i in range(3)]
-
-        print("[DEBUG] Cropped volume dimensions:", vtk_image.GetImageData().GetDimensions())
+        center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
+        radius = [size[i] / 2 for i in range(3)]
 
         # :COMMENT: Set the center of the cropping box to the center of the cropped volume.
-        # :TODO:Iantsa: Apply the transformation to the radius so it works for any volume.
         self.cropping_box.SetXYZ(center)
-        transformed_radius = [radius[2] * 1.3, radius[0], radius[1]]
 
+        # :COMMENT: Transform the radius according to the volume's orientation and spacing, and set it to the cropping box.
+        np_transform_matrix = np.array(
+            [[abs(data_backup[2].GetElement(i, j)) for j in range(3)] for i in range(3)]
+        )
+        np_radius = np.array(radius)
+        np_spacing = np.array(data_backup[0])
+
+        transformed_radius = np.matmul(np_transform_matrix, np_spacing * np_radius)
         self.cropping_box.SetRadiusXYZ(transformed_radius)
-        print("[DEBUG] Radius:", transformed_radius)
-
-        box_dim = self.cropping_box.GetSize()
-        print(f"[DEBUG] Cropping box dimensions: {box_dim}")
         # :END_DIRTY/TRICKY:
 
     def crop(self) -> None:
@@ -628,7 +633,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             return
 
         # :BUG:Iantsa: Not handled yet (can be non existent if crop button clicked without changing the default parameters)
-        if not self.cropped_volume: #and not self.cropping_box:
+        if not self.cropped_volume:  # and not self.cropping_box:
             return
 
         # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
