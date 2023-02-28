@@ -2,6 +2,14 @@
 <ui version="4.0">
  <class>Panel</class>
  <widget class="qSlicerWidget" name="Panel">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>340</width>
+    <height>878</height>
+   </rect>
+  </property>
   <property name="windowTitle">
    <string>Custom Registration</string>
   </property>
@@ -45,11 +53,11 @@
     </spacer>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="PreprocessingCollapsibleWidget">
-     <property name="text">
+    <widget class="ctkCollapsibleButton" name="PreprocessingCollapsibleWidget" native="true">
+     <property name="text" stdset="0">
       <string>Preprocessing</string>
      </property>
-     <property name="collapsed">
+     <property name="collapsed" stdset="0">
       <bool>false</bool>
      </property>
      <layout class="QVBoxLayout" name="PreprocessingVerticalLayout" stretch="0,0,0,0">
@@ -79,7 +87,7 @@
         </item>
         <item>
          <widget class="ctkComboBox" name="SelectedVolumeComboBox">
-          <property name="defaultText">
+          <property name="defaultText" stdset="0">
            <string>Select a volume…</string>
           </property>
          </widget>
@@ -102,17 +110,35 @@
           </item>
          </layout>
         </item>
+        <item>
+         <layout class="QHBoxLayout" name="SelectedVolumeSpacingLayout">
+          <item>
+           <widget class="QLabel" name="SelectedVolumeSpacingTextLabel">
+            <property name="text">
+             <string>Spacing:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="SelectedVolumeSpacingValueLabel">
+            <property name="text">
+             <string>...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
        </layout>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="ROISelectionCollapsibleWidget">
-        <property name="text">
+       <widget class="ctkCollapsibleButton" name="ROISelectionCollapsibleWidget" native="true">
+        <property name="text" stdset="0">
          <string>ROI Selection</string>
         </property>
-        <property name="collapsed">
+        <property name="collapsed" stdset="0">
          <bool>false</bool>
         </property>
-        <property name="flat">
+        <property name="flat" stdset="0">
          <bool>false</bool>
         </property>
         <layout class="QVBoxLayout" name="ROISelectionVerticalLayout">
@@ -185,14 +211,14 @@
        </widget>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="CroppingCollapsibleWidget">
+       <widget class="ctkCollapsibleButton" name="CroppingCollapsibleWidget" native="true">
         <property name="enabled">
          <bool>true</bool>
         </property>
-        <property name="text">
+        <property name="text" stdset="0">
          <string>Cropping</string>
         </property>
-        <property name="collapsed">
+        <property name="collapsed" stdset="0">
          <bool>false</bool>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout">
@@ -272,11 +298,11 @@
        </widget>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="ResamplingCollapsibleWidget">
-        <property name="text">
+       <widget class="ctkCollapsibleButton" name="ResamplingCollapsibleWidget" native="true">
+        <property name="text" stdset="0">
          <string>Resampling</string>
         </property>
-        <property name="collapsed">
+        <property name="collapsed" stdset="0">
          <bool>false</bool>
         </property>
         <layout class="QVBoxLayout" name="ResamplingVerticalLayout" stretch="0,0,0">
@@ -313,7 +339,7 @@
            </item>
            <item>
             <widget class="ctkComboBox" name="ResamplingTargetVolumeComboBox">
-             <property name="defaultText">
+             <property name="defaultText" stdset="0">
               <string>Select a volume…</string>
              </property>
             </widget>
@@ -331,6 +357,27 @@
               <widget class="QLabel" name="ResamplingTargetVolumeDimensionsValueLabel">
                <property name="text">
                 <string>…</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="ResamplingTargetVolumeSpacingLayout">
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QLabel" name="ResamplingTargetVolumeSpacingTextLabel">
+               <property name="text">
+                <string>Spacing:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="ResamplingTargetVolumeSpacingValueLabel">
+               <property name="text">
+                <string>...</string>
                </property>
               </widget>
              </item>
@@ -368,14 +415,14 @@
     </spacer>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="RegistrationCollapsibleWidget">
-     <property name="text">
+    <widget class="ctkCollapsibleButton" name="RegistrationCollapsibleWidget" native="true">
+     <property name="text" stdset="0">
       <string>Registration</string>
      </property>
-     <property name="collapsed">
+     <property name="collapsed" stdset="0">
       <bool>false</bool>
      </property>
-     <property name="flat">
+     <property name="flat" stdset="0">
       <bool>false</bool>
      </property>
      <layout class="QVBoxLayout" name="RegistrationVerticalLayout">

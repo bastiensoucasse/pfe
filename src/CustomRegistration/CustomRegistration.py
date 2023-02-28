@@ -241,13 +241,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self, variation: str = "all"
     ) -> None:
         """
-        Updates the volume combo boxes and information labels (dimensions, pixel size, spacing…).
+        Updates the volume combo boxes and information labels (dimensions, spacing…).
 
         Parameters:
             variation: Either "selected", "target", or "all".
         """
 
-        # :TODO:Iantsa: Add pixel size and spacing to the information, along with the dimensions.
+        # :TODO:Bastien: Factorize, if possible.
 
         # :COMMENT: Handle the "all" variation.
         if variation == "all":
@@ -265,10 +265,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             volume_dimensions_label = self.panel.findChild(
                 QLabel, "SelectedVolumeDimensionsValueLabel"
             )
+            volume_spacing_label = self.panel.findChild(
+                QLabel, "SelectedVolumeSpacingValueLabel"
+            )
         else:
             volume_combo_box = self.target_volume_combo_box
             volume_dimensions_label = self.panel.findChild(
                 QLabel, "ResamplingTargetVolumeDimensionsValueLabel"
+            )
+            volume_spacing_label = self.panel.findChild(
+                QLabel, "ResamplingTargetVolumeSpacingValueLabel"
             )
 
         # :COMMENT: Define the combo box filling.
@@ -299,6 +305,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if variation == "selected" and self.selected_volume:
             volume_combo_box.setCurrentIndex(self.selected_volume_index)
             volume_image_data = self.selected_volume.GetImageData()
+
             volume_dimensions = volume_image_data.GetDimensions()
             volume_dimensions_label.setText(
                 "{} x {} x {}".format(
@@ -307,9 +314,20 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     volume_dimensions[2],
                 )
             )
+
+            volume_spacing = self.selected_volume.GetSpacing()
+            volume_spacing_label.setText(
+                "{:.1f} x {:.1f} x {:.1f}".format(
+                    volume_spacing[0],
+                    volume_spacing[1],
+                    volume_spacing[2],
+                )
+            )
+
         elif variation == "target" and self.target_volume:
             volume_combo_box.setCurrentIndex(self.target_volume_index)
             volume_image_data = self.target_volume.GetImageData()
+
             volume_dimensions = volume_image_data.GetDimensions()
             volume_dimensions_label.setText(
                 "{} x {} x {}".format(
@@ -318,6 +336,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     volume_dimensions[2],
                 )
             )
+
+            volume_spacing = [self.target_volume.GetSpacing()[i] for i in range(3)]
+            volume_spacing_label.setText(
+                "{:.1f} x {:.1f} x {:.1f}".format(
+                    volume_spacing[0],
+                    volume_spacing[1],
+                    volume_spacing[2],
+                )
+            )
+
         else:
             volume_combo_box.setCurrentIndex(-1)
             volume_dimensions_label.setText("…")
@@ -509,12 +537,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         assert self.cropping_button
         self.cropping_button.clicked.connect(self.crop)
 
-        # :COMMENT: Get the coordinates entered by user in spinbox widgets.
+        # :COMMENT: Get the coordinates spinbox widgets.
         self.cropping_start = []
         self.cropping_end = []
-        for i in ["x", "y", "z"]:
-            self.cropping_start.append(self.panel.findChild(QSpinBox, "s" + i))
-            self.cropping_end.append(self.panel.findChild(QSpinBox, "e" + i))
+        axis = ["x", "y", "z"]
+        for i in range(len(axis)):
+            self.cropping_start.append(self.panel.findChild(QSpinBox, "s" + axis[i]))
+            self.cropping_end.append(self.panel.findChild(QSpinBox, "e" + axis[i]))
+
+            # :COMMENT: Connect the spinbox widgets to their "on changed" function that displays the cropping preview.
+            self.cropping_start[i].valueChanged.connect(self.preview_cropping)
+            self.cropping_end[i].valueChanged.connect(self.preview_cropping)
+
+        # :COMMENT: Initialize the cropping preview.
+        self.cropped_volume = None
+        self.cropping_box = None
 
     def reset_cropping(self) -> None:
         """
@@ -526,14 +563,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropping_start[i].value = 0
             self.cropping_end[i].value = 0
 
-    def crop(self) -> None:
+    def preview_cropping(self) -> None:
         """
-        Crops a volume using the selected algorithm.
+        Generates a bounding box to preview the cropping.
         """
+
+        # :DIRTY/TRICKY:Iantsa: Volume cropped each time a parameter is changed by user, even if the volume is not cropped in the end.
 
         # :COMMENT: Ensure that a volume is selected.
         if not self.selected_volume:
-            self.display_error_message("Please select a volume to crop.")
             return
 
         # :COMMENT: Retrieve coordinates input.
@@ -550,13 +588,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
             return
 
-        # :COMMENT: Save selected volume's data, and convert the volume to a SimpleITK image.
+        # :COMMENT: Save selected volume's data.
         data_backup = [
             self.selected_volume.GetSpacing(),
             self.selected_volume.GetOrigin(),
             vtk.vtkMatrix4x4(),
         ]
         self.selected_volume.GetIJKToRASDirectionMatrix(data_backup[2])
+
+        # :COMMENT: Convert the volume to a SimpleITK image.
         sitk_image = self.vtk_to_sitk(self.selected_volume)
 
         # :COMMENT: Get the size of the crop region.
@@ -573,46 +613,77 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         vtk_image.SetOrigin(data_backup[1])
         vtk_image.SetIJKToRASDirectionMatrix(data_backup[2])
 
-        # :COMMENT: Add the VTK Volume Node to the scene.
-        self.add_new_volume(vtk_image, "cropped")
+        # :COMMENT: Save the temporary cropped volume.
+        self.cropped_volume = vtk_image
 
-        # :DIRTY/TRICKY:Iantsa: Brute test that only works for one case.
-        # Create a new ROI markup node
-        roiNode = mrmlScene.AddNewNodeByClass(
-            "vtkMRMLMarkupsROINode", "Cropping Boundary Test"
+        # :COMMENT: Delete the previous cropping box from the scene if exists.
+        if self.cropping_box:
+            mrmlScene.RemoveNode(self.cropping_box)
+
+        # :COMMENT: Create a new cropping box.
+        # :DIRTY/GLITCH:Iantsa: Even if user never crops, the cropping box is still displayed.
+        # :GLITCH:Iantsa: Cropping box displayed in all views when should only be displayed in red view.
+        # :TODO:Iantsa: Create a checkbox to enable/disable displaying of the cropping box.
+        self.cropping_box = mrmlScene.AddNewNodeByClass(
+            "vtkMRMLMarkupsROINode", "Cropping Preview"
         )
 
-        # Get the bounds of the volume
+        # :COMMENT: Get the bounds of the volume.
         bounds = [0, 0, 0, 0, 0, 0]
         vtk_image.GetBounds(bounds)
 
-        # Calculate the center and radius of the volume
+        # :COMMENT: Calculate the center and radius of the volume.
+        # :BUG:Iantsa: If the starting value is changed, the center is not updated properly.
         center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
         radius = [size[i] / 2 for i in range(3)]
 
-        print(
-            "[DEBUG] Cropped volume dimensions:",
-            vtk_image.GetImageData().GetDimensions(),
+        # :COMMENT: Set the center of the cropping box to the center of the cropped volume.
+        self.cropping_box.SetXYZ(center)
+
+        # :COMMENT: Transform the radius according to the volume's orientation and spacing, and set it to the cropping box.
+        np_transform_matrix = np.array(
+            [[abs(data_backup[2].GetElement(i, j)) for j in range(3)] for i in range(3)]
         )
+        np_radius = np.array(radius)
+        np_spacing = np.array(data_backup[0])
 
-        # Set the center of the ROI to the center of the volume
-        roiNode.SetXYZ(center)
+        transformed_radius = np.matmul(np_transform_matrix, np_spacing * np_radius)
+        self.cropping_box.SetRadiusXYZ(transformed_radius)
+        # :END_DIRTY/TRICKY:
 
-        rad = [radius[2] * 1.3, radius[0], radius[1]]
+    # :GLITCH: This appears when cropping button clicked since preview cropping box was added:
+    # [VTK] Generic Warning: In /Volumes/D/S/S-0/Libs/MRML/Core/vtkMRMLSubjectHierarchyNode.cxx, line 3663
+    # [VTK] vtkMRMLSubjectHierarchyNode::GetSubjectHierarchyNode: Invalid scene given
+    # [Qt] void qSlicerSubjectHierarchyPluginLogic::onNodeAboutToBeRemoved(vtkObject *, vtkObject *) : Failed to access subject hierarchy node
+    # [VTK] GetReferencingNodes: null node or referenced node
+    def crop(self) -> None:
+        """
+        Crops a volume using the selected algorithm.
+        """
 
-        roiNode.SetRadiusXYZ(rad)
+        # :COMMENT: Ensure that a volume is selected.
+        if not self.selected_volume:
+            self.display_error_message("Please select a volume to crop.")
+            return
 
-        print("[DEBUG] Radius:", rad)
+        # :BUG:Iantsa: Not handled yet (can be non existent if crop button clicked without changing the default parameters)
+        if not self.cropped_volume:  # and not self.cropping_box:
+            return
 
-        roiDimensions = roiNode.GetSize()
-        print(f"[DEBUG] ROI dimensions: {roiDimensions}")
-        # :END_DIRTY/TRICKY:Iantsa:
+        # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
+        mrmlScene.RemoveNode(self.cropping_box)
+
+        # :COMMENT: Add the VTK Volume Node to the scene.
+        self.add_new_volume(self.cropped_volume, "cropped")
 
         # :COMMENT: Log the cropping.
-        new_size = vtk_image.GetImageData().GetDimensions()
+        new_size = self.cropped_volume.GetImageData().GetDimensions()
         print(
-            f'"{self.selected_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{vtk_image.GetName()}".'
+            f'"{self.selected_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{self.cropped_volume.GetName()}".'
         )
+
+        # :COMMENT: Select the cropped volume.
+        self.choose_selected_volume(self.volumes.GetNumberOfItems() - 1)
 
     #
     # RESAMPLING
