@@ -222,17 +222,20 @@ p, li { white-space: pre-wrap; }
            <property name="text">
             <string>Settings</string>
            </property>
+           <property name="collapsed">
+            <bool>false</bool>
+           </property>
            <layout class="QGridLayout" name="gridLayout_3">
             <item row="4" column="0" colspan="3">
              <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBoxGradient">
               <property name="enabled">
-               <bool>false</bool>
+               <bool>true</bool>
               </property>
               <property name="title">
                <string>gradients only</string>
               </property>
               <property name="collapsed">
-               <bool>true</bool>
+               <bool>false</bool>
               </property>
               <layout class="QGridLayout" name="gridLayout_4">
                <item row="1" column="0">
@@ -289,7 +292,7 @@ p, li { white-space: pre-wrap; }
                <item row="2" column="1">
                 <widget class="QLineEdit" name="lineEditConvMinVal">
                  <property name="text">
-                  <string>1e-8</string>
+                  <string>1e-6</string>
                  </property>
                 </widget>
                </item>
@@ -311,13 +314,7 @@ p, li { white-space: pre-wrap; }
              </widget>
             </item>
             <item row="1" column="2">
-             <widget class="QComboBox" name="comboBoxSamplingStrat">
-              <item>
-               <property name="text">
-                <string>None</string>
-               </property>
-              </item>
-             </widget>
+             <widget class="QComboBox" name="comboBoxSamplingStrat"/>
             </item>
             <item row="0" column="2">
              <widget class="QSpinBox" name="spinBoxBinCount">

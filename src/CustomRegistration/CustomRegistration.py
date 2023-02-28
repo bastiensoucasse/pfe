@@ -5,6 +5,7 @@ import vtk, qt, ctk, slicer, numpy as np
 import SimpleITK as sitk
 from slicer import util, mrmlScene
 from Processes import Process, ProcessesLogic
+import sitkUtils as su
 import sys, os
 from math import pi
 from slicer.ScriptedLoadableModule import (
@@ -76,6 +77,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         threeDWidget = slicer.app.layoutManager().threeDWidget(0)
         threeDWidget.setVisible(False)
         self.volume_selection_setup()
+        self.update_gui()
 
     def volume_selection_setup(self) -> None:
         """
@@ -151,12 +153,27 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         volume = slicer.vtkMRMLScalarVolumeNode()
         volume.SetAndObserveImageData(volume_image_data)
         return volume
+    
+    def has_registration_parameters_set(self) -> bool:
+        if self.fixed_image_combo_box.currentIndex == -1 or self.moving_image_combo_box.currentIndex == -1:
+            print("[DEBUG]: no volume selected !")
+            return False
+        if self.metrics_combo_box.currentIndex == 0:
+            print("No metrics selected !")
+            return False
+        if self.optimizers_combo_box.currentIndex == 0:
+            print("No optimizer selected !")
+            return False
+        if self.interpolator_combo_box.currentIndex == 0:
+            print("No interpolator selected !")
+            return False
+        return True
+
 
     # Registration algorithm using simpleITK
     def rigid_registration(self):
         # :COMMENT: if no image is selected
-        if self.fixed_image_combo_box.currentIndex == -1 or self.moving_image_combo_box.currentIndex == -1:
-            print("[DEBUG]: no volume selected !")
+        if not self.has_registration_parameters_set():
             return
 
         fixed_image_index = self.fixed_image_combo_box.currentIndex
@@ -166,9 +183,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.fixedVolumeData = self.volumes.GetItemAsObject(fixed_image_index)
         self.movingVolumeData = self.volumes.GetItemAsObject(moving_image_index)
 
-        # :COMMENT: conversion to sitk volumes
-        fixed_image = self.vtk_to_sitk(self.fixedVolumeData)
-        moving_image = self.vtk_to_sitk(self.movingVolumeData)
+        # :COMMENT: utilitiy functions to get sitk images
+        fixed_image = su.PullVolumeFromSlicer(self.fixedVolumeData)
+        moving_image = su.PullVolumeFromSlicer(self.movingVolumeData)
         fixed_image = sitk.Cast(fixed_image, sitk.sitkFloat32)
         moving_image = sitk.Cast(moving_image, sitk.sitkFloat32)
 
@@ -200,50 +217,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print(f"nb steps : {self.nb_of_steps}")
         print(f"optimizer scale: {self.optimizer_scale}")
 
-        # :COMMENT: FROM simpleitk docs : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod1_docs.html
-        # a simple 3D rigid registration method
-        """
-        CLI MODULE
-        """
-        # parameters = {}
-        # parameters["inputVolume"] = self.fixedVolumeData
-        # parameters["inputVolume2"] = self.movingVolumeData
-        # outputModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-        # parameters["outputVolume"] = outputModelNode
-        # cliNode = slicer.cli.run(slicer.modules.registration, None, parameters)
-        # cliNode.AddObserver('ModifiedEvent', self.onProcessingStatusUpdate)
-
-        """
-        MODULE WITHOUT THREADING
-        """
-        R = sitk.ImageRegistrationMethod()
-        self.select_metrics(R, bin_count)
-        R.SetMetricSamplingStrategy(sampling_strat)
-        R.SetMetricSamplingPercentage(sampling_perc)
-        self.parametersToPrint = ""
-        self.select_optimizer_and_setup(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size)
-
-        initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
-                                                      moving_image, 
-                                                      sitk.Euler3DTransform(), 
-                                                      sitk.CenteredTransformInitializerFilter.GEOMETRY)
-        R.SetInitialTransform(initial_transform, inPlace=False)
-        self.select_interpolator(R)
-        R.SetOptimizerScalesFromPhysicalShift()
-
-        # R.AddCommand(sitk.sitkIterationEvent, lambda: self.command_iteration(R))
-        # final_transform = R.Execute(fixed_image, moving_image)
-
-        # print("-------")
-        # print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
-        # print(f" Iteration: {R.GetOptimizerIteration()}")
-        # print(f" Metric value: {R.GetMetricValue()}")
-        
-        # resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
-        # volume = self.sitk_to_vtk(resampled)
-        # self.transfer_volume_metadate(self.fixedVolumeData, volume)
-        # self.add_volume(volume)
-        #print(f"[DEBUG]: {self.movingVolumeData.GetName()}  as been registrated with parameters :\n< {self.parametersToPrint}> as {volume.GetName()}.")
+        input = {}
+        input["volume_name"] = self.volume_name_edit.text
+        input["histogram_bin_count"] = bin_count
+        input["sampling_strategy"] = sampling_strat
+        input["sampling_percentage"] = sampling_perc
+        input["metrics"] = self.metrics_combo_box.currentText.replace(" ", "")
+        input["interpolator"] = self.interpolator_combo_box.currentText.replace(" ", "")
+        input["optimizer"] = self.optimizers_combo_box.currentText.replace(" ", "")
+        input["learning_rate"] = learning_rate
+        input["iterations"] = nb_iteration
+        input["convergence_min_val"] = convergence_min_val
+        input["convergence_win_size"] = convergence_win_size
+        input["nb_of_steps"] = nb_of_steps
+        input["step_length"] = self.step_length
+        input["optimizer_scale"] = self.optimizer_scale
         """
         USING PARALLEL PROCESSING EXTENSION
         """
@@ -253,15 +241,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             print('Test passed!')
             self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
             new_volume = self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems()-1)
-            self.transfer_volume_metadate(self.fixedVolumeData, new_volume)
             slicer.util.setSliceViewerLayers(background=new_volume, foreground=self.fixedVolumeData)
             slicer.util.resetSliceViews()
-            #slicer.app.layoutManager().sliceWidget("Red").sliceLogic().FitSliceToAll()
 
         logic = ProcessesLogic(completedCallback=lambda : onProcessesCompleted(self))
         thisPath = qt.QFileInfo(__file__).path()
         scriptPath = os.path.join(thisPath, "..", "scripts", "reg2.py")
-        regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image)
+        regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
         logic.addProcess(regProcess)
         logic.run()
 
@@ -301,22 +287,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     # :COMMENT: helper function to setup UI
     def fill_combo_box(self) -> None:
         self.metrics_combo_box.addItems(["Mean Squares",
-                                            "Demons",
-                                            "Correlation",
-                                            "ANTS Neighborhood Correlation",
-                                            "Joint Histogram Mutual Information",
                                             "Mattes Mutual Information"])
         self.optimizers_combo_box.addItems(["Gradient Descent",
-                                            "Exhaustive",
-                                            "Nelder-Mead downhill simplex",
-                                            "Powell",
-                                            "1+1 evolutionary optimizer"])
+                                            "Exhaustive"])
         self.interpolator_combo_box.addItems(["Linear",
                                             "Nearest Neighbors",
                                             "BSpline1",
                                             "BSpline2",
                                             "Gaussian"])
-        self.sampling_strat_combo_box.addItems(["Regular",
+        self.sampling_strat_combo_box.addItems(["None",
+                                                "Regular",
                                                 "Random"])
 
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
@@ -452,6 +432,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.interpolator_combo_box.clear()
         self.fixed_image_combo_box.setCurrentIndex(-1)
         self.moving_image_combo_box.setCurrentIndex(-1)
+        self.sampling_strat_combo_box.setCurrentIndex(2)
 
     # :TRICKY: getattr calls the function from object R, function is provided by metrics combo box
     def select_metrics(self, R, bin_count) -> None:
@@ -509,6 +490,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.gradients_box.collapsed = 1      
             self.exhaustive_box.setEnabled(False)
             self.exhaustive_box.collapsed = 1  
+        self.sampling_strat_combo_box.setCurrentIndex(2)
 
     # :COMMENT: from doc : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod3_docs.html
     # Useful to analyse results during the registration process
@@ -537,31 +519,34 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 import pickle
 class RegistrationProcess(Process):
 
-  def __init__(self, scriptPath, fixedImageVolume, movingImageVolume):
+  def __init__(self, scriptPath, fixedImageVolume, movingImageVolume, input_parameters):
     Process.__init__(self, scriptPath)
     self.fixedImageVolume = fixedImageVolume
     self.movingImageVolume = movingImageVolume
+    self.input_parameters = input_parameters
 
   def prepareProcessInput(self):
     input = {}
     input['fixed_image'] = self.fixedImageVolume
     input['moving_image'] = self.movingImageVolume
+    input['parameters'] = self.input_parameters
     return pickle.dumps(input)
 
   def useProcessOutput(self, processOutput):
     import abc
     output = pickle.loads(processOutput)
-    thisPath = qt.QFileInfo(__file__).path()
+    # thisPath = qt.QFileInfo(__file__).path()
     image_resampled= output['image_resampled']
     pixelID = output["pixelID"]
     caster = sitk.CastImageFilter()
     caster.SetOutputPixelType(pixelID)
     image = caster.Execute(image_resampled)
-    thisPath = os.path.join(thisPath, "registered_image.mha")
-    sitk.WriteImage(image, thisPath)
-    loadedVolumeNode = slicer.util.loadVolume(thisPath)
-    loadedVolumeNode.SetSpacing(image.GetSpacing())
-    loadedVolumeNode.SetOrigin(image.GetOrigin())
+    su.PushVolumeToSlicer(image)
+    # thisPath = os.path.join(thisPath, "registered_image.mha")
+    # sitk.WriteImage(image, thisPath)
+    # loadedVolumeNode = slicer.util.loadVolume(thisPath)
+    # loadedVolumeNode.SetSpacing(image.GetSpacing())
+    # loadedVolumeNode.SetOrigin(image.GetOrigin())
 
     
 
