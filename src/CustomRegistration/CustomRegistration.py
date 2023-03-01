@@ -9,6 +9,7 @@ import SimpleITK as sitk
 import vtk
 from ctk import ctkCollapsibleButton, ctkComboBox
 from qt import (
+    QCheckBox,
     QDialog,
     QInputDialog,
     QLabel,
@@ -180,6 +181,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         for collapsible_widget in collapsible_buttons:
             collapsible_widget.collapsed = True
 
+        # :COMMENT: Set up the Pascal Mode Only.
+        self.setup_pascal_only_mode()
+
         # :COMMENT: Set up the view interface.
         self.setup_view()
 
@@ -213,6 +217,35 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         for observer in self.scene_observers:
             mrmlScene.RemoveObserver(observer)
+
+    #
+    # PASCAL ONLY MODE
+    #
+
+    def setup_pascal_only_mode(self) -> None:
+        """
+        Sets up the Pascal Mode Only checkbox.
+        """
+
+        self.pascal_mode_checkbox = self.panel.findChild(
+            QCheckBox, "PascalOnlyModeCheckBox"
+        )
+        assert self.pascal_mode_checkbox
+
+        # :COMMENT: Set the Pascal Only Mode to disabled by default.
+        self.pascal_mode_checkbox.setChecked(False)
+
+        self.pascal_mode_checkbox.clicked.connect(self.manage_pascal_only_mode)
+
+    def manage_pascal_only_mode(self) -> None:
+        """
+        Displays or hides adequatly the 3D view depending on the Pascal Mode checkbox.
+        """
+
+        if self.pascal_mode_checkbox.isChecked():
+            self.threeD_widget.setVisible(True)
+        else:
+            self.threeD_widget.setVisible(False)
 
     #
     # VOLUMES MANAGING
@@ -372,16 +405,19 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.slice_composite_nodes.append(
                 mrmlScene.GetNodeByID("vtkMRMLSliceCompositeNode" + VIEWS[i])
             )
+            assert self.slice_composite_nodes[i]
+
             self.slice_logic.append(
                 app.layoutManager().sliceWidget(VIEWS[i]).sliceLogic()
             )
+            assert self.slice_logic[i]
 
             # :COMMENT: Clear the 2D view.
             self.slice_composite_nodes[i].SetBackgroundVolumeID("")
 
         # :COMMENT: Hide the 3D view.
-        threeDWidget = app.layoutManager().threeDWidget(0)
-        threeDWidget.setVisible(False)
+        self.threeD_widget = app.layoutManager().threeDWidget(0)
+        self.threeD_widget.setVisible(False)
 
     def update_view(
         self, volume: vtkMRMLScalarVolumeNode, view_id: int, orientation: str

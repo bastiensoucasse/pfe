@@ -53,6 +53,13 @@
     </spacer>
    </item>
    <item>
+    <widget class="QCheckBox" name="PascalOnlyModeCheckBox">
+     <property name="text">
+      <string>Pascal Only Mode</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="ctkCollapsibleButton" name="PreprocessingCollapsibleWidget" native="true">
      <property name="text" stdset="0">
       <string>Preprocessing</string>
