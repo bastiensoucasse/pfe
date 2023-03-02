@@ -171,7 +171,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
 
         # :COMMENT: Load the panel UI.
-        # :GLITCH:Iantsa: 3D view reappearing when layout changed.
         self.panel = util.loadUI(self.resourcePath("UI/Panel.ui"))
         assert self.panel
 
@@ -231,11 +230,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             QCheckBox, "PascalOnlyModeCheckBox"
         )
         assert self.pascal_mode_checkbox
+        self.pascal_mode_checkbox.clicked.connect(self.manage_pascal_only_mode)
 
         # :COMMENT: Set the Pascal Only Mode to disabled by default.
         self.pascal_mode_checkbox.setChecked(False)
-
-        self.pascal_mode_checkbox.clicked.connect(self.manage_pascal_only_mode)
 
     def manage_pascal_only_mode(self) -> None:
         """
@@ -568,6 +566,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the cropping widget by retrieving the crop button and coordinates input widgets.
         """
 
+        # :COMMENT: Delete the cropping preview markup if existing.
+        for node in util.getNodesByClass("vtkMRMLMarkupsROINode"):
+            if node.GetName().startswith("Cropping Preview"):
+                mrmlScene.RemoveNode(node)
+
+        # :COMMENT: Get the collapsible button widget.
+        self.cropping_collapsible_button = self.panel.findChild(
+            ctkCollapsibleButton, "CroppingCollapsibleWidget"
+        )
+        assert self.cropping_collapsible_button
+        self.cropping_collapsible_button.clicked.connect(self.manage_preview)
+
         # :COMMENT: Get the crop button widget.
         self.cropping_button = self.panel.findChild(QPushButton, "crop_button")
         assert self.cropping_button
@@ -618,6 +628,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             end_val.append(self.cropping_end[i].value)
 
         # :COMMENT: Check that coordinates are valid.
+        # :TODO:Iantsa: Send an error message only if user clicks "Crop" instead of each time they change a parameter.
         if any(end_val[i] < start_val[i] for i in range(3)):
             self.display_error_message(
                 "End values must be greater than or equal to start values."
@@ -657,8 +668,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             mrmlScene.RemoveNode(self.cropping_box)
 
         # :COMMENT: Create a new cropping box.
-        # :DIRTY/GLITCH:Iantsa: Even if user never crops, the cropping box is still displayed.
-        # :TODO:Iantsa: Create a checkbox to enable/disable displaying of the cropping box.
         self.cropping_box = mrmlScene.AddNewNodeByClass(
             "vtkMRMLMarkupsROINode", "Cropping Preview"
         )
@@ -671,7 +680,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         vtk_image.GetBounds(bounds)
 
         # :COMMENT: Calculate the center and radius of the volume.
-        # :BUG:Iantsa: If the starting value is changed, the center is not updated properly.
         center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
         radius = [size[i] / 2 for i in range(3)]
 
@@ -689,6 +697,35 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropping_box.SetXYZ(transformed_center)
         self.cropping_box.SetRadiusXYZ(transformed_radius)
         # :END_DIRTY/TRICKY:
+
+    def manage_preview(self) -> None:
+        """
+        Manages the displaying of the cropping preview.
+        """
+
+        # :COMMENT: Collapsible widget opening.
+        if self.cropping_collapsible_button.isChecked():
+            if not self.selected_volume:
+                print("[DEBUG] No volume selected: Case not handled yet.")
+                # :TODO:Iantsa: Find a way to handle this case.
+
+            # :COMMENT: First time opening the cropping interface.
+            if not self.cropping_box:
+                print("[DEBUG] No cropping box: Case not handled yet.")
+                # :TODO:Iantsa: Create default cropping box (and cropped volume).
+
+            else:
+                # :COMMENT: Show the cropping preview.
+                self.cropping_box.GetDisplayNode().SetVisibility(True)
+
+        # :COMMENT: Collapsible widget closing.
+        else:
+            if not self.selected_volume or not self.cropping_box:
+                return
+
+            else:
+                # :COMMENT: Hide the cropping preview.
+                self.cropping_box.GetDisplayNode().SetVisibility(False)
 
     def crop(self) -> None:
         """
@@ -718,6 +755,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
         mrmlScene.RemoveNode(self.cropping_box)
+        self.cropping_box = None
+        self.cropped_volume = None
 
     #
     # RESAMPLING
