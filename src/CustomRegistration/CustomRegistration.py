@@ -794,14 +794,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Add the VTK Volume Node to the scene.
         self.add_new_volume(self.cropped_volume, "cropped")
 
-        # :COMMENT: Select the cropped volume.
-        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
-
         # :COMMENT: Log the cropping.
         new_size = self.cropped_volume.GetImageData().GetDimensions()
         print(
             f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{self.cropped_volume.GetName()}".'
         )
+
+        # :COMMENT: Select the cropped volume.
+        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
 
         # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
         mrmlScene.RemoveNode(self.cropping_box)
@@ -855,19 +855,22 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
         )
 
-        # :COMMENT: Transfer the target volume metadata.
-        self.transfer_volume_metadata(self.target_volume, resampled_volume)
+        # :COMMENT: Keep the original volume metadata.
+        self.transfer_volume_metadata(self.input_volume, resampled_volume)
+
+        # :COMMENT: Transfer the spacing.
+        self.target_volume.SetSpacing(self.input_volume.GetSpacing())
 
         # :COMMENT: Save the resampled volume.
         self.add_new_volume(resampled_volume, "resampled")
-
-        # :COMMENT: Select the resampled volume.
-        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
 
         # :COMMENT: Log the resampling.
         print(
             f'"{self.input_volume.GetName()}" has been resampled to match "{self.target_volume.GetName()}" as "{resampled_volume.GetName()}".'
         )
+
+        # :COMMENT: Select the resampled volume.
+        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
 
     #
     # REGISTRATION
@@ -1092,6 +1095,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
             # :DIRTY:Tony: For debug only (to be removed).
             # print(logic.state())
+
+            # :COMMENT: Log the registration.
+            # :DIRTY:Tony: Change the name to the one in the parameters (see BUG), and remove the assert.
+            assert self.input_volume
+            print(
+                f'"{self.input_volume.GetName()}" has been registered as "{self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems() - 1).GetName()}".'
+            )
 
             # :COMMENT: Select the new volume to display it.
             self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
@@ -1578,19 +1588,11 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
     def __init__(self):
         ScriptedLoadableModuleTest().__init__()
 
-    def setUp(self):
-        """
-        Sets up the test environment for the Custom Registration module.
-        """
-
-        # :COMMENT: Nothing yet.
-
     def runTest(self):
         """
         Runs all the tests in the Custom Registration module.
         """
 
-        self.setUp()
         self.test_dummy()
 
     def test_dummy(self):

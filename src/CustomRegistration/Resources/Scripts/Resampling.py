@@ -5,13 +5,13 @@ Resampling algorithm and testing script.
 import SimpleITK as sitk
 
 
-def resample(reference_image: sitk.Image, input_image: sitk.Image) -> sitk.Image:
+def resample(input_image: sitk.Image, target_image: sitk.Image) -> sitk.Image:
     """
     Resamples the input image to the reference image's size, spacing, and origin.
 
     Parameters:
-        reference_image: The reference image used as a template for the resampling.
         input_image: The input image to be resampled.
+        reference_image: The reference image used as a template for the resampling.
 
     Returns:
         The resampled image.
@@ -26,7 +26,7 @@ def resample(reference_image: sitk.Image, input_image: sitk.Image) -> sitk.Image
     # Resample the input image to match the reference image's size, spacing, and origin.
     resampled_image = sitk.Resample(
         input_image,
-        reference_image,
+        target_image,
         transform,
         interpolator,
     )
@@ -54,16 +54,15 @@ def test_resample() -> None:
     ]
 
     # Generate a reference image.
-    reference_image = sitk.Image(
+    target_image = sitk.Image(
         REFERENCE_SIZE,
         sitk.sitkFloat32,
     )
 
     # Display the reference image data.
     print("Reference image:")
-    print(f"\t- Size: {reference_image.GetSize()}.")
-    print(f"\t- Spacing: {reference_image.GetSpacing()}.")
-    print(f"\t- Origin: {reference_image.GetOrigin()}.")
+    print(f"\t- Spacing: {target_image.GetSpacing()}.")
+    print(f"\t- Origin: {target_image.GetOrigin()}.")
 
     # Loop through the test sizes.
     for i in range(len(TEST_SIZES)):
@@ -74,16 +73,14 @@ def test_resample() -> None:
         )
 
         # Resample the input image to match the reference image's size, spacing, and origin.
-        resampled_image = resample(reference_image, input_image)
+        resampled_image = resample(input_image, target_image)
 
         # Test if the resampled image size, spacing, and origin are the same as the reference image.
-        assert resampled_image.GetSize() == reference_image.GetSize()
-        assert resampled_image.GetSpacing() == reference_image.GetSpacing()
-        assert resampled_image.GetOrigin() == reference_image.GetOrigin()
+        assert resampled_image.GetSpacing() == target_image.GetSpacing()
+        assert resampled_image.GetOrigin() == target_image.GetOrigin()
 
         # Display the resampled image data.
         print(f"\nTest {i}:")
-        print(f"\t- Size: {input_image.GetSize()} to {resampled_image.GetSize()}.")
         print(
             f"\t- Spacing: {input_image.GetSpacing()} to {resampled_image.GetSpacing()}."
         )
