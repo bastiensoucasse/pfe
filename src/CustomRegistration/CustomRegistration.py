@@ -185,6 +185,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Insert the panel UI into the layout.
         self.layout.addWidget(self.panel)
+
+        # :COMMENT: Collapse all the collapsible buttons.
         collapsible_buttons = self.panel.findChildren(ctkCollapsibleButton)
         for collapsible_widget in collapsible_buttons:
             collapsible_widget.collapsed = True
@@ -219,12 +221,29 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Launch the first volume list update.
         self.update_volume_list()
 
+    def reset(self) -> None:
+        """
+        Resets all parameters to their default values.
+        """
+
+        self.reset_input_volume()
+        self.reset_target_volume()
+
+        self.reset_pascal_only_mode()
+        self.reset_view()
+        self.reset_roi_selection()
+        self.reset_cropping()
+        self.reset_resampling()
+        self.reset_registration()
+
     def cleanup(self) -> None:
         """
         Cleans up the module from any observer.
 
         Called when reloading the module.
         """
+
+        self.reset()
 
         for observer in self.scene_observers:
             mrmlScene.RemoveObserver(observer)
@@ -238,15 +257,26 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the Pascal Mode Only checkbox.
         """
 
+        self.threeD_widget = app.layoutManager().threeDWidget(0)
+        assert self.threeD_widget
+
         self.pascal_mode_checkbox = self.panel.findChild(
             QCheckBox, "PascalOnlyModeCheckBox"
         )
         assert self.pascal_mode_checkbox
 
-        # :COMMENT: Set the Pascal Only Mode to disabled by default.
-        self.pascal_mode_checkbox.setChecked(False)
-
         self.pascal_mode_checkbox.clicked.connect(self.manage_pascal_only_mode)
+
+        # :COMMENT: Set the Pascal Only Mode to disabled by default.
+        self.reset_pascal_only_mode()
+
+    def reset_pascal_only_mode(self) -> None:
+        """
+        Resets the Pascal Only Mode to its default state: disabled by default.
+        """
+
+        self.pascal_mode_checkbox.setChecked(False)
+        self.threeD_widget.setVisible(False)
 
     def manage_pascal_only_mode(self) -> None:
         """
@@ -457,10 +487,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :COMMENT: Clear the 2D view.
             self.slice_composite_nodes[i].SetBackgroundVolumeID("")
 
-        # :COMMENT: Hide the 3D view.
-        self.threeD_widget = app.layoutManager().threeDWidget(0)
-        self.threeD_widget.setVisible(False)
-
     def update_view(
         self, volume: vtkMRMLScalarVolumeNode, view_id: int, orientation: str
     ) -> None:
@@ -535,9 +561,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :COMMENT: Update the label accordingly.
             self.roi_selection_threshold_value_label.setText(str(threshold))
 
-        # :COMMENT: Initialize the ROI.
-        self.input_volume_roi = None
-
         # :COMMENT: Get the ROI selection threshold slider.
         self.roi_selection_threshold_slider = self.panel.findChild(
             QSlider, "ROISelectionThresholdSlider"
@@ -564,19 +587,27 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Connect the ROI selection button to the algorithm.
         self.roi_selection_button.clicked.connect(self.select_roi)
 
+        # :COMMENT: Initialize the ROI.
+        self.reset_roi_selection()
+
     def reset_roi_selection(self) -> None:
         """
         Resets the ROI selection.
         """
 
         # :COMMENT: Reset the ROI selection.
-        if self.input_volume_roi:
-            self.input_volume_roi = None
-            print("ROI has been reset.")
+        self.remove_roi()
 
         # :COMMENT: Update the label accordingly.
         self.roi_selection_threshold_slider.setValue(0)
         self.roi_selection_threshold_value_label.setText("0")
+
+    def remove_roi(self) -> None:
+        """
+        Removes the in-memory ROI.
+        """
+
+        self.input_volume_roi = None
 
     def select_roi(self) -> None:
         """
@@ -627,9 +658,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropping_start[i].valueChanged.connect(self.preview_cropping)
             self.cropping_end[i].valueChanged.connect(self.preview_cropping)
 
-        # :COMMENT: Initialize the cropping preview.
-        self.cropped_volume = None
-        self.cropping_box = None
+        # :COMMENT: Initialize the cropping.
+        self.reset_cropping()
 
     def reset_cropping(self) -> None:
         """
@@ -640,6 +670,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         for i in range(3):
             self.cropping_start[i].value = 0
             self.cropping_end[i].value = 0
+
+        # :COMMENT: Reset the cropping preview.
+        self.cropped_volume = None
+        self.cropping_box = None
 
     def preview_cropping(self) -> None:
         """
@@ -777,6 +811,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Connect the resampling button to the algorithm.
         self.resampling_button.clicked.connect(self.resample)
 
+        # :COMMENT: Initialize the resampling.
+        self.reset_resampling()
+
     def reset_resampling(self) -> None:
         """
         Updates the list of available resampling targets in the resampling target volume combo box.
@@ -908,6 +945,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.update_optimizer_parameters_group_box
         )
 
+        # :COMMENT: Initialize the registration.
         self.reset_registration()
 
     def reset_registration(self) -> None:
@@ -1146,6 +1184,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.input_volume = None
         self.input_volume_index = None
 
+        # :COMMENT: Remove the input volume in-memory ROI.
+        self.remove_roi()
+
         # :COMMENT: Clear the view (top visualization).
         self.slice_composite_nodes[0].SetBackgroundVolumeID("")
 
@@ -1166,15 +1207,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         for i in range(3):
             self.cropping_start[i].setMaximum(input_volume_dimensions[i] - 1)
             self.cropping_end[i].setMaximum(input_volume_dimensions[i] - 1)
-
-        # :COMMENT: Reset the module data.
-        self.reset_roi_selection()
-        self.reset_cropping()
-        self.reset_resampling()
-        self.reset_registration()
-
-        # :COMMENT: Update the view (upper visualization).
-        # self.update_view(self.input_volume, 0, "Axial")
 
     def rename_input_volume(self) -> None:
         """
@@ -1203,8 +1235,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     f'"{self.renaming_old_name}" has been renamed to "{self.input_volume.GetName()}".'
                 )
 
-                # :DIRTY:Bastien: Find a way to add modified node event observer in the setup.
-                self.update_volume_list()
+            # :DIRTY:Bastien: Find a way to add modified node event observer in the setup.
+            self.update_volume_list()
 
         # :COMMENT: Ensure that a volume is selected as input.
         assert self.input_volume
@@ -1347,15 +1379,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropping_start[i].setMaximum(target_volume_dimensions[i] - 1)
             self.cropping_end[i].setMaximum(target_volume_dimensions[i] - 1)
 
-        # :COMMENT: Reset the module data.
-        self.reset_roi_selection()
-        self.reset_cropping()
-        self.reset_resampling()
-        self.reset_registration()
-
-        # :COMMENT: Update the view (upper visualization).
-        # self.update_view(self.target_volume, 1, "Axial")
-
     def rename_target_volume(self) -> None:
         """
         Loads the renaming feature with a minimal window.
@@ -1383,8 +1406,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     f'"{self.renaming_old_name}" has been renamed to "{self.target_volume.GetName()}".'
                 )
 
-                # :DIRTY:Bastien: Find a way to add modified node event observer in the setup.
-                self.update_volume_list()
+            # :DIRTY:Bastien: Find a way to add modified node event observer in the setup.
+            self.update_volume_list()
 
         # :COMMENT: Ensure that a volume is selected as target.
         assert self.target_volume
@@ -1408,8 +1431,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         assert self.target_volume
         volume = self.target_volume
-        if self.target_volume_index == self.target_volume_index:
-            self.reset_target_volume()
+        if self.target_volume_index == self.input_volume_index:
+            self.reset_input_volume()
         self.reset_target_volume()
         mrmlScene.RemoveNode(volume)
         print(f'"{volume.GetName()}" has been deleted.')
