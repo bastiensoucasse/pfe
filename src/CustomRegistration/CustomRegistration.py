@@ -856,7 +856,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
         # :COMMENT: Transfer the initial volume metadata.
-        self.transfer_volume_metadata(self.input_volume, resampled_volume)
+        self.transfer_volume_metadata(self.target_volume, resampled_volume)
 
         # :COMMENT: Save the resampled volume.
         self.add_new_volume(resampled_volume, "resampled")
