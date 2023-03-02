@@ -794,14 +794,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Add the VTK Volume Node to the scene.
         self.add_new_volume(self.cropped_volume, "cropped")
 
+        # :COMMENT: Select the cropped volume.
+        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
+
         # :COMMENT: Log the cropping.
         new_size = self.cropped_volume.GetImageData().GetDimensions()
         print(
             f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{self.cropped_volume.GetName()}".'
         )
-
-        # :COMMENT: Select the cropped volume.
-        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
 
         # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
         mrmlScene.RemoveNode(self.cropping_box)
@@ -855,11 +855,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
         )
 
-        # :COMMENT: Transfer the initial volume metadata.
+        # :COMMENT: Transfer the target volume metadata.
         self.transfer_volume_metadata(self.target_volume, resampled_volume)
 
         # :COMMENT: Save the resampled volume.
         self.add_new_volume(resampled_volume, "resampled")
+
+        # :COMMENT: Select the resampled volume.
+        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
 
         # :COMMENT: Log the resampling.
         print(
@@ -1090,8 +1093,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :DIRTY:Tony: For debug only (to be removed).
             # print(logic.state())
 
-            # :COMMENT: Update the volume list and select the new volume to display it.
-            self.update_volume_list()
+            # :COMMENT: Select the new volume to display it.
             self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
 
         logic = ProcessesLogic(completedCallback=lambda: on_registration_completed())
