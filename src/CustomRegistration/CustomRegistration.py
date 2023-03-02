@@ -92,6 +92,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.sampling_strat_combo_box = self.panel_ui.findChild(qt.QComboBox, "comboBoxSamplingStrat")
         self.sampling_perc_spin_box = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxSamplingPerc")
 
+        # :COMMENT: registration types
+        self.non_rigid_r_button = self.panel_ui.findChild(qt.QRadioButton, "radioButtonNonRigid")
+        self.rigid_r_button = self.panel_ui.findChild(qt.QRadioButton, "radioButtonRigid")
+        self.elastix_r_button = self.panel_ui.findChild(qt.QRadioButton, "radioButtonElastix")
+        self.rigid_r_button.toggle()
+
+
         # :COMMENT: Gradients parameters
         self.gradients_box = self.panel_ui.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBoxGradient")
         self.learning_rate_spin_box = self.panel_ui.findChild(qt.QDoubleSpinBox, "doubleSpinBoxLearningR")
@@ -104,6 +111,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.step_length_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditLength")
         self.nb_steps_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditSteps")
         self.opti_scale_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditScale")
+        
+        # :COMMENT: LBFGS2 parameters
+        self.lbfgs2_box = self.panel_ui.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBoxLBFGS2")
+        self.solution_accuracy_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditSolutionAccuracy")
+        self.nb_iter_lbfgs2 = self.panel_ui.findChild(qt.QSpinBox, "spinBoxNbIterLBFGS2")
+        self.delta_conv_tol_edit = self.panel_ui.findChild(qt.QLineEdit, "lineEditDeltaConv")
 
         self.fill_combo_box()
         self.fixed_image_combo_box.setCurrentIndex(-1)
@@ -213,9 +226,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.optimizer_scale = self.opti_scale_edit.text
         self.optimizer_scale = [int(scale) for scale in self.optimizer_scale.split(",")]
 
-        print(f"step length: {self.step_length}")
-        print(f"nb steps : {self.nb_of_steps}")
-        print(f"optimizer scale: {self.optimizer_scale}")
+        # :COMMENT settings for LBFGS2
+        solution_acc = self.solution_accuracy_edit.text
+        nb_iter_lbfgs2 = self.nb_iter_lbfgs2.value
+        delta_conv_tol = self.delta_conv_tol_edit.text
+
+
+        print(f"interpolator: {self.interpolator_combo_box.currentText}")
+        print(f"solution accuracy: {solution_acc}")
+        print(f"nb iter lbfgs2: {nb_iter_lbfgs2}")
+        print(f"delat conv tol: {delta_conv_tol}")
 
         input = {}
         input["volume_name"] = self.volume_name_edit.text
@@ -232,6 +252,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["nb_of_steps"] = nb_of_steps
         input["step_length"] = self.step_length
         input["optimizer_scale"] = self.optimizer_scale
+        input["solution_accuracy"] = solution_acc
+        input["nb_iter_lbfgs2"] = nb_iter_lbfgs2
+        input["delta_convergence_tolerance"] = delta_conv_tol
         """
         USING PARALLEL PROCESSING EXTENSION
         """
@@ -246,7 +269,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         logic = ProcessesLogic(completedCallback=lambda : onProcessesCompleted(self))
         thisPath = qt.QFileInfo(__file__).path()
-        scriptPath = os.path.join(thisPath, "..", "scripts", "reg2.py")
+        scripthPath = ""
+        if self.rigid_r_button.isChecked():
+            scriptPath = os.path.join(thisPath, "..", "scripts", "reg2.py")
+        else:
+            scriptPath = os.path.join(thisPath, "..", "scripts", "non_rigid_reg.py")
         regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
         logic.addProcess(regProcess)
         logic.run()
@@ -289,11 +316,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.metrics_combo_box.addItems(["Mean Squares",
                                             "Mattes Mutual Information"])
         self.optimizers_combo_box.addItems(["Gradient Descent",
-                                            "Exhaustive"])
+                                            "Exhaustive",
+                                            "LBFGS2"])
         self.interpolator_combo_box.addItems(["Linear",
-                                            "Nearest Neighbors",
+                                            "Nearest Neighbor",
                                             "BSpline1",
                                             "BSpline2",
+                                            "BSpline3",
                                             "Gaussian"])
         self.sampling_strat_combo_box.addItems(["None",
                                                 "Regular",
@@ -324,8 +353,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         OPTIONS = ["Delete current volume…", "Rename current volume…"]
         name = combo_box.currentText
         self.active_combo_box = combo_box
-        print(combo_box.currentText)
-        print(f"index: {index}")
         # :COMMENT: Handle the different options.
         if name in OPTIONS:
             if self.volumes.GetNumberOfItems() < 1:
@@ -475,22 +502,22 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         updates the UI based on the choice of the user concerning the optimizer function
         """
+        self.gradients_box.setEnabled(False)
+        self.gradients_box.collapsed = 1      
+        self.exhaustive_box.setEnabled(False)
+        self.exhaustive_box.collapsed = 1
+        self.lbfgs2_box.setEnabled(False)
+        self.lbfgs2_box.collapsed = 1 
+        self.sampling_strat_combo_box.setCurrentIndex(2)
         if self.optimizers_combo_box.currentText == "Gradient Descent":
             self.gradients_box.setEnabled(True)
             self.gradients_box.collapsed = 0
-            self.exhaustive_box.setEnabled(False)
-            self.exhaustive_box.collapsed = 1
         elif self.optimizers_combo_box.currentText == "Exhaustive":
             self.exhaustive_box.setEnabled(True)
             self.exhaustive_box.collapsed = 0
-            self.gradients_box.setEnabled(False)
-            self.gradients_box.collapsed = 1
-        else:
-            self.gradients_box.setEnabled(False)
-            self.gradients_box.collapsed = 1      
-            self.exhaustive_box.setEnabled(False)
-            self.exhaustive_box.collapsed = 1  
-        self.sampling_strat_combo_box.setCurrentIndex(2)
+        elif self.optimizers_combo_box.currentText == "LBFGS2":
+            self.lbfgs2_box.setEnabled(True)
+            self.lbfgs2_box.collapsed = 0
 
     # :COMMENT: from doc : https://simpleitk.readthedocs.io/en/master/link_ImageRegistrationMethod3_docs.html
     # Useful to analyse results during the registration process
