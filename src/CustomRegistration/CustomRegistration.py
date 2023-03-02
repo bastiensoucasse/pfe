@@ -163,6 +163,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def __init__(self, parent=None) -> None:
         ScriptedLoadableModuleWidget.__init__(self, parent)
 
+        # :COMMENT: Initilize the logs.
+        print("Welcome to Custom Registration!\n")
+
     def setup(self) -> None:
         """
         Sets up the widget for the module by adding a welcome message to the layout.
@@ -247,6 +250,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         for observer in self.scene_observers:
             mrmlScene.RemoveObserver(observer)
+
+    def onReload(self) -> None:
+        """
+        Handles the reload button click.
+        """
+
+        util.pythonShell().clear()
+        util.reloadScriptedModule(self.moduleName)
 
     #
     # PASCAL ONLY MODE
@@ -939,7 +950,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_registration = self.panel.findChild(
             QPushButton, "PushButtonRegistration"
         )
-        self.button_registration.clicked.connect(self.registrate)
+        self.button_registration.clicked.connect(self.register)
 
         self.optimizers_combo_box.currentIndexChanged.connect(
             self.update_optimizer_parameters_group_box
@@ -982,7 +993,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.lbfgs2_box.setEnabled(True)
             self.lbfgs2_box.collapsed = 0
 
-    def registrate(self):
+    def register(self):
         """
         Launches the registration process.
         """
@@ -1562,12 +1573,15 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
     Test class for the Custom Registration module used to define the tests of the module.
     """
 
+    def __init__(self):
+        ScriptedLoadableModuleTest().__init__()
+
     def setUp(self):
         """
         Sets up the test environment for the Custom Registration module.
         """
 
-        mrmlScene.Clear(0)
+        # :COMMENT: Nothing yet.
 
     def runTest(self):
         """
