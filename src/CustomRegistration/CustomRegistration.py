@@ -876,7 +876,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             ctkComboBox, "comboBoxInterpolator"
         )
         self.optimizers_combo_box = self.panel.findChild(ctkComboBox, "ComboOptimizers")
-        self.volume_name_edit = self.panel.findChild(QLineEdit, "lineEditNewVolumeName")
         self.histogram_bin_count_spin_box = self.panel.findChild(
             QSpinBox, "spinBoxBinCount"
         )
@@ -1057,7 +1056,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :BUG:Tony: Name of the new volume not applied.
         input = {}
-        input["volume_name"] = self.volume_name_edit.text
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        input[
+            "volume_name"
+        ] = f"{self.input_volume.GetName()}_registered_{current_time}"
         input["histogram_bin_count"] = bin_count
         input["sampling_strategy"] = sampling_strat
         input["sampling_percentage"] = sampling_perc
@@ -1086,7 +1088,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # print(logic.state())
 
             # :COMMENT: Log the registration.
-            # :DIRTY:Tony: Change the name to the one in the parameters (see BUG), and remove the assert.
             assert self.input_volume
             print(
                 f'"{self.input_volume.GetName()}" has been registered as "{self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems() - 1).GetName()}".'
