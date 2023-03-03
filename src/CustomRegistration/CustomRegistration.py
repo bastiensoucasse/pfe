@@ -876,6 +876,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the preprocessing widget by retrieving the volume selection widget and initializing it.
         """
 
+        self.volume_name_edit = self.panel.findChild(QLineEdit, "lineEditNewVolumeName")
+
         # :COMMENT: Link settings UI and code
         self.metrics_combo_box = self.panel.findChild(ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.panel.findChild(
@@ -977,6 +979,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.optimizers_combo_box.setCurrentIndex(-1)
         self.interpolator_combo_box.setCurrentIndex(-1)
         self.sampling_strat_combo_box.setCurrentIndex(2)
+        self.volume_name_edit.text = ""
 
         self.update_optimizer_parameters_group_box()
 
@@ -1024,13 +1027,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("No optimizer selected.")
             return
 
-        # :COMMENT: VTK volume
-        self.movingVolumeData = self.input_volume
-        self.fixedVolumeData = self.target_volume
-
         # :COMMENT: utilitiy functions to get sitk images
-        fixed_image = su.PullVolumeFromSlicer(self.fixedVolumeData)
-        moving_image = su.PullVolumeFromSlicer(self.movingVolumeData)
+        fixed_image = su.PullVolumeFromSlicer(self.target_volume)
+        moving_image = su.PullVolumeFromSlicer(self.input_volume)
         fixed_image = sitk.Cast(fixed_image, sitk.sitkFloat32)
         moving_image = sitk.Cast(moving_image, sitk.sitkFloat32)
 
@@ -1063,18 +1062,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         nb_iter_lbfgs2 = self.nb_iter_lbfgs2.value
         delta_conv_tol = self.delta_conv_tol_edit.text
 
-        # :DIRTY:Tony: For debug only (to be removed).
-        # print(f"interpolator: {self.interpolator_combo_box.currentText}")
-        # print(f"solution accuracy: {solution_acc}")
-        # print(f"nb iter lbfgs2: {nb_iter_lbfgs2}")
-        # print(f"delat conv tol: {delta_conv_tol}")
-
         # :BUG:Tony: Name of the new volume not applied.
         input = {}
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        input[
-            "volume_name"
-        ] = f"{self.input_volume.GetName()}_registered_{current_time}"
+        volume_name = f"{self.input_volume.GetName()}_registered_{current_time}"
+        if self.volume_name_edit.text:
+            volume_name = f"{self.volume_name_edit.text}_registered_{current_time}"
+        input["volume_name"] = volume_name
         input["histogram_bin_count"] = bin_count
         input["sampling_strategy"] = sampling_strat
         input["sampling_percentage"] = sampling_perc
@@ -1099,8 +1093,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             Handles the completion callback.
             """
 
-            # :DIRTY:Tony: For debug only (to be removed).
-            # print(logic.state())
             self.button_registration.setEnabled(True)
             self.button_cancel.setEnabled(False)
             # :COMMENT: Log the registration.
@@ -1689,8 +1681,5 @@ class RegistrationProcess(Process):
 
         output = pickle.loads(processOutput)
         image_resampled = output["image_resampled"]
-        pixelID = output["pixelID"]
-        caster = sitk.CastImageFilter()
-        caster.SetOutputPixelType(pixelID)
-        image = caster.Execute(image_resampled)
-        su.PushVolumeToSlicer(image)
+        volume_name = output["volume_name"]
+        su.PushVolumeToSlicer(image_resampled, name=volume_name)

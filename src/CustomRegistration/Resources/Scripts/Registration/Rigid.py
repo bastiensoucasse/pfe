@@ -85,7 +85,7 @@ def main():
 
     output = {}
     output["image_resampled"] = resampled
-    output["pixelID"] = fixed_image.GetPixelID()
+    output["volume_name"] = volume_name
 
     sys.stdout.buffer.write(pickle.dumps(output))
 
