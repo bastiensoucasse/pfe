@@ -183,6 +183,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.panel = util.loadUI(self.resourcePath("UI/Panel.ui"))
         assert self.panel
 
+        # :COMMENT: Hide the useless widgets.
+        util.setApplicationLogoVisible(False)
+        util.setModulePanelTitleVisible(False)
+        util.setModuleHelpSectionVisible(False)
+        util.setDataProbeVisible(False)
+
         # :COMMENT: Apply the color palette to the panel.
         main_window_palette = util.mainWindow().palette
         self.panel.setPalette(main_window_palette)
@@ -490,6 +496,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
             # :COMMENT: Clear the 2D view.
             self.slice_composite_nodes[i].SetBackgroundVolumeID("")
+
+            # :COMMENT: Initialize the view orientation to "Axial".
+            slice_node = self.slice_logic[i].GetSliceNode()
+            slice_node.SetOrientationToAxial()
 
     def update_view(
         self, volume: vtkMRMLScalarVolumeNode, view_id: int, orientation: str = ""
