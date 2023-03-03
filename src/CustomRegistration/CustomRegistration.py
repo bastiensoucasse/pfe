@@ -698,6 +698,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message(
                 "End values must be greater than or equal to start values."
             )
+            # :TODO:Iantsa: Reset the previous values to avoir bypassing the error.
             return
 
         # :COMMENT: Save selected volume's data.
