@@ -251,14 +251,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         for observer in self.scene_observers:
             mrmlScene.RemoveObserver(observer)
 
-    def onReload(self) -> None:
-        """
-        Handles the reload button click.
-        """
-
-        util.pythonShell().clear()
-        util.reloadScriptedModule(self.moduleName)
-
     #
     # PASCAL ONLY MODE
     #
