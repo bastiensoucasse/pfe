@@ -183,6 +183,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.panel = util.loadUI(self.resourcePath("UI/Panel.ui"))
         assert self.panel
 
+        # :COMMENT: Apply the color palette to the panel.
+        main_window_palette = util.mainWindow().palette
+        self.panel.setPalette(main_window_palette)
+
         # :COMMENT: Insert the panel UI into the layout.
         self.layout.addWidget(self.panel)
 
