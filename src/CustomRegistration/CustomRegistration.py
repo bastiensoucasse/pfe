@@ -699,11 +699,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             start_val.append(self.cropping_start[i].value)
             end_val.append(self.cropping_end[i].value)
 
-        # :COMMENT: Check that coordinates are valid.
+        # :COMMENT: Clear and pass if the coordinates are invalid (computation impossible).
         if any(end_val[i] < start_val[i] for i in range(3)):
-            self.display_error_message(
-                "End values must be greater than or equal to start values."
-            )
+            if self.cropping_box:
+                mrmlScene.RemoveNode(self.cropping_box)
+                self.cropping_box = None
             return
 
         # :COMMENT: Save selected volume's data.
@@ -737,6 +737,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Delete the previous cropping box from the scene if exists.
         if self.cropping_box:
             mrmlScene.RemoveNode(self.cropping_box)
+            self.cropping_box = None
 
         # :COMMENT: Create a new cropping box.
         # :DIRTY/GLITCH:Iantsa: Even if user never crops, the cropping box is still displayed.
@@ -782,6 +783,20 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("Please select a volume to crop.")
             return
 
+        # :COMMENT: Retrieve coordinates input.
+        start_val = []
+        end_val = []
+        for i in range(3):
+            start_val.append(self.cropping_start[i].value)
+            end_val.append(self.cropping_end[i].value)
+
+        # :COMMENT: Pass if the coordinates are invalid.
+        if any(end_val[i] < start_val[i] for i in range(3)):
+            self.display_error_message(
+                "End values must be greater than or equal to start values."
+            )
+            return
+
         # :BUG:Iantsa: Not handled yet (can be non existent if crop button clicked without changing the default parameters)
         if not self.cropped_volume:  # and not self.cropping_box:
             return
@@ -800,6 +815,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
         mrmlScene.RemoveNode(self.cropping_box)
+        self.cropping_box = None
+
+        # :COMMENT: Reset the cropping parameters.
+        self.reset_cropping()
 
     #
     # RESAMPLING
