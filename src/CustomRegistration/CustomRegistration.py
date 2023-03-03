@@ -163,9 +163,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def __init__(self, parent=None) -> None:
         ScriptedLoadableModuleWidget.__init__(self, parent)
 
-        # :COMMENT: Initilize the logs.
-        print("Welcome to Custom Registration!\n")
-
     def setup(self) -> None:
         """
         Sets up the widget for the module by adding a welcome message to the layout.
