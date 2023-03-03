@@ -48,6 +48,7 @@ def main():
     R.SetSmoothingSigmasPerLevel([4, 2, 1])
 
     outTx = R.Execute(fixed_image, moving_image)
+    resampled = sitk.Resample(moving_image, fixed_image, outTx, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
 
     output = {}
     output['image_resampled'] = resampled

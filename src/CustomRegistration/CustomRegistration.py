@@ -6,6 +6,7 @@ import SimpleITK as sitk
 from slicer import util, mrmlScene
 from Processes import Process, ProcessesLogic
 import sitkUtils as su
+import json
 import sys, os
 from math import pi
 from slicer.ScriptedLoadableModule import (
@@ -78,6 +79,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         threeDWidget.setVisible(False)
         self.volume_selection_setup()
         self.update_gui()
+        self.nodeObserverTag = None
 
     def volume_selection_setup(self) -> None:
         """
@@ -125,11 +127,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_registration = self.panel_ui.findChild(ctk.ctkPushButton, "PushButtonRegistration")
         self.button_registration.clicked.connect(self.rigid_registration)
 
+        self.button_cancel = self.panel_ui.findChild(qt.QPushButton, "pushButtonCancel")
+        self.button_cancel.clicked.connect(self.cancel_registration_process)
+        self.button_cancel.setEnabled(False)
+
         
         self.fixed_image_combo_box.activated.connect(lambda index=self.fixed_image_combo_box.currentIndex, combobox=self.fixed_image_combo_box: self.on_volume_combo_box_changed(index, combobox))
         self.moving_image_combo_box.activated.connect(lambda index=self.moving_image_combo_box.currentIndex, combobox=self.moving_image_combo_box: self.on_volume_combo_box_changed(index, combobox))
         self.optimizers_combo_box.currentIndexChanged.connect(self.update_gui)
         self.selected_volume = None
+
+        # :COMMENT: progress bar and status
+        self.progressBar = self.panel_ui.findChild(qt.QProgressBar, "progressBar")
+        self.progressBar.hide()
+        self.label_status = self.panel_ui.findChild(qt.QLabel, "label_status")
+        self.label_status.hide()
 
     def vtk_to_sitk(self, volume: slicer.vtkMRMLScalarVolumeNode) -> sitk.Image:
         """
@@ -231,12 +243,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         nb_iter_lbfgs2 = self.nb_iter_lbfgs2.value
         delta_conv_tol = self.delta_conv_tol_edit.text
 
-
-        print(f"interpolator: {self.interpolator_combo_box.currentText}")
-        print(f"solution accuracy: {solution_acc}")
-        print(f"nb iter lbfgs2: {nb_iter_lbfgs2}")
-        print(f"delat conv tol: {delta_conv_tol}")
-
         input = {}
         input["volume_name"] = self.volume_name_edit.text
         input["histogram_bin_count"] = bin_count
@@ -261,7 +267,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         def onProcessesCompleted(testClass):
             # when test finishes, we succeeded!
             print(logic.state())
-            print('Test passed!')
+            print('Registration done!')
+            self.button_registration.setEnabled(True)
+            self.button_cancel.setEnabled(False)
             self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
             new_volume = self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems()-1)
             slicer.util.setSliceViewerLayers(background=new_volume, foreground=self.fixedVolumeData)
@@ -274,37 +282,90 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             scriptPath = os.path.join(thisPath, "..", "scripts", "reg2.py")
         else:
             scriptPath = os.path.join(thisPath, "..", "scripts", "non_rigid_reg.py")
-        regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
-        logic.addProcess(regProcess)
+        self.regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
+        logic.addProcess(self.regProcess)
+        node = logic.getParameterNode()
+        self.nodeObserverTag = node.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onNodeModified)
+        self.button_registration.setEnabled(False)
+        self.button_cancel.setEnabled(True)
+        self.activate_timer_and_progress_bar()
         logic.run()
 
+        # def iteration_callback(filter):
+        #     print('\r{0:.2f}'.format(filter.GetMetricValue()), end='')
 
-    # :COMMENT: helper function to determine when the threaded registration ends
-    # transfer metadata and add the volume
-    def onProcessingStatusUpdate(self, cliNode, event) -> None:
-        if cliNode.GetStatus() & cliNode.Completed:
-            if cliNode.GetStatus() & cliNode.ErrorsMask:
-                errorText = cliNode.GetErrorText()
-                print("CLI execution failed: " + errorText)
-            else:
-                node_name = cliNode.GetParameterAsString("outputVolume")
-                output_volume = slicer.util.getNode(node_name)
-                #:TODO: transform string to node
-                #volume = self.sitk_to_vtk(resampled)
-                #self.transfer_volume_metadate(self.movingVolumeData, output_volume)
-                self.add_volume(output_volume)
-                #print(f"[DEBUG]: {moving_image.GetName()}  as been registrated with parameters :\n< {self.parametersToPrint}> as {volume.GetName()}.")
+        # registration_method = sitk.ImageRegistrationMethod()
+    
+        # transformDomainMeshSize = [10] * moving_image.GetDimension()
+        # tx = sitk.BSplineTransformInitializer(fixed_image, transformDomainMeshSize)
+        # registration_method.SetInitialTransform(tx)
+        # registration_method.SetOptimizerScalesFromPhysicalShift()
+        # registration_method.SetMetricAsMeanSquares()
+        # # Settings for metric sampling, usage of a mask is optional. When given a mask the sample points will be 
+        # # generated inside that region. Also, this implicitly speeds things up as the mask is smaller than the
+        # # whole image.
+        # registration_method.SetMetricSamplingStrategy(registration_method.RANDOM)
+        # registration_method.SetMetricSamplingPercentage(0.01)
         
-    def transfer_volume_metadate(self, original_volume, moved_volume) -> None:
-        spacing =  original_volume.GetSpacing()
-        origin =  original_volume.GetOrigin()
-        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
-        original_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+        # # Multi-resolution framework.            
+        # registration_method.SetShrinkFactorsPerLevel(shrinkFactors = [4,2,1])
+        # registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas=[2,1,0])
+        # registration_method.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
 
-        # Apply the metadata to the target volume.
-        moved_volume.SetSpacing(spacing)
-        moved_volume.SetOrigin(origin)
-        moved_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+        # registration_method.SetInterpolator(sitk.sitkLinear)
+        # registration_method.SetOptimizerAsLifBFGS2(solutionAccuracy=1e-2, numberOfIterations=250, deltaConvergenceTolerance=0.01)
+
+        # registration_method.AddCommand(sitk.sitkIterationEvent, lambda: iteration_callback(registration_method))
+
+        # outTx = registration_method.Execute(fixed_image, moving_image)
+
+        # print(f"Optimizer stop condition: {registration_method.GetOptimizerStopConditionDescription()}")
+        # print(f" Iteration: {registration_method.GetOptimizerIteration()}")
+        # print(f" Metric value: {registration_method.GetMetricValue()}")
+
+        # resampled = sitk.Resample(moving_image, fixed_image, outTx, sitk.sitkLinear, 0.0, moving_image.GetPixelID())
+        # su.PushVolumeToSlicer(resampled)
+
+
+    def activate_timer_and_progress_bar(self):
+            self.progressBar.setMinimum(0)
+            self.progressBar.setMaximum(0)
+            self.progressBar.setValue(0)
+            self.timer = qt.QTimer()
+            self.elapsed_time = qt.QElapsedTimer()
+            self.timer.timeout.connect(self.update_status)
+            self.timer.start(1000)
+            self.elapsed_time.start()
+
+
+    def onNodeModified(self, caller, event):
+        """
+        Helper function displaying a timer and a loading bar
+        """
+        processStates = ["Pending", "Running", "Completed", "Failed"]
+        self.progressBar.setVisible(True)
+        self.label_status.setVisible(True)
+        stateJSON = caller.GetAttribute("state")
+        if stateJSON:
+            state = json.loads(caller.GetAttribute("state"))
+            for processState in processStates:
+                if state[processState] and processState == "Completed":
+                    self.progressBar.setMaximum(100)
+                    self.progressBar.setValue(100)
+                    self.timer.stop()
+
+
+
+    def update_status(self):
+        self.label_status.setText(f"status: {self.elapsed_time.elapsed()//1000}s")
+
+    def cancel_registration_process(self):
+        assert(self.regProcess)
+        self.timer.stop()
+        self.progressBar.setMaximum(100)
+        self.progressBar.setValue(0)
+        self.regProcess.terminate()
+
 
     def add_volume(self, volume) -> None:
         volume.SetName(self.volume_name_edit.text)
@@ -419,7 +480,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if self.selected_volume and self.selected_volume_index != -1 :
             self.active_combo_box.setCurrentIndex(self.selected_volume_index)
         else:
-            print(self.selected_volume)
             self.active_combo_box.setCurrentIndex(-1)
 
     def delete_volume(self) -> None:
@@ -461,43 +521,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.moving_image_combo_box.setCurrentIndex(-1)
         self.sampling_strat_combo_box.setCurrentIndex(2)
 
-    # :TRICKY: getattr calls the function from object R, function is provided by metrics combo box
-    def select_metrics(self, R, bin_count) -> None:
-        """
-        call the selected metrics by the user
-        """
-        metrics = self.metrics_combo_box.currentText.replace(" ", "")
-        print(f"[DEBUG]: metrics: {metrics}")
-        metrics_function = getattr(R, f"SetMetricAs{metrics}")
-        if(metrics=="MattesMutualInformation"):
-            metrics_function(bin_count)
-        else:
-            metrics_function()
-
-    def select_interpolator(self, R) -> None:
-        """
-        set the interpolator selected by the user
-        """
-        interpolator = self.interpolator_combo_box.currentText.replace(" ", "")
-        interpolator = getattr(sitk, f"sitk{interpolator}")
-        print(f"[DEBUG]: interpolator: {interpolator}")
-        R.SetInterpolator(interpolator)
-
-    def select_optimizer_and_setup(self, R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size) -> None:
-        """
-        set the optimizer (gradient descent, exhaustive...) and their respective parameters to be executed.
-        """
-        optimizerName = self.optimizers_combo_box.currentText.replace(" ", "")
-        print(f"[DEBUG]: optimizer {optimizerName}")
-        optimizer = getattr(R, f"SetOptimizerAs{optimizerName}")
-        if optimizerName == "GradientDescent":
-            self.parametersToPrint = f" Learning rate: {learning_rate}\n number of iterations: {nb_iteration}\n convergence minimum value: {convergence_min_val}\n convergence window size: {convergence_win_size}"
-            optimizer(learningRate=learning_rate, numberOfIterations=nb_iteration, convergenceMinimumValue=float(convergence_min_val), convergenceWindowSize=convergence_win_size)
-        elif optimizerName == "Exhaustive":
-            self.parametersToPrint = f" number of steps: {self.nb_of_steps}\n step length: {self.step_length}\n optimizer scale: {self.optimizer_scale}"
-            optimizer(numberOfSteps=self.nb_of_steps, stepLength = self.step_length)
-            R.SetOptimizerScales(self.optimizer_scale)
-
+   
     def update_gui(self) -> None:
         """
         updates the UI based on the choice of the user concerning the optimizer function
@@ -569,11 +593,6 @@ class RegistrationProcess(Process):
     caster.SetOutputPixelType(pixelID)
     image = caster.Execute(image_resampled)
     su.PushVolumeToSlicer(image)
-    # thisPath = os.path.join(thisPath, "registered_image.mha")
-    # sitk.WriteImage(image, thisPath)
-    # loadedVolumeNode = slicer.util.loadVolume(thisPath)
-    # loadedVolumeNode.SetSpacing(image.GetSpacing())
-    # loadedVolumeNode.SetOrigin(image.GetOrigin())
 
     
 
