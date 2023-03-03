@@ -1650,46 +1650,40 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
 
 class RegistrationProcess(Process):
     """
-    …
+    Class to process registration as a background task using the extension ParallelProcessing
 
     Parameters:
-        scriptPath: …
-        fixedImageVolume …
-        movingImageVolume: …
-        input_parameters: …
-
-    :TODO:Tony: Complete class documentation.
+        scriptPath: path to the custom script user wants to execute (registration only)
+        fixed_image : a sitk image, the image to be aligned with
+        moving_image : a sitk image, the source image to be registered
+        input_parameters: a dictionary used to pass parameters for the script
     """
 
     def __init__(
-        self, scriptPath, fixedImageVolume, movingImageVolume, input_parameters
+        self, scriptPath, fixed_image, moving_image, input_parameters
     ):
         Process.__init__(self, scriptPath)
-        self.fixedImageVolume = fixedImageVolume
-        self.movingImageVolume = movingImageVolume
+        self.fixed_image = fixed_image
+        self.moving_image = moving_image
         self.input_parameters = input_parameters
 
     def prepareProcessInput(self):
         """
-        …
-
-        :TODO:Tony: Complete method documentation.
+        Helper function to send input parameters to a script
         """
 
         input = {}
-        input["fixed_image"] = self.fixedImageVolume
-        input["moving_image"] = self.movingImageVolume
+        input["fixed_image"] = self.fixed_image
+        input["moving_image"] = self.moving_image
         input["parameters"] = self.input_parameters
         return pickle.dumps(input)
 
     def useProcessOutput(self, processOutput):
         """
-        …
+        Helper function to received output parameters from the script
 
         Parameters:
-            processOutput: …
-
-        :TODO:Tony: Complete method documentation.
+            processOutput: a dictionary that contains the results of the script (a registration, a transform...)
         """
 
         output = pickle.loads(processOutput)
