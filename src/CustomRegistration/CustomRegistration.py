@@ -26,7 +26,8 @@ from qt import (
     QSlider,
     QSpinBox,
     QTimer,
-    QElapsedTimer
+    QElapsedTimer,
+    QProgressBar
 )
 from slicer import app, mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
 from slicer.ScriptedLoadableModule import (
@@ -952,6 +953,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
         self.button_registration.clicked.connect(self.register)
 
+        self.button_cancel = self.panel.findChild(QPushButton, "pushButtonCancel")
+        self.button_cancel.clicked.connect(self.cancel_registration_process)
+        self.button_cancel.setEnabled(False)
+
+        self.progressBar = self.panel.findChild(QProgressBar, "progressBar")
+        self.progressBar.hide()
+        self.label_status = self.panel.findChild(QLabel, "label_status")
+        self.label_status.hide()
+
         self.optimizers_combo_box.currentIndexChanged.connect(
             self.update_optimizer_parameters_group_box
         )
@@ -1141,6 +1151,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     self.progressBar.setMaximum(100)
                     self.progressBar.setValue(100)
                     self.timer.stop()
+
+    def update_status(self):
+        self.label_status.setText(f"status: {self.elapsed_time.elapsed()//1000}s")
+
+    def cancel_registration_process(self):
+        assert(self.regProcess)
+        self.timer.stop()
+        self.progressBar.setMaximum(100)
+        self.progressBar.setValue(0)
+        self.regProcess.terminate()
     #
     # INPUT VOLUME
     #
