@@ -190,6 +190,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.panel = util.loadUI(self.resourcePath("UI/Panel.ui"))
         assert self.panel
 
+        # :COMMENT: Hide the useless widgets.
+        util.setApplicationLogoVisible(False)
+        util.setModulePanelTitleVisible(False)
+        util.setModuleHelpSectionVisible(False)
+        util.setDataProbeVisible(False)
+
+        # :COMMENT: Apply the color palette to the panel.
+        main_window_palette = util.mainWindow().palette
+        self.panel.setPalette(main_window_palette)
+
         # :COMMENT: Insert the panel UI into the layout.
         self.layout.addWidget(self.panel)
 
@@ -494,8 +504,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :COMMENT: Clear the 2D view.
             self.slice_composite_nodes[i].SetBackgroundVolumeID("")
 
+            # :COMMENT: Initialize the view orientation to "Axial".
+            slice_node = self.slice_logic[i].GetSliceNode()
+            slice_node.SetOrientationToAxial()
+
     def update_view(
-        self, volume: vtkMRMLScalarVolumeNode, view_id: int, orientation: str
+        self, volume: vtkMRMLScalarVolumeNode, view_id: int, orientation: str = ""
     ) -> None:
         """
         Updates a given 2D view with the selected volume.
@@ -526,6 +540,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if orientation == "Sagittal":
             slice_node.SetOrientationToSagittal()
 
+        # :COMMENT: Scale the view to the volumes.
         self.slice_logic[view_id].FitSliceToAll()
 
     def reset_view(self) -> None:
@@ -534,17 +549,25 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         if self.input_volume:
-            self.update_view(self.input_volume, 0, "Axial")
+            self.update_view(
+                self.input_volume,
+                0,
+                self.slice_logic[0].GetSliceNode().GetOrientation(),
+            )
         else:
-            self.update_view(None, 0, "Axial")
+            self.update_view(None, 0)
 
         if self.target_volume:
-            self.update_view(self.target_volume, 1, "Axial")
+            self.update_view(
+                self.target_volume,
+                1,
+                self.slice_logic[1].GetSliceNode().GetOrientation(),
+            )
         else:
-            self.update_view(None, 1, "Axial")
+            self.update_view(None, 1)
 
         # :MERGE:Bastien: Add support for the difference map.
-        self.update_view(None, 2, "Axial")
+        self.update_view(None, 2)
 
     #
     # ROI SELECTION
@@ -1472,13 +1495,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.target_volume = self.volumes.GetItemAsObject(index)
         assert self.target_volume
         self.update_volume_list()
-
-        # :COMMENT: Update the cropping parameters accordingly.
-        target_volume_image_data = self.target_volume.GetImageData()
-        target_volume_dimensions = target_volume_image_data.GetDimensions()
-        for i in range(3):
-            self.cropping_start[i].setMaximum(target_volume_dimensions[i] - 1)
-            self.cropping_end[i].setMaximum(target_volume_dimensions[i] - 1)
 
     def rename_target_volume(self) -> None:
         """
