@@ -37,6 +37,7 @@ from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModuleWidget,
     ScriptedLoadableModuleTest
 )
+import Elastix
 
 
 
@@ -1081,7 +1082,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         nb_iter_lbfgs2 = self.nb_iter_lbfgs2.value
         delta_conv_tol = self.delta_conv_tol_edit.text
 
-        # :BUG:Tony: Name of the new volume not applied.
         input = {}
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         volume_name = f"{self.input_volume.GetName()}_registered_{current_time}"
@@ -1107,35 +1107,55 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # PARALLEL PROCESSING EXTENSION
 
-        def on_registration_completed():
-            """
-            Handles the completion callback.
-            """
-
-            self.button_registration.setEnabled(True)
-            self.button_cancel.setEnabled(False)
-            # :COMMENT: Log the registration.
-            assert self.input_volume
-            print(
-                f'"{self.input_volume.GetName()}" has been registered as "{self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems() - 1).GetName()}".'
-            )
-
-            # :COMMENT: Select the new volume to display it.
-            self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
-
-        logic = ProcessesLogic(completedCallback=lambda: on_registration_completed())
         if self.rigid_r_button.isChecked():
             scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
-        else:
+            self.custom_script_registration(scriptPath, fixed_image, moving_image, input)
+        elif self.non_rigid_r_button.isChecked():
             scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
-        regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
-        logic.addProcess(regProcess)
-        node = logic.getParameterNode()
+            self.custom_script_registration(scriptPath, fixed_image, moving_image, input)
+        else:
+            self.elastix_registration()
+
+    def custom_script_registration(self, scriptPath, fixed_image, moving_image, input):
+        process_logic = ProcessesLogic(completedCallback=lambda: self.on_registration_completed())
+        self.regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
+        process_logic.addProcess(self.regProcess)
+        node = process_logic.getParameterNode()
         self.nodeObserverTag = node.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onNodeModified)
         self.button_registration.setEnabled(False)
         self.button_cancel.setEnabled(True)
         self.activate_timer_and_progress_bar()
-        logic.run()
+        process_logic.run()
+
+    # :TODO: Seek a way to add a callback function when registration is finished
+    # Or use simpleElastix in another script like previously
+    def elastix_registration(self):
+        self.button_registration.setEnabled(False)
+        self.button_cancel.setEnabled(True)
+        self.activate_timer_and_progress_bar()
+
+        elastix_logic = Elastix.ElastixLogic()
+        # this corresponds to  "Parameters_BSpline.txt", a generic registration
+        parameterFilenames = elastix_logic.getRegistrationPresets()[0][Elastix.RegistrationPresets_ParameterFilenames]
+        #parameterFilenames = "Parameters_BSpline.txt"
+        new_volume = mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
+        elastix_logic.run(self.target_volume, self.input_volume, parameterFilenames = parameterFilenames, outputVolumeNode = new_volume, logCallback=self.on_registration_completed)
+
+    def on_registration_completed(self):
+        """
+        Handles the completion callback.
+        """
+
+        self.button_registration.setEnabled(True)
+        self.button_cancel.setEnabled(False)
+        # :COMMENT: Log the registration.
+        assert self.input_volume
+        print(
+            f'"{self.input_volume.GetName()}" has been registered as "{self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems() - 1).GetName()}".'
+        )
+
+        # :COMMENT: Select the new volume to display it.
+        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
 
     def activate_timer_and_progress_bar(self):
         self.progressBar.setMinimum(0)
