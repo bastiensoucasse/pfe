@@ -610,6 +610,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Connect the ROI selection button to the algorithm.
         self.roi_selection_button.clicked.connect(self.select_roi)
 
+        # :COMMENT: Initialize the min/max values.
+        self.minimum_pixel_value = 0
+        self.maximum_pixel_value = 255
+
         # :COMMENT: Initialize the ROI.
         self.reset_roi_selection()
 
@@ -621,9 +625,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Reset the ROI selection.
         self.remove_roi()
 
+        # :COMMENT: Update the min and max values accordingly.
+        self.roi_selection_threshold_slider.setMinimum(self.minimum_pixel_value)
+        self.roi_selection_threshold_slider.setMaximum(self.maximum_pixel_value)
+
         # :COMMENT: Update the label accordingly.
-        self.roi_selection_threshold_slider.setValue(0)
-        self.roi_selection_threshold_value_label.setText("0")
+        self.roi_selection_threshold_slider.setValue(self.minimum_pixel_value)
+        self.roi_selection_threshold_value_label.setText(str(self.minimum_pixel_value))
 
     def remove_roi(self) -> None:
         """
@@ -1242,8 +1250,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Remove the input volume in-memory ROI.
         self.remove_roi()
 
+        # :COMMENT: Remove the minimum and maximum pixel values.
+        self.minimum_pixel_value = 0
+        self.maximum_pixel_value = 255
+
         # :COMMENT: Clear the view (top visualization).
-        self.slice_composite_nodes[0].SetBackgroundVolumeID("")
+        self.update_view(None, 0)
 
     def choose_input_volume(self, index: int) -> None:
         """
@@ -1256,8 +1268,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         assert self.input_volume
         self.update_volume_list()
 
-        # :COMMENT: Update the cropping parameters accordingly.
+        # :COMMENT: Retrieve the input volume data.
         input_volume_image_data = self.input_volume.GetImageData()
+
+        # :COMMENT: Update the ROI selection parameters accordingly.
+        (
+            self.minimum_pixel_value,
+            self.maximum_pixel_value,
+        ) = input_volume_image_data.GetScalarRange()
+        self.reset_roi_selection()
+
+        # :COMMENT: Update the cropping parameters accordingly.
         input_volume_dimensions = input_volume_image_data.GetDimensions()
         for i in range(3):
             self.cropping_start[i].setMaximum(input_volume_dimensions[i] - 1)
@@ -1414,7 +1435,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.target_volume_index = None
 
         # :COMMENT: Clear the view (top visualization).
-        self.slice_composite_nodes[1].SetBackgroundVolumeID("")
+        self.update_view(None, 1)
 
     def choose_target_volume(self, index: int) -> None:
         """
