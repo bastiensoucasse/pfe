@@ -1521,6 +1521,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the plugin loading architecture by initializing the data and retrieving the UI widgets.
         """
 
+        # :COMMENT: Initialize the plugin script list.
+        self.plugins = {}
+
         # :COMMENT: Retrieve the plugin loading button.
         self.plugin_loading_button = self.panel.findChild(
             QPushButton, "PluginLoadingPushButton"
@@ -1593,6 +1596,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                         ui_file_label.setText(os.path.basename(path))
                         self.plugin_loading_ui_file = path
 
+                # :COMMENT: Create a file dialog for the UI file.
                 ui_file_dialog = QFileDialog(self.parent)
                 ui_file_dialog.setFileMode(QFileDialog.ExistingFile)
                 ui_file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
@@ -1618,6 +1622,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                         python_file_label.setText(os.path.basename(path))
                         self.plugin_loading_python_file = path
 
+                # :COMMENT: Create a file dialog for the Python file.
                 python_file_dialog = QFileDialog(self.parent)
                 python_file_dialog.setFileMode(QFileDialog.ExistingFile)
                 python_file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
@@ -1634,10 +1639,22 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 Loads the new plugin.
                 """
 
+                # :COMMENT: Retrieve the plugin name.
+                plugin_name = name_line_edit.text
+
+                # :COMMENT: Check if the plugin name is valid.
+                if plugin_name in self.plugins.keys():
+                    self.display_error_message(
+                        f'A plugin named "{plugin_name}" already exists.'
+                    )
+                    return
+
+                # :COMMENT: Check if the UI file is valid.
                 if not self.plugin_loading_ui_file:
                     self.display_error_message("No UI file selected.")
                     return
 
+                # :COMMENT: Check if the Python file is valid.
                 if not self.plugin_loading_python_file:
                     self.display_error_message("No Python file selected.")
                     return
@@ -1650,8 +1667,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
                 # :COMMENT: Add a collapsible button.
                 plugin_collapsible_button = ctkCollapsibleButton()
-                plugin_collapsible_button.text = name_line_edit.text
-                plugin_collapsible_button.collapsed = False
+                plugin_collapsible_button.text = plugin_name
+                plugin_collapsible_button.collapsed = True
                 plugin_layout = QVBoxLayout()
                 plugin_layout.setContentsMargins(12, 12, 0, 12)
                 plugin_layout.setSpacing(12)
@@ -1664,7 +1681,39 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 plugin_ui.setPalette(util.mainWindow().palette)
                 plugin_layout.addWidget(plugin_ui)
 
-                # :TODO:Bastien: Link the UI to the Python file.
+                def on_run_button_clicked() -> None:
+                    """
+                    Runs the plugin.
+                    """
+
+                    plugin_folder = os.path.dirname(self.plugins[plugin_name])
+                    plugin_file = os.path.basename(
+                        os.path.splitext(self.plugins[plugin_name])[0]
+                    )
+
+                    import sys
+
+                    sys.path.append(plugin_folder)
+
+                    import importlib
+
+                    plugin_script = importlib.import_module(plugin_file)
+
+                    plugin_script.run(
+                        ui=plugin_ui,
+                        scene=mrmlScene,
+                        input_volume=self.input_volume,
+                        target_volume=self.target_volume,
+                    )
+
+                # :COMMENT: Add the run button to launch the plugin script.
+                plugin_run_button = QPushButton()
+                plugin_run_button.setText(f"Run {plugin_name}")
+                plugin_layout.addWidget(plugin_run_button)
+                plugin_run_button.clicked.connect(on_run_button_clicked)
+
+                # :COMMENT: Add the plugin path to the plugin list.
+                self.plugins[plugin_name] = self.plugin_loading_python_file
 
                 # :COMMENT: Reset the temporary variables and close the dialog.
                 self.plugin_loading_ui_file = None
