@@ -3,6 +3,7 @@ The Custom Registration module for Slicer provides the features for 3D images re
 """
 
 import datetime
+import os
 import pickle
 from math import pi
 
@@ -16,6 +17,8 @@ from qt import (
     QCheckBox,
     QDialog,
     QDoubleSpinBox,
+    QFileDialog,
+    QHBoxLayout,
     QInputDialog,
     QLabel,
     QLineEdit,
@@ -24,6 +27,7 @@ from qt import (
     QRadioButton,
     QSlider,
     QSpinBox,
+    QVBoxLayout,
 )
 from slicer import app, mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
 from slicer.ScriptedLoadableModule import (
@@ -190,8 +194,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         util.setDataProbeVisible(False)
 
         # :COMMENT: Apply the color palette to the panel.
-        main_window_palette = util.mainWindow().palette
-        self.panel.setPalette(main_window_palette)
+        self.panel.setPalette(util.mainWindow().palette)
 
         # :COMMENT: Insert the panel UI into the layout.
         self.layout.addWidget(self.panel)
@@ -212,8 +215,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.setup_cropping()
         self.setup_resampling()
 
-        #:COMMENT: Set up the registration.
+        # :COMMENT: Set up the registration.
         self.setup_registration()
+
+        # :COMMENT: Set up the plugin loading.
+        self.setup_plugin_loading()
 
         # :COMMENT: Set up the selected/target volume architecture.
         self.setup_input_volume()
@@ -1505,6 +1511,177 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.reset_target_volume()
         mrmlScene.RemoveNode(volume)
         print(f'"{volume.GetName()}" has been deleted.')
+
+    #
+    # PLUGIN LOADING
+    #
+
+    def setup_plugin_loading(self) -> None:
+        """
+        Sets up the plugin loading architecture by initializing the data and retrieving the UI widgets.
+        """
+
+        # :COMMENT: Retrieve the plugin loading button.
+        self.plugin_loading_button = self.panel.findChild(
+            QPushButton, "PluginLoadingPushButton"
+        )
+        assert self.plugin_loading_button
+
+        # :COMMENT: Define the handler.
+        def on_plugin_loading_button_clicked() -> None:
+            """
+            Opens a loading window with a label for the name of the plugin, and two horizontal layouts, one for the UI file and one for the Python file, each with a label for the name of the file and a button to load the file.
+            """
+
+            # :COMMENT: Create an empty dialog.
+            dialog = QDialog(self.parent)
+            dialog.setWindowTitle("Plugin Loading")
+
+            # :COMMENT: Create a base vertical layout.
+            base_layout = QVBoxLayout()
+            base_layout.setContentsMargins(12, 12, 12, 12)
+            base_layout.setSpacing(12)
+            dialog.setLayout(base_layout)
+
+            # :COMMENT: Create an horizontal layout with a label for the description and a line edit for the name of the plugin (My Plugin by default).
+            name_label = QLabel("Plugin Name:")
+            name_line_edit = QLineEdit()
+            name_line_edit.setText("My Plugin")
+            name_layout = QHBoxLayout()
+            name_layout.setSpacing(12)
+            name_layout.addWidget(name_label)
+            name_layout.addWidget(name_line_edit)
+            base_layout.addLayout(name_layout)
+
+            # :COMMENT: Create an horizontal layout for the UI file loading with a label for the name of the file and a button to load this file.
+            self.plugin_loading_ui_file = None
+            ui_file_label = QLabel("No UI file selected.")
+            ui_file_button = QPushButton()
+            ui_file_button.setText("Choose an UI file…")
+            ui_file_layout = QHBoxLayout()
+            ui_file_layout.setSpacing(12)
+            ui_file_layout.addWidget(ui_file_label)
+            ui_file_layout.addWidget(ui_file_button)
+            base_layout.addLayout(ui_file_layout)
+
+            # :COMMENT: Create an horizontal layout for the Python file loading with a label for the name of the file and a button to load this file.
+            self.plugin_loading_python_file = None
+            python_file_label = QLabel("No Python file selected.")
+            python_file_button = QPushButton()
+            python_file_button.setText("Choose a Python file…")
+            python_file_layout = QHBoxLayout()
+            python_file_layout.setSpacing(12)
+            python_file_layout.addWidget(python_file_label)
+            python_file_layout.addWidget(python_file_button)
+            base_layout.addLayout(python_file_layout)
+
+            def on_ui_file_button_clicked() -> None:
+                """
+                Opens a file opening dialog for a UI file.
+                """
+
+                def on_ui_file_dialog_finished(result) -> None:
+                    """
+                    Loads the UI file.
+
+                    Parameters:
+                        result: The result of the file dialog.
+                    """
+
+                    if result == QDialog.Accepted:
+                        path = ui_file_dialog.selectedFiles()[0]
+                        ui_file_label.setText(os.path.basename(path))
+                        self.plugin_loading_ui_file = path
+
+                ui_file_dialog = QFileDialog(self.parent)
+                ui_file_dialog.setFileMode(QFileDialog.ExistingFile)
+                ui_file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
+                ui_file_dialog.setNameFilter("*.ui")
+                ui_file_dialog.finished.connect(on_ui_file_dialog_finished)
+                ui_file_dialog.show()
+
+            def on_python_file_button_clicked() -> None:
+                """
+                Opens a file opening dialog for a Python file.
+                """
+
+                def on_python_file_dialog_finished(result) -> None:
+                    """
+                    Loads the Python file.
+
+                    Parameters:
+                        result: The result of the file dialog.
+                    """
+
+                    if result == QDialog.Accepted:
+                        path = python_file_dialog.selectedFiles()[0]
+                        python_file_label.setText(os.path.basename(path))
+                        self.plugin_loading_python_file = path
+
+                python_file_dialog = QFileDialog(self.parent)
+                python_file_dialog.setFileMode(QFileDialog.ExistingFile)
+                python_file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
+                python_file_dialog.setNameFilter("*.py")
+                python_file_dialog.finished.connect(on_python_file_dialog_finished)
+                python_file_dialog.show()
+
+            # :COMMENT: Connect the buttons.
+            ui_file_button.clicked.connect(on_ui_file_button_clicked)
+            python_file_button.clicked.connect(on_python_file_button_clicked)
+
+            def on_load_button_clicked() -> None:
+                """
+                Loads the new plugin.
+                """
+
+                if not self.plugin_loading_ui_file:
+                    self.display_error_message("No UI file selected.")
+                    return
+
+                if not self.plugin_loading_python_file:
+                    self.display_error_message("No Python file selected.")
+                    return
+
+                # :COMMENT: Retrieve the plugins layout.
+                self.plugins_layout = self.panel.findChild(
+                    QVBoxLayout, "PluginsVerticalLayout"
+                )
+                assert self.plugins_layout
+
+                # :COMMENT: Add a collapsible button.
+                plugin_collapsible_button = ctkCollapsibleButton()
+                plugin_collapsible_button.text = name_line_edit.text
+                plugin_collapsible_button.collapsed = False
+                plugin_layout = QVBoxLayout()
+                plugin_layout.setContentsMargins(12, 12, 0, 12)
+                plugin_layout.setSpacing(12)
+                plugin_collapsible_button.setLayout(plugin_layout)
+                self.plugins_layout.addWidget(plugin_collapsible_button)
+
+                # :COMMENT: Add the UI of the file inside the collapsible widget.
+                plugin_ui = util.loadUI(self.plugin_loading_ui_file)
+                assert plugin_ui
+                plugin_ui.setPalette(util.mainWindow().palette)
+                plugin_layout.addWidget(plugin_ui)
+
+                # :TODO:Bastien: Link the UI to the Python file.
+
+                # :COMMENT: Reset the temporary variables and close the dialog.
+                self.plugin_loading_ui_file = None
+                self.plugin_loading_python_file = None
+                dialog.accept()
+
+            # :COMMENT: Add a load button and connect it to a dedicated handler.
+            load_button = QPushButton()
+            load_button.setText("Load")
+            base_layout.addWidget(load_button)
+            load_button.clicked.connect(on_load_button_clicked)
+
+            # :COMMENT: Show the dialog.
+            dialog.show()
+
+        # :COMMENT: Connect the handler.
+        self.plugin_loading_button.clicked.connect(on_plugin_loading_button_clicked)
 
     #
     # UTILITIES

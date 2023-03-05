@@ -5,6 +5,14 @@
   <property name="windowModality">
    <enum>Qt::ApplicationModal</enum>
   </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>401</width>
+    <height>2094</height>
+   </rect>
+  </property>
   <property name="windowTitle">
    <string>Custom Registration</string>
   </property>
@@ -1044,6 +1052,63 @@
        <widget class="ctkPushButton" name="PushButtonRegistration">
         <property name="text">
          <string>Start Registration</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer name="InBetweenSpacer2">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Fixed</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <widget class="ctkCollapsibleButton" name="PluginLoadingCollapsibleWidget">
+     <property name="text">
+      <string>Plugins</string>
+     </property>
+     <property name="collapsed">
+      <bool>false</bool>
+     </property>
+     <layout class="QVBoxLayout" name="PluginsVerticalLayout" stretch="0,0">
+      <property name="spacing">
+       <number>12</number>
+      </property>
+      <property name="leftMargin">
+       <number>12</number>
+      </property>
+      <property name="topMargin">
+       <number>12</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>12</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="PluginLoadingDescriptionLabel">
+        <property name="text">
+         <string>Load a custom algorithm and graphical interface.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="PluginLoadingPushButton">
+        <property name="text">
+         <string>Load Plugin</string>
         </property>
        </widget>
       </item>
