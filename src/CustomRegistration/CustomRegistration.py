@@ -45,6 +45,8 @@ from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModuleWidget,
 )
 
+# :GLITCH:Bastien: Select a volume before ROI selection randomly.
+# :GLITCH:Bastien: FLashing ROI selection.
 
 class CustomRegistration(ScriptedLoadableModule):
     """
