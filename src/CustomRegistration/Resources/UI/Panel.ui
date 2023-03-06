@@ -79,6 +79,176 @@
     </spacer>
    </item>
    <item>
+    <widget class="QGroupBox" name="InputVolumeGroupBox">
+     <layout class="QVBoxLayout" name="InputVolumeLayout">
+      <property name="spacing">
+       <number>6</number>
+      </property>
+      <property name="leftMargin">
+       <number>6</number>
+      </property>
+      <property name="topMargin">
+       <number>6</number>
+      </property>
+      <property name="rightMargin">
+       <number>6</number>
+      </property>
+      <property name="bottomMargin">
+       <number>6</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="InputVolumeLabel">
+        <property name="font">
+         <font>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Input Volume</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="ctkComboBox" name="InputVolumeComboBox">
+        <property name="defaultText">
+         <string>Select a volume…</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="InputVolumeDimensionsLayout">
+        <item>
+         <widget class="QLabel" name="InputVolumeDimensionsTextLabel">
+          <property name="text">
+           <string>Dimensions:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="InputVolumeDimensionsValueLabel">
+          <property name="text">
+           <string>…</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="InputVolumeSpacingLayout">
+        <item>
+         <widget class="QLabel" name="InputVolumeSpacingTextLabel">
+          <property name="text">
+           <string>Spacing:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="InputVolumeSpacingValueLabel">
+          <property name="text">
+           <string>...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="TargetVolumeGroupBox">
+     <layout class="QVBoxLayout" name="TargetVolumeLayout">
+      <property name="spacing">
+       <number>6</number>
+      </property>
+      <property name="leftMargin">
+       <number>6</number>
+      </property>
+      <property name="topMargin">
+       <number>6</number>
+      </property>
+      <property name="rightMargin">
+       <number>6</number>
+      </property>
+      <property name="bottomMargin">
+       <number>6</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="TargetVolumeLabel">
+        <property name="font">
+         <font>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Target Volume</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="ctkComboBox" name="TargetVolumeComboBox">
+        <property name="defaultText">
+         <string>Select a volume…</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="TargetVolumeDimensionsLayout">
+        <item>
+         <widget class="QLabel" name="TargetVolumeDimensionsTextLabel">
+          <property name="text">
+           <string>Dimensions:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="TargetVolumeDimensionsValueLabel">
+          <property name="text">
+           <string>…</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="TargetVolumeSpacingLayout">
+        <item>
+         <widget class="QLabel" name="TargetVolumeSpacingTextLabel">
+          <property name="text">
+           <string>Spacing:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="TargetVolumeSpacingValueLabel">
+          <property name="text">
+           <string>...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer name="TopSpacer2">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Fixed</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
     <widget class="ctkCollapsibleButton" name="PreprocessingCollapsibleWidget">
      <property name="text">
       <string>Preprocessing</string>
@@ -102,83 +272,6 @@
       <property name="bottomMargin">
        <number>12</number>
       </property>
-      <item>
-       <widget class="QGroupBox" name="PreprocessingInputVolumeGroupBox">
-        <layout class="QVBoxLayout" name="PreprocessingInputVolumeLayout">
-         <property name="spacing">
-          <number>6</number>
-         </property>
-         <property name="leftMargin">
-          <number>6</number>
-         </property>
-         <property name="topMargin">
-          <number>6</number>
-         </property>
-         <property name="rightMargin">
-          <number>6</number>
-         </property>
-         <property name="bottomMargin">
-          <number>6</number>
-         </property>
-         <item>
-          <widget class="QLabel" name="PreprocessingInputVolumeLabel">
-           <property name="font">
-            <font>
-             <weight>75</weight>
-             <bold>true</bold>
-            </font>
-           </property>
-           <property name="text">
-            <string>Input Volume</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="ctkComboBox" name="PreprocessingInputVolumeComboBox">
-           <property name="defaultText">
-            <string>Select a volume…</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="PreprocessingInputVolumeDimensionsLayout">
-           <item>
-            <widget class="QLabel" name="PreprocessingInputVolumeDimensionsTextLabel">
-             <property name="text">
-              <string>Dimensions:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="PreprocessingInputVolumeDimensionsValueLabel">
-             <property name="text">
-              <string>…</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="PreprocessingInputVolumeSpacingLayout">
-           <item>
-            <widget class="QLabel" name="PreprocessingInputVolumeSpacingTextLabel">
-             <property name="text">
-              <string>Spacing:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="PreprocessingInputVolumeSpacingValueLabel">
-             <property name="text">
-              <string>...</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </widget>
-      </item>
       <item>
        <widget class="ctkCollapsibleButton" name="ROISelectionCollapsibleWidget">
         <property name="text">
@@ -393,85 +486,8 @@
          <item>
           <widget class="QLabel" name="ResamplingDescription">
            <property name="text">
-            <string>Resample the selected volume to match a target.</string>
+            <string>Resample the input volume to match the target volume.</string>
            </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QGroupBox" name="PreprocessingTargetVolumeGroupBox">
-           <layout class="QVBoxLayout" name="PreprocessingTargetVolumeLayout">
-            <property name="spacing">
-             <number>6</number>
-            </property>
-            <property name="leftMargin">
-             <number>6</number>
-            </property>
-            <property name="topMargin">
-             <number>6</number>
-            </property>
-            <property name="rightMargin">
-             <number>6</number>
-            </property>
-            <property name="bottomMargin">
-             <number>6</number>
-            </property>
-            <item>
-             <widget class="QLabel" name="PreprocessingTargetVolumeLabel">
-              <property name="font">
-               <font>
-                <weight>75</weight>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>Target Volume</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="ctkComboBox" name="PreprocessingTargetVolumeComboBox">
-              <property name="defaultText">
-               <string>Select a volume…</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="PreprocessingTargetVolumeDimensionsLayout">
-              <item>
-               <widget class="QLabel" name="PreprocessingTargetVolumeDimensionsTextLabel">
-                <property name="text">
-                 <string>Dimensions:</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="PreprocessingTargetVolumeDimensionsValueLabel">
-                <property name="text">
-                 <string>…</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="PreprocessingTargetVolumeSpacingLayout">
-              <item>
-               <widget class="QLabel" name="PreprocessingTargetVolumeSpacingTextLabel">
-                <property name="text">
-                 <string>Spacing:</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="PreprocessingTargetVolumeSpacingValueLabel">
-                <property name="text">
-                 <string>...</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-           </layout>
           </widget>
          </item>
          <item>
@@ -533,160 +549,6 @@
       <property name="bottomMargin">
        <number>12</number>
       </property>
-      <item>
-       <widget class="QGroupBox" name="RegistrationInputVolumeGroupBox">
-        <layout class="QVBoxLayout" name="RegistrationInputVolumeLayout">
-         <property name="spacing">
-          <number>6</number>
-         </property>
-         <property name="leftMargin">
-          <number>6</number>
-         </property>
-         <property name="topMargin">
-          <number>6</number>
-         </property>
-         <property name="rightMargin">
-          <number>6</number>
-         </property>
-         <property name="bottomMargin">
-          <number>6</number>
-         </property>
-         <item>
-          <widget class="QLabel" name="RegistrationInputVolumeLabel">
-           <property name="font">
-            <font>
-             <weight>75</weight>
-             <bold>true</bold>
-            </font>
-           </property>
-           <property name="text">
-            <string>Input Volume</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="ctkComboBox" name="RegistrationInputVolumeComboBox">
-           <property name="defaultText">
-            <string>Select a volume…</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="RegistrationInputVolumeDimensionsLayout">
-           <item>
-            <widget class="QLabel" name="RegistrationInputVolumeDimensionsTextLabel">
-             <property name="text">
-              <string>Dimensions:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="RegistrationInputVolumeDimensionsValueLabel">
-             <property name="text">
-              <string>…</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="RegistrationInputVolumeSpacingLayout">
-           <item>
-            <widget class="QLabel" name="RegistrationInputVolumeSpacingTextLabel">
-             <property name="text">
-              <string>Spacing:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="RegistrationInputVolumeSpacingValueLabel">
-             <property name="text">
-              <string>...</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </widget>
-      </item>
-      <item>
-       <widget class="QGroupBox" name="RegistrationTargetVolumeGroupBox">
-        <layout class="QVBoxLayout" name="RegistrationTargetVolumeLayout">
-         <property name="spacing">
-          <number>6</number>
-         </property>
-         <property name="leftMargin">
-          <number>6</number>
-         </property>
-         <property name="topMargin">
-          <number>6</number>
-         </property>
-         <property name="rightMargin">
-          <number>6</number>
-         </property>
-         <property name="bottomMargin">
-          <number>6</number>
-         </property>
-         <item>
-          <widget class="QLabel" name="RegistrationTargetVolumeLabel">
-           <property name="font">
-            <font>
-             <weight>75</weight>
-             <bold>true</bold>
-            </font>
-           </property>
-           <property name="text">
-            <string>Target Volume</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="ctkComboBox" name="RegistrationTargetVolumeComboBox">
-           <property name="defaultText">
-            <string>Select a volume…</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="RegistrationTargetVolumeDimensionsLayout">
-           <item>
-            <widget class="QLabel" name="RegistrationTargetVolumeDimensionsTextLabel">
-             <property name="text">
-              <string>Dimensions:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="RegistrationTargetVolumeDimensionsValueLabel">
-             <property name="text">
-              <string>…</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="RegistrationTargetVolumeSpacingLayout">
-           <item>
-            <widget class="QLabel" name="RegistrationTargetVolumeSpacingTextLabel">
-             <property name="text">
-              <string>Spacing:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="RegistrationTargetVolumeSpacingValueLabel">
-             <property name="text">
-              <string>...</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </widget>
-      </item>
       <item>
        <layout class="QGridLayout" name="RegistrationParametersLayout">
         <item row="3" column="0">

@@ -276,10 +276,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.threeD_widget = app.layoutManager().threeDWidget(0)
         assert self.threeD_widget
 
-        self.pascal_mode_checkbox = self.panel.findChild(
-            QCheckBox, "PascalOnlyModeCheckBox"
-        )
-        assert self.pascal_mode_checkbox
+        self.pascal_mode_checkbox = self.get_ui(QCheckBox, "PascalOnlyModeCheckBox")
 
         self.pascal_mode_checkbox.clicked.connect(self.manage_pascal_only_mode)
 
@@ -337,8 +334,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             variation: Either "input", "target", or "all".
         """
 
-        # :TODO:Bastien: Factorize, if possible.
-
         # :COMMENT: Handle the "all" variation.
         if variation == "all":
             self.update_volume_combo_boxes_and_information_labels("input")
@@ -349,127 +344,64 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         assert variation in ["input", "target"]
 
         # :COMMENT: Define the combo boxes.
+        volume_combo_box = self.get_ui(
+            ctkComboBox, f"{variation.capitalize()}VolumeComboBox"
+        )
+        volume_dimensions_value_label = self.get_ui(
+            QLabel, f"{variation.capitalize()}VolumeDimensionsValueLabel"
+        )
+        volume_spacing_value_label = self.get_ui(
+            QLabel, f"{variation.capitalize()}VolumeSpacingValueLabel"
+        )
+
+        # :COMMENT: Reset the volume combo box.
+        volume_combo_box.clear()
+
+        # :COMMENT: Add the available volumes to the combo box.
+        for i in range(self.volumes.GetNumberOfItems()):
+            volume = self.volumes.GetItemAsObject(i)
+            volume_combo_box.addItem(volume.GetName())
+
+        # :COMMENT: Add the utility options to the combo box.
+        volume_combo_box.addItem("Rename current volume…")
+        volume_combo_box.addItem("Delete current volume…")
+
+        # :COMMENT: Retrieve the volume and its index.
         if variation == "input":
-            volume_combo_boxes = [
-                self.panel.findChild(ctkComboBox, "PreprocessingInputVolumeComboBox"),
-                self.panel.findChild(ctkComboBox, "RegistrationInputVolumeComboBox"),
-            ]
-            volume_dimensions_labels = [
-                self.panel.findChild(
-                    QLabel, "PreprocessingInputVolumeDimensionsValueLabel"
-                ),
-                self.panel.findChild(
-                    QLabel, "RegistrationInputVolumeDimensionsValueLabel"
-                ),
-            ]
-            volume_spacing_labels = [
-                self.panel.findChild(
-                    QLabel, "PreprocessingInputVolumeSpacingValueLabel"
-                ),
-                self.panel.findChild(
-                    QLabel, "RegistrationInputVolumeSpacingValueLabel"
-                ),
-            ]
+            volume = self.input_volume
+            volume_index = self.input_volume_index
         else:
-            volume_combo_boxes = [
-                self.panel.findChild(ctkComboBox, "PreprocessingTargetVolumeComboBox"),
-                self.panel.findChild(ctkComboBox, "RegistrationTargetVolumeComboBox"),
-            ]
-            volume_dimensions_labels = [
-                self.panel.findChild(
-                    QLabel, "PreprocessingTargetVolumeDimensionsValueLabel"
-                ),
-                self.panel.findChild(
-                    QLabel, "RegistrationTargetVolumeDimensionsValueLabel"
-                ),
-            ]
-            volume_spacing_labels = [
-                self.panel.findChild(
-                    QLabel, "PreprocessingTargetVolumeSpacingValueLabel"
-                ),
-                self.panel.findChild(
-                    QLabel, "RegistrationTargetVolumeSpacingValueLabel"
-                ),
-            ]
+            volume = self.target_volume
+            volume_index = self.target_volume_index
 
-        # :COMMENT: Define the combo box filling.
-        def fill_volume_combo_box(volume_combo_box) -> None:
-            """
-            Fills the volume combo box with the available volumes and utility options.
+        # :COMMENT: Reset the combo box if volume is None.
+        if not volume:
+            volume_combo_box.setCurrentIndex(-1)
+            volume_dimensions_value_label.setText("…")
+            return
 
-            Parameters:
-                volume_combo_box: The volume combo box to fill as an object.
-            """
+        # :COMMENT: Set the combo box position.
+        volume_combo_box.setCurrentIndex(volume_index)
 
-            # :COMMENT: Reset the volume combo box.
-            volume_combo_box.clear()
+        # :COMMENT: Display the dimensions.
+        volume_dimensions = volume.GetImageData().GetDimensions()
+        volume_dimensions_value_label.setText(
+            "{} x {} x {}".format(
+                volume_dimensions[0],
+                volume_dimensions[1],
+                volume_dimensions[2],
+            )
+        )
 
-            # :COMMENT: Add the available volumes to the combo box.
-            for i in range(self.volumes.GetNumberOfItems()):
-                volume = self.volumes.GetItemAsObject(i)
-                volume_combo_box.addItem(volume.GetName())
-
-            # :COMMENT: Add the utility options to the combo box.
-            volume_combo_box.addItem("Rename current volume…")
-            volume_combo_box.addItem("Delete current volume…")
-
-        for i in range(len(volume_combo_boxes)):
-            # :COMMENT: Retrieve the UI items.
-            volume_combo_box = volume_combo_boxes[i]
-            volume_dimensions_label = volume_dimensions_labels[i]
-            volume_spacing_label = volume_spacing_labels[i]
-
-            # :COMMENT: Reset the volume combo box.
-            fill_volume_combo_box(volume_combo_box)
-
-            # :COMMENT: Set the combo box position.
-            if variation == "input" and self.input_volume:
-                volume_combo_box.setCurrentIndex(self.input_volume_index)
-                volume_image_data = self.input_volume.GetImageData()
-
-                volume_dimensions = volume_image_data.GetDimensions()
-                volume_dimensions_label.setText(
-                    "{} x {} x {}".format(
-                        volume_dimensions[0],
-                        volume_dimensions[1],
-                        volume_dimensions[2],
-                    )
-                )
-
-                volume_spacing = self.input_volume.GetSpacing()
-                volume_spacing_label.setText(
-                    "{:.1f} x {:.1f} x {:.1f}".format(
-                        volume_spacing[0],
-                        volume_spacing[1],
-                        volume_spacing[2],
-                    )
-                )
-
-            elif variation == "target" and self.target_volume:
-                volume_combo_box.setCurrentIndex(self.target_volume_index)
-                volume_image_data = self.target_volume.GetImageData()
-
-                volume_dimensions = volume_image_data.GetDimensions()
-                volume_dimensions_label.setText(
-                    "{} x {} x {}".format(
-                        volume_dimensions[0],
-                        volume_dimensions[1],
-                        volume_dimensions[2],
-                    )
-                )
-
-                volume_spacing = [self.target_volume.GetSpacing()[i] for i in range(3)]
-                volume_spacing_label.setText(
-                    "{:.1f} x {:.1f} x {:.1f}".format(
-                        volume_spacing[0],
-                        volume_spacing[1],
-                        volume_spacing[2],
-                    )
-                )
-
-            else:
-                volume_combo_box.setCurrentIndex(-1)
-                volume_dimensions_label.setText("…")
+        # :COMMENT: Display the spacing.
+        volume_spacing = volume.GetSpacing()
+        volume_spacing_value_label.setText(
+            "{:.1f} x {:.1f} x {:.1f}".format(
+                volume_spacing[0],
+                volume_spacing[1],
+                volume_spacing[2],
+            )
+        )
 
     #
     # VIEW INTERFACE
@@ -591,16 +523,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.roi_selection_threshold_value_label.setText(str(threshold))
 
         # :COMMENT: Get the ROI selection threshold slider.
-        self.roi_selection_threshold_slider = self.panel.findChild(
+        self.roi_selection_threshold_slider = self.get_ui(
             QSlider, "ROISelectionThresholdSlider"
         )
-        assert self.roi_selection_threshold_slider
 
         # :COMMENT: Get the ROI selection threshold value label.
-        self.roi_selection_threshold_value_label = self.panel.findChild(
+        self.roi_selection_threshold_value_label = self.get_ui(
             QLabel, "ROISelectionThresholdValueLabel"
         )
-        assert self.roi_selection_threshold_value_label
 
         # :COMMENT: Connect the ROI selection threshold slider to its "on changed" function.
         self.roi_selection_threshold_slider.valueChanged.connect(
@@ -608,10 +538,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
         # :COMMENT: Get the ROI selection button.
-        self.roi_selection_button = self.panel.findChild(
-            QPushButton, "ROISelectionButton"
-        )
-        assert self.roi_selection_button
+        self.roi_selection_button = self.get_ui(QPushButton, "ROISelectionButton")
 
         # :COMMENT: Connect the ROI selection button to the algorithm.
         self.roi_selection_button.clicked.connect(self.select_roi)
@@ -679,8 +606,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # :COMMENT: Get the crop button widget.
-        self.cropping_button = self.panel.findChild(QPushButton, "crop_button")
-        assert self.cropping_button
+        self.cropping_button = self.get_ui(QPushButton, "crop_button")
         self.cropping_button.clicked.connect(self.crop)
 
         # :COMMENT: Get the coordinates spinbox widgets.
@@ -688,8 +614,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropping_end = []
         axis = ["x", "y", "z"]
         for i in range(len(axis)):
-            self.cropping_start.append(self.panel.findChild(QSpinBox, "s" + axis[i]))
-            self.cropping_end.append(self.panel.findChild(QSpinBox, "e" + axis[i]))
+            self.cropping_start.append(self.get_ui(QSpinBox, "s" + axis[i]))
+            self.cropping_end.append(self.get_ui(QSpinBox, "e" + axis[i]))
 
             # :COMMENT: Connect the spinbox widgets to their "on changed" function that displays the cropping preview.
             self.cropping_start[i].valueChanged.connect(self.preview_cropping)
@@ -861,8 +787,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # :COMMENT: Get the resampling button.
-        self.resampling_button = self.panel.findChild(QPushButton, "ResamplingButton")
-        assert self.resampling_button
+        self.resampling_button = self.get_ui(QPushButton, "ResamplingButton")
 
         # :COMMENT: Connect the resampling button to the algorithm.
         self.resampling_button.clicked.connect(self.resample)
@@ -927,59 +852,49 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # :COMMENT: Link settings UI and code
-        self.metrics_combo_box = self.panel.findChild(ctkComboBox, "ComboMetrics")
-        self.interpolator_combo_box = self.panel.findChild(
-            ctkComboBox, "comboBoxInterpolator"
-        )
-        self.optimizers_combo_box = self.panel.findChild(ctkComboBox, "ComboOptimizers")
-        self.histogram_bin_count_spin_box = self.panel.findChild(
-            QSpinBox, "spinBoxBinCount"
-        )
-        self.sampling_strat_combo_box = self.panel.findChild(
+        self.metrics_combo_box = self.get_ui(ctkComboBox, "ComboMetrics")
+        self.interpolator_combo_box = self.get_ui(ctkComboBox, "comboBoxInterpolator")
+        self.optimizers_combo_box = self.get_ui(ctkComboBox, "ComboOptimizers")
+        self.histogram_bin_count_spin_box = self.get_ui(QSpinBox, "spinBoxBinCount")
+        self.sampling_strat_combo_box = self.get_ui(
             ctkComboBox, "comboBoxSamplingStrat"
         )
-        self.sampling_perc_spin_box = self.panel.findChild(
+        self.sampling_perc_spin_box = self.get_ui(
             QDoubleSpinBox, "doubleSpinBoxSamplingPerc"
         )
 
         # :COMMENT: registration types
-        self.non_rigid_r_button = self.panel.findChild(
-            QRadioButton, "radioButtonNonRigid"
-        )
-        self.rigid_r_button = self.panel.findChild(QRadioButton, "radioButtonRigid")
-        self.elastix_r_button = self.panel.findChild(QRadioButton, "radioButtonElastix")
+        self.non_rigid_r_button = self.get_ui(QRadioButton, "radioButtonNonRigid")
+        self.rigid_r_button = self.get_ui(QRadioButton, "radioButtonRigid")
+        self.elastix_r_button = self.get_ui(QRadioButton, "radioButtonElastix")
         self.rigid_r_button.toggle()
 
         # :COMMENT: Gradients parameters
-        self.gradients_box = self.panel.findChild(
+        self.gradients_box = self.get_ui(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxGradient"
         )
-        self.learning_rate_spin_box = self.panel.findChild(
+        self.learning_rate_spin_box = self.get_ui(
             QDoubleSpinBox, "doubleSpinBoxLearningR"
         )
-        self.nb_of_iter_spin_box = self.panel.findChild(QSpinBox, "spinBoxNbIter")
-        self.conv_min_val_edit = self.panel.findChild(QLineEdit, "lineEditConvMinVal")
-        self.conv_win_size_spin_box = self.panel.findChild(
-            QSpinBox, "spinBoxConvWinSize"
-        )
+        self.nb_of_iter_spin_box = self.get_ui(QSpinBox, "spinBoxNbIter")
+        self.conv_min_val_edit = self.get_ui(QLineEdit, "lineEditConvMinVal")
+        self.conv_win_size_spin_box = self.get_ui(QSpinBox, "spinBoxConvWinSize")
 
         # :COMMENT: exhaustive parameters
-        self.exhaustive_box = self.panel.findChild(
+        self.exhaustive_box = self.get_ui(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxExhaustive"
         )
-        self.step_length_edit = self.panel.findChild(QLineEdit, "lineEditLength")
-        self.nb_steps_edit = self.panel.findChild(QLineEdit, "lineEditSteps")
-        self.opti_scale_edit = self.panel.findChild(QLineEdit, "lineEditScale")
+        self.step_length_edit = self.get_ui(QLineEdit, "lineEditLength")
+        self.nb_steps_edit = self.get_ui(QLineEdit, "lineEditSteps")
+        self.opti_scale_edit = self.get_ui(QLineEdit, "lineEditScale")
 
         # :COMMENT: LBFGS2 parameters
-        self.lbfgs2_box = self.panel.findChild(
+        self.lbfgs2_box = self.get_ui(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxLBFGS2"
         )
-        self.solution_accuracy_edit = self.panel.findChild(
-            QLineEdit, "lineEditSolutionAccuracy"
-        )
-        self.nb_iter_lbfgs2 = self.panel.findChild(QSpinBox, "spinBoxNbIterLBFGS2")
-        self.delta_conv_tol_edit = self.panel.findChild(QLineEdit, "lineEditDeltaConv")
+        self.solution_accuracy_edit = self.get_ui(QLineEdit, "lineEditSolutionAccuracy")
+        self.nb_iter_lbfgs2 = self.get_ui(QSpinBox, "spinBoxNbIterLBFGS2")
+        self.delta_conv_tol_edit = self.get_ui(QLineEdit, "lineEditDeltaConv")
 
         # :COMMENT: Fill them combo boxes.
         self.metrics_combo_box.addItems(["Mean Squares", "Mattes Mutual Information"])
@@ -997,9 +912,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.sampling_strat_combo_box.addItems(["None", "Regular", "Random"])
 
         # :COMMENT: handle button
-        self.button_registration = self.panel.findChild(
-            QPushButton, "PushButtonRegistration"
-        )
+        self.button_registration = self.get_ui(QPushButton, "PushButtonRegistration")
         self.button_registration.clicked.connect(self.register)
 
         self.optimizers_combo_box.currentIndexChanged.connect(
@@ -1170,9 +1083,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the input volume architecture by initializing the data and retrieving the UI widgets.
         """
 
-        def on_input_volume_combo_box_changed(
-            index: int, combo_box: ctkComboBox
-        ) -> None:
+        # :COMMENT: Initialize the input volume.
+        self.input_volume = None
+        self.input_volume_index = None
+
+        # :COMMENT: Retreive the input volume combo box.
+        self.input_volume_combo_box = self.get_ui(ctkComboBox, "InputVolumeComboBox")
+
+        def on_input_volume_combo_box_changed(index: int) -> None:
             """
             Handles change of input volume with options.
 
@@ -1185,7 +1103,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             OPTIONS = ["Delete current volume…", "Rename current volume…"]
 
             # :COMMENT: Retrieve the selection text.
-            name = combo_box.currentText
+            name = self.input_volume_combo_box.currentText
 
             # :COMMENT: Handle the different options.
             if name in OPTIONS:
@@ -1212,37 +1130,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :COMMENT: Select the volume at specified index otherwise.
             self.choose_input_volume(index)
 
-        def on_preprocessing_input_volume_combo_box_changed(index: int) -> None:
-            on_input_volume_combo_box_changed(
-                index, self.preprocessing_input_volume_combo_box
-            )
-
-        def on_registration_input_volume_combo_box_changed(index: int) -> None:
-            on_input_volume_combo_box_changed(
-                index, self.registration_input_volume_combo_box
-            )
-
-        # :COMMENT: Initialize the input volume.
-        self.input_volume = None
-        self.input_volume_index = None
-
-        # :COMMENT: Get and connection the preprocessing input volume combo box.
-        self.preprocessing_input_volume_combo_box = self.panel.findChild(
-            ctkComboBox, "PreprocessingInputVolumeComboBox"
-        )
-        assert self.preprocessing_input_volume_combo_box
-        self.preprocessing_input_volume_combo_box.activated.connect(
-            on_preprocessing_input_volume_combo_box_changed
-        )
-
-        # :COMMENT: Get and connection the registration input volume combo box.
-        self.registration_input_volume_combo_box = self.panel.findChild(
-            ctkComboBox, "RegistrationInputVolumeComboBox"
-        )
-        assert self.registration_input_volume_combo_box
-        self.registration_input_volume_combo_box.activated.connect(
-            on_registration_input_volume_combo_box_changed
-        )
+        # :COMMENT: Connect the input volume combo box.
+        self.input_volume_combo_box.activated.connect(on_input_volume_combo_box_changed)
 
     def reset_input_volume(self) -> None:
         """
@@ -1357,13 +1246,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the target volume architecture by initializing the data and retrieving the UI widgets.
         """
 
-        def on_target_volume_combo_box_changed(
-            index: int, combo_box: ctkComboBox
-        ) -> None:
+        # :COMMENT: Initialize the target volume.
+        self.target_volume = None
+        self.target_volume_index = None
+
+        # :COMMENT: Retreive the target volume combo box.
+        self.target_volume_combo_box = self.get_ui(ctkComboBox, "TargetVolumeComboBox")
+
+        def on_target_volume_combo_box_changed(index: int) -> None:
             """
             Handles change of target volume with options.
 
-            Called when an item in an target volume combobox is selected.
+            Called when an item in a target volume combobox is selected.
 
             Parameters:
                 index: The target volume index.
@@ -1372,7 +1266,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             OPTIONS = ["Delete current volume…", "Rename current volume…"]
 
             # :COMMENT: Retrieve the selection text.
-            name = combo_box.currentText
+            name = self.target_volume_combo_box.currentText
 
             # :COMMENT: Handle the different options.
             if name in OPTIONS:
@@ -1399,36 +1293,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :COMMENT: Select the volume at specified index otherwise.
             self.choose_target_volume(index)
 
-        def on_preprocessing_target_volume_combo_box_changed(index: int) -> None:
-            on_target_volume_combo_box_changed(
-                index, self.preprocessing_target_volume_combo_box
-            )
-
-        def on_registration_target_volume_combo_box_changed(index: int) -> None:
-            on_target_volume_combo_box_changed(
-                index, self.registration_target_volume_combo_box
-            )
-
-        # :COMMENT: Initialize the target volume.
-        self.target_volume = None
-        self.target_volume_index = None
-
-        # :COMMENT: Get and connection the preprocessing target volume combo box.
-        self.preprocessing_target_volume_combo_box = self.panel.findChild(
-            ctkComboBox, "PreprocessingTargetVolumeComboBox"
-        )
-        assert self.preprocessing_target_volume_combo_box
-        self.preprocessing_target_volume_combo_box.activated.connect(
-            on_preprocessing_target_volume_combo_box_changed
-        )
-
-        # :COMMENT: Get and connection the registration target volume combo box.
-        self.registration_target_volume_combo_box = self.panel.findChild(
-            ctkComboBox, "RegistrationTargetVolumeComboBox"
-        )
-        assert self.registration_target_volume_combo_box
-        self.registration_target_volume_combo_box.activated.connect(
-            on_registration_target_volume_combo_box_changed
+        # :COMMENT: Connect the target volume combo box.
+        self.target_volume_combo_box.activated.connect(
+            on_target_volume_combo_box_changed
         )
 
     def reset_target_volume(self) -> None:
@@ -1525,10 +1392,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.plugins = {}
 
         # :COMMENT: Retrieve the plugin loading button.
-        self.plugin_loading_button = self.panel.findChild(
-            QPushButton, "PluginLoadingPushButton"
-        )
-        assert self.plugin_loading_button
+        self.plugin_loading_button = self.get_ui(QPushButton, "PluginLoadingPushButton")
 
         # :COMMENT: Define the handler.
         def on_plugin_loading_button_clicked() -> None:
@@ -1660,10 +1524,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     return
 
                 # :COMMENT: Retrieve the plugins layout.
-                self.plugins_layout = self.panel.findChild(
-                    QVBoxLayout, "PluginsVerticalLayout"
-                )
-                assert self.plugins_layout
+                self.plugins_layout = self.get_ui(QVBoxLayout, "PluginsVerticalLayout")
 
                 # :COMMENT: Add a collapsible button.
                 plugin_collapsible_button = ctkCollapsibleButton()
@@ -1850,6 +1711,20 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         volume = vtkMRMLScalarVolumeNode()
         volume.SetAndObserveImageData(volume_image_data)
         return volume
+
+    def get_ui(self, type, name: str):
+        """
+        Retrieves a UI object from the panel.
+
+        Parameters:
+            type: The type of the UI to retrieve.
+            name: The name of the UI to retrieve.
+        """
+
+        ui = self.panel.findChild(type, name)
+        if not ui:
+            raise AssertionError(f'No {type} with name "{name}" found.')
+        return ui
 
 
 class CustomRegistrationTest(ScriptedLoadableModuleTest):
