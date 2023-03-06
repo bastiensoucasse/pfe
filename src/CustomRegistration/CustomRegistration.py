@@ -345,7 +345,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :COMMENT: Add the available volumes to the combo box.
             for i in range(self.volumes.GetNumberOfItems()):
                 volume = self.volumes.GetItemAsObject(i)
-                volume_combo_box.addItem(volume.GetName())
+                # :TMP: Do not add the volume if it's supposed to be hidden.
+                name = volume.GetName()
+                if not name == "hidden":
+                    volume_combo_box.addItem(name)
 
             # :COMMENT: Add the utility options to the combo box.
             volume_combo_box.addItem("Rename current volume…")
@@ -451,6 +454,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             orientation: The orientation of the 2D view ("Axial", "Coronal", or "Sagittal").
         """
 
+        # :COMMENT: Clean foreground.
+        self.slice_composite_nodes[view_id].SetForegroundVolumeID("")
+
         # :COMMENT: Set to blank if no volume.
         if not volume:
             self.slice_composite_nodes[view_id].SetBackgroundVolumeID("")
@@ -500,6 +506,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the ROI selection widget.
         """
 
+        # :COMMENT: Get the collapsible button widget.
+        self.roi_collapsible_button = self.panel.findChild(
+            ctkCollapsibleButton, "ROISelectionCollapsibleWidget"
+        )
+        assert self.roi_collapsible_button
+        self.roi_collapsible_button.clicked.connect(self.manage_preview_roi_selection)
+
         # :COMMENT: Initialize the ROI.
         self.selected_volume_roi = None
         self.tmp_input_roi = None
@@ -546,30 +559,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Update the label accordingly.
         self.roi_selection_threshold_slider.setValue(0)
         self.roi_selection_threshold_value_label.setText("0")
-
-    def select_roi(self) -> None:
-        """
-        Selects the ROI.
-        """
-
-        # :COMMENT: Ensure that a volume is selected.
-        if not self.selected_volume:
-            self.display_error_message("Please select a volume to select a ROI from.")
-            return
-
-        # :COMMENT: Save the selected ROI.
-        if not self.tmp_input_roi:
-            self.selected_volume_roi = self.logic.select_roi(
-                self.vtk_to_sitk(self.selected_volume), 0
-            )
-            # :TODO:Iantsa: Display the preview even in the default case.
-        else:
-            self.selected_volume_roi = self.tmp_input_roi
-
-        # :COMMENT: Log the ROI selection.
-        print(
-            f'ROI has been selected with a threshold value of {self.roi_selection_threshold_slider.value} in "{self.selected_volume.GetName()}".'
-        )
 
     def preview_roi_selection(self) -> None:
         """
@@ -626,6 +615,63 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.input_roi_preview.GetID()
         )
         self.slice_composite_nodes[0].SetForegroundOpacity(0.5)
+
+    def manage_preview_roi_selection(self) -> None:
+        """
+        Manages the displaying of the ROI selection preview.
+        """
+
+        # :COMMENT: Collapsible widget opening.
+        if self.roi_collapsible_button.isChecked():
+            if not self.selected_volume:
+                print("[DEBUG] No volume selected: Case not handled yet.")
+                # :TODO:Iantsa: Find a way to handle this case.
+
+            # :COMMENT: First time opening the cropping interface.
+            if not self.input_roi_preview:
+                # :COMMENT: Create default input roi preview.
+                self.tmp_input_roi = self.logic.create_mask(
+                    self.vtk_to_sitk(self.selected_volume), 0
+                )
+
+            else:
+                # :COMMENT: Show the ROI selection preview.
+                self.slice_composite_nodes[0].SetForegroundVolumeID(
+                    self.input_roi_preview.GetID()
+                )
+
+        # :COMMENT: Collapsible widget closing.
+        else:
+            if not self.selected_volume or not self.input_roi_preview:
+                return
+
+            else:
+                # :COMMENT: Hide the ROI selection preview.
+                self.slice_composite_nodes[0].SetForegroundVolumeID("")
+
+    def select_roi(self) -> None:
+        """
+        Selects the ROI.
+        """
+
+        # :COMMENT: Ensure that a volume is selected.
+        if not self.selected_volume:
+            self.display_error_message("Please select a volume to select a ROI from.")
+            return
+
+        # :COMMENT: Save the selected ROI.
+        if not self.tmp_input_roi:
+            self.selected_volume_roi = self.logic.select_roi(
+                self.vtk_to_sitk(self.selected_volume), 0
+            )
+            # :TODO:Iantsa: Display the preview even in the default case.
+        else:
+            self.selected_volume_roi = self.tmp_input_roi
+
+        # :COMMENT: Log the ROI selection.
+        print(
+            f'ROI has been selected with a threshold value of {self.roi_selection_threshold_slider.value} in "{self.selected_volume.GetName()}".'
+        )
 
     #
     # CROPPING
