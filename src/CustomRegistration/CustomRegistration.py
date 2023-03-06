@@ -71,22 +71,36 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
     def __init__(self) -> None:
         ScriptedLoadableModuleLogic.__init__(self)
 
-    def select_roi(self, image: sitk.Image, threshold: int) -> sitk.Image:
+    def create_mask(self, image: sitk.Image, threshold: int) -> sitk.Image:
         """
-        Selects as ROI the largest connected component after a threshold.
+        Create a binary mask that selects the voxel of the image that are greater than the threshold.
 
         Parameters:
             image: The SimpleITK image.
             threshold: The threshold value.
 
         Returns:
-            The ROI SimpleITK image.
+            The ROI binary mask SimpleITK image.
         """
 
         # :COMMENT: Apply threshold filter.
         binary_image = sitk.BinaryThreshold(
             image, lowerThreshold=threshold, upperThreshold=1000000
         )
+        return binary_image
+
+    def select_roi(self, image: sitk.Image, binary_image: sitk.Image) -> sitk.Image:
+        """
+        Selects as ROI the largest connected component after a threshold.
+
+        Parameters:
+            image: The SimpleITK image.
+            binary_image: The ROI binary mask SimpleITK image.
+            threshold: The threshold value.
+
+        Returns:
+            The ROI SimpleITK image.
+        """
 
         # :COMMENT: Apply connected component filter.
         label_map = sitk.ConnectedComponent(binary_image)
@@ -486,21 +500,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the ROI selection widget.
         """
 
-        def on_roi_selection_threshold_slider_value_changed():
-            """
-            Updates the ROI selection threshold value to match the slider.
-
-            Called when the ROI selection threshold slider value is changed.
-            """
-
-            # :COMMENT: Retrieve the threshold value.
-            threshold = self.roi_selection_threshold_slider.value
-
-            # :COMMENT: Update the label accordingly.
-            self.roi_selection_threshold_value_label.setText(str(threshold))
-
         # :COMMENT: Initialize the ROI.
         self.selected_volume_roi = None
+        self.tmp_input_roi = None
+        self.input_roi_preview = None
 
         # :COMMENT: Get the ROI selection threshold slider.
         self.roi_selection_threshold_slider = self.panel.findChild(
@@ -516,7 +519,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Connect the ROI selection threshold slider to its "on changed" function.
         self.roi_selection_threshold_slider.valueChanged.connect(
-            on_roi_selection_threshold_slider_value_changed
+            self.preview_roi_selection
         )
 
         # :COMMENT: Get the ROI selection button.
@@ -536,6 +539,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Reset the ROI selection.
         if self.selected_volume_roi:
             self.selected_volume_roi = None
+            self.tmp_input_roi = None
+            self.input_roi_preview = None
             print("ROI has been reset.")
 
         # :COMMENT: Update the label accordingly.
@@ -552,45 +557,75 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("Please select a volume to select a ROI from.")
             return
 
+        # :COMMENT: Save the selected ROI.
+        if not self.tmp_input_roi:
+            self.selected_volume_roi = self.logic.select_roi(
+                self.vtk_to_sitk(self.selected_volume), 0
+            )
+            # :TODO:Iantsa: Display the preview even in the default case.
+        else:
+            self.selected_volume_roi = self.tmp_input_roi
+
+        # :COMMENT: Log the ROI selection.
+        print(
+            f'ROI has been selected with a threshold value of {self.roi_selection_threshold_slider.value} in "{self.selected_volume.GetName()}".'
+        )
+
+    def preview_roi_selection(self) -> None:
+        """
+        Generates a red display node to preview the ROI selection.
+
+        Called when the ROI selection threshold slider value is changed.
+        """
+
+        # :COMMENT: Ensure that a volume is selected.
+        if not self.selected_volume:
+            self.display_error_message("Please select a volume to select a ROI from.")
+            return
+
         # :COMMENT: Retrieve the threshold value.
         threshold = self.roi_selection_threshold_slider.value
 
+        # :COMMENT: Update the label accordingly.
+        self.roi_selection_threshold_value_label.setText(str(threshold))
+
         # :COMMENT: Call the ROI selection algorithm.
-        self.selected_volume_roi = self.logic.select_roi(
+        self.tmp_input_roi = self.logic.create_mask(
             self.vtk_to_sitk(self.selected_volume), threshold
         )
 
-        # :TEST:Iantsa
         # :COMMENT: Convert the SimpleITK image ROI into a VTK Volume Node.
-        vtk_roi = self.sitk_to_vtk(self.selected_volume_roi)
+        self.input_roi_preview = self.sitk_to_vtk(self.tmp_input_roi)
 
         # :COMMENT: Get or create the new volume display node.
-        vtk_roi_display_node = vtk_roi.GetDisplayNode()
-        if vtk_roi_display_node is None:
-            vtk_roi_display_node = vtkMRMLScalarVolumeDisplayNode()
-            mrmlScene.AddNode(vtk_roi_display_node)
-            vtk_roi.SetAndObserveDisplayNodeID(vtk_roi_display_node.GetID())
+        input_vtk_roi_display_node = self.input_roi_preview.GetDisplayNode()
+        if input_vtk_roi_display_node is None:
+            input_vtk_roi_display_node = vtkMRMLScalarVolumeDisplayNode()
+            mrmlScene.AddNode(input_vtk_roi_display_node)
+            self.input_roi_preview.SetAndObserveDisplayNodeID(
+                input_vtk_roi_display_node.GetID()
+            )
 
         # :COMMENT: Create a color table node that assigns the ROI selection to red.
         color_table_node = mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode")
         color_table_node.SetTypeToUser()
-        color_table_node.SetNumberOfColors(3)
+        color_table_node.SetNumberOfColors(2)
+        color_table_node.SetColor(0, 0.0, 0.0, 0.0, 0.0)
         color_table_node.SetColor(1, 1.0, 0.0, 0.0, 1.0)
 
-        # Assign the color map to your volume node.
-        vtk_roi_display_node.SetAndObserveColorNodeID(color_table_node.GetID())
+        # :COMMENT: Assign the color map to the volume node.
+        input_vtk_roi_display_node.SetAndObserveColorNodeID(color_table_node.GetID())
 
         # :COMMENT: Transfer the initial volume metadata.
-        self.transfer_volume_metadata(self.selected_volume, vtk_roi)
+        self.transfer_volume_metadata(self.selected_volume, self.input_roi_preview)
 
-        # :TMP: Add the volume to the scene to visualize it
-        mrmlScene.AddNode(vtk_roi)
-        # :END_TEST:
-
-        # :COMMENT: Log the ROI selection.
-        print(
-            f'ROI has been selected with a threshold value of {threshold} in "{self.selected_volume.GetName()}".'
+        # :TMP: Add the volume to the scene to visualize it.
+        self.input_roi_preview.SetName("hidden")
+        mrmlScene.AddNode(self.input_roi_preview)
+        self.slice_composite_nodes[0].SetForegroundVolumeID(
+            self.input_roi_preview.GetID()
         )
+        self.slice_composite_nodes[0].SetForegroundOpacity(0.5)
 
     #
     # CROPPING
@@ -611,7 +646,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             ctkCollapsibleButton, "CroppingCollapsibleWidget"
         )
         assert self.cropping_collapsible_button
-        self.cropping_collapsible_button.clicked.connect(self.manage_preview)
+        self.cropping_collapsible_button.clicked.connect(self.manage_preview_cropping)
 
         # :COMMENT: Get the crop button widget.
         self.cropping_button = self.panel.findChild(QPushButton, "crop_button")
@@ -647,6 +682,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def preview_cropping(self) -> None:
         """
         Generates a bounding box to preview the cropping.
+
+        Called when a position parameter spin box value is changed.
         """
 
         # :DIRTY/TRICKY:Iantsa: Volume cropped each time a parameter is changed by user, even if the volume is not cropped in the end.
@@ -733,7 +770,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropping_box.SetRadiusXYZ(transformed_radius)
         # :END_DIRTY/TRICKY:
 
-    def manage_preview(self) -> None:
+    def manage_preview_cropping(self) -> None:
         """
         Manages the displaying of the cropping preview.
         """
@@ -948,9 +985,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropping_end[i].setMaximum(selected_volume_dimensions[i] - 1)
 
         # :COMMENT: Reset the module data.
-        self.reset_roi_selection()
-        self.reset_cropping()
-        self.reset_resampling()
+        # self.reset_roi_selection()
+        # self.reset_cropping()
+        # self.reset_resampling()
 
         # :COMMENT: Update the view (upper visualization).
         self.update_view(self.selected_volume, 0, "Axial")
