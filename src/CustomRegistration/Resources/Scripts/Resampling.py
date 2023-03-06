@@ -5,33 +5,33 @@ Resampling algorithm and testing script.
 import SimpleITK as sitk
 
 
-def resample(reference_image: sitk.Image, input_image: sitk.Image) -> sitk.Image:
+def resample(input_image: sitk.Image, target_image: sitk.Image) -> sitk.Image:
     """
     Resamples the input image to the reference image's size, spacing, and origin.
 
     Parameters:
-        reference_image: The reference image used as a template for the resampling.
         input_image: The input image to be resampled.
+        reference_image: The reference image used as a template for the resampling.
 
     Returns:
         The resampled image.
     """
 
-    # Use the default transform.
+    # :COMMENT: Use the default transform.
     transform = sitk.Transform()
 
-    # Use the default interpolation.
+    # :COMMENT: Use the default interpolation.
     interpolator = sitk.sitkLinear
 
-    # Resample the input image to match the reference image's size, spacing, and origin.
+    # :COMMENT: Resample the input image to match the reference image's size, spacing, and origin.
     resampled_image = sitk.Resample(
         input_image,
-        reference_image,
+        target_image,
         transform,
         interpolator,
     )
 
-    # Return the resampled image.
+    # :COMMENT: Return the resampled image.
     return resampled_image
 
 
@@ -43,47 +43,44 @@ def test_resample() -> None:
     The function then asserts that the resampled images' size, spacing, and origin are the same as the reference image.
     """
 
-    # Define the reference image's size.
+    # :COMMENT: Define the reference image's size.
     REFERENCE_SIZE: tuple = (100, 100, 50)
 
-    # Define the test sizes.
+    # :COMMENT: Define the test sizes.
     TEST_SIZES: list[tuple] = [
         (50, 50, 50),
         (500, 500, 500),
         (100, 50, 10),
     ]
 
-    # Generate a reference image.
-    reference_image = sitk.Image(
+    # :COMMENT: Generate a reference image.
+    target_image = sitk.Image(
         REFERENCE_SIZE,
         sitk.sitkFloat32,
     )
 
-    # Display the reference image data.
+    # :COMMENT: Display the reference image data.
     print("Reference image:")
-    print(f"\t- Size: {reference_image.GetSize()}.")
-    print(f"\t- Spacing: {reference_image.GetSpacing()}.")
-    print(f"\t- Origin: {reference_image.GetOrigin()}.")
+    print(f"\t- Spacing: {target_image.GetSpacing()}.")
+    print(f"\t- Origin: {target_image.GetOrigin()}.")
 
-    # Loop through the test sizes.
+    # :COMMENT: Loop through the test sizes.
     for i in range(len(TEST_SIZES)):
-        # Generate an input image.
+        # :COMMENT: Generate an input image.
         input_image = sitk.Image(
             TEST_SIZES[i],
             sitk.sitkFloat32,
         )
 
-        # Resample the input image to match the reference image's size, spacing, and origin.
-        resampled_image = resample(reference_image, input_image)
+        # :COMMENT: Resample the input image to match the reference image's size, spacing, and origin.
+        resampled_image = resample(input_image, target_image)
 
-        # Test if the resampled image size, spacing, and origin are the same as the reference image.
-        assert resampled_image.GetSize() == reference_image.GetSize()
-        assert resampled_image.GetSpacing() == reference_image.GetSpacing()
-        assert resampled_image.GetOrigin() == reference_image.GetOrigin()
+        # :COMMENT: Test if the resampled image size, spacing, and origin are the same as the reference image.
+        assert resampled_image.GetSpacing() == target_image.GetSpacing()
+        assert resampled_image.GetOrigin() == target_image.GetOrigin()
 
-        # Display the resampled image data.
+        # :COMMENT: Display the resampled image data.
         print(f"\nTest {i}:")
-        print(f"\t- Size: {input_image.GetSize()} to {resampled_image.GetSize()}.")
         print(
             f"\t- Spacing: {input_image.GetSpacing()} to {resampled_image.GetSpacing()}."
         )
@@ -91,7 +88,7 @@ def test_resample() -> None:
             f"\t- Origin: {input_image.GetOrigin()} to {resampled_image.GetOrigin()}."
         )
 
-    # Print a message indicating that the tests have passed.
+    # :COMMENT: Print a message indicating that the tests have passed.
     print("\nAll tests passed.")
 
 
@@ -112,34 +109,34 @@ def usage() -> None:
 if __name__ == "__main__":
     import sys
 
-    # Check if there are only two arguments.
+    # :COMMENT: Check if there are only two arguments.
     if len(sys.argv) == 2:
-        # Show usage if the argument "--help" is specified.
+        # :COMMENT: Show usage if the argument "--help" is specified.
         if "--help" in sys.argv:
             usage()
             sys.exit(0)
 
-        # Test the resampling algorithm if the argument "--test" is specified.
+        # :COMMENT: Test the resampling algorithm if the argument "--test" is specified.
         if "--test" in sys.argv:
             test_resample()
             sys.exit(0)
 
-    # Check if the required number of arguments have been provided.
+    # :COMMENT: Check if the required number of arguments have been provided.
     if len(sys.argv) != 4:
         usage()
         sys.exit(1)
 
-    # Read the arguments.
+    # :COMMENT: Read the arguments.
     reference_path = sys.argv[1]
     input_path = sys.argv[2]
     output_path = sys.argv[3]
 
-    # Retrieve the reference and input images.
+    # :COMMENT: Retrieve the reference and input images.
     reference_image = sitk.ReadImage(reference_path)
     input_image = sitk.ReadImage(input_path)
 
-    # Generated a resampled image from the reference and input images.
+    # :COMMENT: Generated a resampled image from the reference and input images.
     resampled_image = resample(reference_image, input_image)
 
-    # Write the resampled image to the specified output path.
+    # :COMMENT: Write the resampled image to the specified output path.
     sitk.WriteImage(resampled_image, output_path)

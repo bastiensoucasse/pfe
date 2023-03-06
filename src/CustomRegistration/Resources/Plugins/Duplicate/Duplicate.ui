@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DuplicatePlugin</class>
+ <widget class="qSlicerWidget" name="DuplicatePlugin">
+  <property name="windowModality">
+   <enum>Qt::ApplicationModal</enum>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>401</width>
+    <height>401</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Duplicate</string>
+  </property>
+  <layout class="QVBoxLayout" name="PluginVerticalLayout">
+   <property name="spacing">
+    <number>12</number>
+   </property>
+   <item>
+    <widget class="QLabel" name="PluginDescriptionLabel">
+     <property name="text">
+      <string>Duplicate the input volume with a new name.</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="NewVolumeNameLabel">
+     <property name="text">
+      <string>Duplicate Volume Name:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLineEdit" name="NewVolumeNameLineEdit"/>
+   </item>
+  </layout>
+ </widget>
+ <layoutdefault spacing="0" margin="0"/>
+ <customwidgets>
+  <customwidget>
+   <class>qSlicerWidget</class>
+   <extends>QWidget</extends>
+   <header>qSlicerWidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

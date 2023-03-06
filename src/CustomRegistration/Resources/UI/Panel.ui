@@ -2,12 +2,15 @@
 <ui version="4.0">
  <class>Panel</class>
  <widget class="qSlicerWidget" name="Panel">
+  <property name="windowModality">
+   <enum>Qt::ApplicationModal</enum>
+  </property>
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>340</width>
-    <height>878</height>
+    <width>401</width>
+    <height>2094</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -60,11 +63,197 @@
     </widget>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="PreprocessingCollapsibleWidget" native="true">
-     <property name="text" stdset="0">
+    <spacer name="PascalOnlyModeSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Fixed</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="InputVolumeGroupBox">
+     <layout class="QVBoxLayout" name="InputVolumeLayout">
+      <property name="spacing">
+       <number>6</number>
+      </property>
+      <property name="leftMargin">
+       <number>6</number>
+      </property>
+      <property name="topMargin">
+       <number>6</number>
+      </property>
+      <property name="rightMargin">
+       <number>6</number>
+      </property>
+      <property name="bottomMargin">
+       <number>6</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="InputVolumeLabel">
+        <property name="font">
+         <font>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Input Volume</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="ctkComboBox" name="InputVolumeComboBox">
+        <property name="defaultText">
+         <string>Select a volume…</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="InputVolumeDimensionsLayout">
+        <item>
+         <widget class="QLabel" name="InputVolumeDimensionsTextLabel">
+          <property name="text">
+           <string>Dimensions:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="InputVolumeDimensionsValueLabel">
+          <property name="text">
+           <string>…</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="InputVolumeSpacingLayout">
+        <item>
+         <widget class="QLabel" name="InputVolumeSpacingTextLabel">
+          <property name="text">
+           <string>Spacing:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="InputVolumeSpacingValueLabel">
+          <property name="text">
+           <string>...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="TargetVolumeGroupBox">
+     <layout class="QVBoxLayout" name="TargetVolumeLayout">
+      <property name="spacing">
+       <number>6</number>
+      </property>
+      <property name="leftMargin">
+       <number>6</number>
+      </property>
+      <property name="topMargin">
+       <number>6</number>
+      </property>
+      <property name="rightMargin">
+       <number>6</number>
+      </property>
+      <property name="bottomMargin">
+       <number>6</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="TargetVolumeLabel">
+        <property name="font">
+         <font>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Target Volume</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="ctkComboBox" name="TargetVolumeComboBox">
+        <property name="defaultText">
+         <string>Select a volume…</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="TargetVolumeDimensionsLayout">
+        <item>
+         <widget class="QLabel" name="TargetVolumeDimensionsTextLabel">
+          <property name="text">
+           <string>Dimensions:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="TargetVolumeDimensionsValueLabel">
+          <property name="text">
+           <string>…</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="TargetVolumeSpacingLayout">
+        <item>
+         <widget class="QLabel" name="TargetVolumeSpacingTextLabel">
+          <property name="text">
+           <string>Spacing:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="TargetVolumeSpacingValueLabel">
+          <property name="text">
+           <string>...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer name="TopSpacer2">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Fixed</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <widget class="ctkCollapsibleButton" name="PreprocessingCollapsibleWidget">
+     <property name="text">
       <string>Preprocessing</string>
      </property>
-     <property name="collapsed" stdset="0">
+     <property name="collapsed">
       <bool>false</bool>
      </property>
      <layout class="QVBoxLayout" name="PreprocessingVerticalLayout" stretch="0,0,0,0">
@@ -84,68 +273,14 @@
        <number>12</number>
       </property>
       <item>
-       <layout class="QVBoxLayout" name="SelectedVolumeLayout">
-        <item>
-         <widget class="QLabel" name="SelectedVolumeLabel">
-          <property name="text">
-           <string>Volume to process:</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="ctkComboBox" name="SelectedVolumeComboBox">
-          <property name="defaultText" stdset="0">
-           <string>Select a volume…</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="SelectedVolumeDimensionsLayout">
-          <item>
-           <widget class="QLabel" name="SelectedVolumeDimensionsTextLabel">
-            <property name="text">
-             <string>Dimensions:</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="SelectedVolumeDimensionsValueLabel">
-            <property name="text">
-             <string>…</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="SelectedVolumeSpacingLayout">
-          <item>
-           <widget class="QLabel" name="SelectedVolumeSpacingTextLabel">
-            <property name="text">
-             <string>Spacing:</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="SelectedVolumeSpacingValueLabel">
-            <property name="text">
-             <string>...</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <widget class="ctkCollapsibleButton" name="ROISelectionCollapsibleWidget" native="true">
-        <property name="text" stdset="0">
+       <widget class="ctkCollapsibleButton" name="ROISelectionCollapsibleWidget">
+        <property name="text">
          <string>ROI Selection</string>
         </property>
-        <property name="collapsed" stdset="0">
+        <property name="collapsed">
          <bool>false</bool>
         </property>
-        <property name="flat" stdset="0">
+        <property name="flat">
          <bool>false</bool>
         </property>
         <layout class="QVBoxLayout" name="ROISelectionVerticalLayout">
@@ -218,14 +353,14 @@
        </widget>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="CroppingCollapsibleWidget" native="true">
+       <widget class="ctkCollapsibleButton" name="CroppingCollapsibleWidget">
         <property name="enabled">
          <bool>true</bool>
         </property>
-        <property name="text" stdset="0">
+        <property name="text">
          <string>Cropping</string>
         </property>
-        <property name="collapsed" stdset="0">
+        <property name="collapsed">
          <bool>false</bool>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout">
@@ -245,50 +380,70 @@
           <number>12</number>
          </property>
          <item>
-          <widget class="QLabel" name="input_label">
+          <widget class="QLabel" name="label_8">
            <property name="text">
-            <string>Start and end value for each axis:</string>
+            <string>Crop a volume according to a start point and an end point.</string>
            </property>
           </widget>
          </item>
          <item>
           <layout class="QGridLayout" name="crop_interface">
-           <item row="0" column="2">
-            <widget class="QSpinBox" name="ex"/>
-           </item>
-           <item row="2" column="0">
-            <widget class="QLabel" name="z">
-             <property name="text">
-              <string>z</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="y">
-             <property name="text">
-              <string>y</string>
-             </property>
-            </widget>
+           <item row="3" column="2">
+            <widget class="QSpinBox" name="ez"/>
            </item>
            <item row="1" column="2">
+            <widget class="QSpinBox" name="ex"/>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="z">
+             <property name="text">
+              <string>Z</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QSpinBox" name="sz"/>
+           </item>
+           <item row="2" column="2">
             <widget class="QSpinBox" name="ey"/>
            </item>
            <item row="2" column="1">
-            <widget class="QSpinBox" name="sz"/>
-           </item>
-           <item row="1" column="1">
             <widget class="QSpinBox" name="sy"/>
            </item>
-           <item row="0" column="1">
-            <widget class="QSpinBox" name="sx"/>
-           </item>
-           <item row="2" column="2">
-            <widget class="QSpinBox" name="ez"/>
-           </item>
-           <item row="0" column="0">
+           <item row="1" column="0">
             <widget class="QLabel" name="x">
              <property name="text">
-              <string>x</string>
+              <string>X</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="y">
+             <property name="text">
+              <string>Y</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QSpinBox" name="sx"/>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLabel" name="label_15">
+             <property name="text">
+              <string>Start</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QLabel" name="label_16">
+             <property name="text">
+              <string>End</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
              </property>
             </widget>
            </item>
@@ -305,11 +460,11 @@
        </widget>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="ResamplingCollapsibleWidget" native="true">
-        <property name="text" stdset="0">
+       <widget class="ctkCollapsibleButton" name="ResamplingCollapsibleWidget">
+        <property name="text">
          <string>Resampling</string>
         </property>
-        <property name="collapsed" stdset="0">
+        <property name="collapsed">
          <bool>false</bool>
         </property>
         <layout class="QVBoxLayout" name="ResamplingVerticalLayout" stretch="0,0,0">
@@ -331,66 +486,9 @@
          <item>
           <widget class="QLabel" name="ResamplingDescription">
            <property name="text">
-            <string>Resample the selected volume to match a target.</string>
+            <string>Resample the input volume to match the target volume.</string>
            </property>
           </widget>
-         </item>
-         <item>
-          <layout class="QVBoxLayout" name="ResamplingTargetVolumeLayout">
-           <item>
-            <widget class="QLabel" name="ResamplingTargetVolumeLabel">
-             <property name="text">
-              <string>Volume to target:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="ctkComboBox" name="ResamplingTargetVolumeComboBox">
-             <property name="defaultText" stdset="0">
-              <string>Select a volume…</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="ResamplingTargetVolumeDimensionsLayout">
-             <item>
-              <widget class="QLabel" name="ResamplingTargetVolumeDimensionsTextLabel">
-               <property name="text">
-                <string>Dimensions:</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="ResamplingTargetVolumeDimensionsValueLabel">
-               <property name="text">
-                <string>…</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="ResamplingTargetVolumeSpacingLayout">
-             <property name="topMargin">
-              <number>0</number>
-             </property>
-             <item>
-              <widget class="QLabel" name="ResamplingTargetVolumeSpacingTextLabel">
-               <property name="text">
-                <string>Spacing:</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="ResamplingTargetVolumeSpacingValueLabel">
-               <property name="text">
-                <string>...</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-          </layout>
          </item>
          <item>
           <widget class="QPushButton" name="ResamplingButton">
@@ -422,15 +520,18 @@
     </spacer>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="RegistrationCollapsibleWidget" native="true">
-     <property name="text" stdset="0">
+    <widget class="ctkCollapsibleButton" name="RegistrationCollapsibleWidget">
+     <property name="text">
       <string>Registration</string>
      </property>
-     <property name="collapsed" stdset="0">
+     <property name="collapsed">
       <bool>false</bool>
      </property>
-     <property name="flat" stdset="0">
+     <property name="flat">
       <bool>false</bool>
+     </property>
+     <property name="title" stdset="0">
+      <string>Registration</string>
      </property>
      <layout class="QVBoxLayout" name="RegistrationVerticalLayout">
       <property name="spacing">
@@ -448,6 +549,431 @@
       <property name="bottomMargin">
        <number>12</number>
       </property>
+      <item>
+       <layout class="QGridLayout" name="RegistrationParametersLayout">
+        <item row="3" column="0">
+         <widget class="QLabel" name="RegistrationOptimizerLabel">
+          <property name="text">
+           <string>Optimizer</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="ctkComboBox" name="ComboMetrics">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="defaultText">
+           <string>Metrics…</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="ctkComboBox" name="ComboOptimizers">
+          <property name="defaultText">
+           <string>Optimizer…</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="RegistrationMetricsLabel">
+          <property name="text">
+           <string>Metrics</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="ctkComboBox" name="comboBoxInterpolator">
+          <property name="defaultText">
+           <string>Interpolator…</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="RegistrationInterpolatorLabel">
+          <property name="text">
+           <string>Interpolator</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0" colspan="2">
+         <layout class="QHBoxLayout" name="RegistrationKindLayout">
+          <item>
+           <widget class="QRadioButton" name="radioButtonRigid">
+            <property name="text">
+             <string>Rigid</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="radioButtonNonRigid">
+            <property name="text">
+             <string>Non-rigid</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="radioButtonElastix">
+            <property name="text">
+             <string>Elastix</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="ctkCollapsibleButton" name="RegistrationSettingsCollapsibleButton">
+        <property name="text">
+         <string>Settings</string>
+        </property>
+        <property name="collapsed">
+         <bool>false</bool>
+        </property>
+        <layout class="QVBoxLayout" name="RegistrationSettingsLayout">
+         <property name="spacing">
+          <number>12</number>
+         </property>
+         <property name="leftMargin">
+          <number>12</number>
+         </property>
+         <property name="topMargin">
+          <number>12</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>12</number>
+         </property>
+         <item>
+          <layout class="QGridLayout" name="RegistrationBaseSettingsLayout">
+           <item row="0" column="0">
+            <widget class="QLabel" name="RegistrationHistogramBinCountLabel">
+             <property name="text">
+              <string>Histogram Bin Count</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="RegistrationSamplingPercentageLabel">
+             <property name="text">
+              <string>Sampling Percentage</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="RegistrationSamplingStrategyLabel">
+             <property name="text">
+              <string>Sampling Strategy</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QSpinBox" name="spinBoxBinCount">
+             <property name="maximum">
+              <number>255</number>
+             </property>
+             <property name="value">
+              <number>50</number>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="ctkComboBox" name="comboBoxSamplingStrat"/>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="doubleSpinBoxSamplingPerc">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.100000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBoxGradient">
+           <property name="enabled">
+            <bool>true</bool>
+           </property>
+           <property name="title">
+            <string>Gradient Descent</string>
+           </property>
+           <property name="collapsed">
+            <bool>false</bool>
+           </property>
+           <layout class="QVBoxLayout" name="RegistrationGradientDescentLayout">
+            <item>
+             <layout class="QGridLayout" name="RegistrationGradientDescentLayout_2">
+              <item row="0" column="0">
+               <widget class="QLabel" name="RegistrationLearningRateLabel">
+                <property name="text">
+                 <string>Learning Rate</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="RegistrationConvergenceMinValueLabel">
+                <property name="text">
+                 <string>Convergence Minimum Value</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="RegistrationNumberIterationsLabel">
+                <property name="text">
+                 <string>Number of Iterations</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="RegistrationConvergenceWindowSizeLabel">
+                <property name="text">
+                 <string>Convergence Window Size</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="spinBoxNbIter">
+                <property name="maximum">
+                 <number>100000</number>
+                </property>
+                <property name="value">
+                 <number>100</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QLineEdit" name="lineEditConvMinVal">
+                <property name="text">
+                 <string>1e-6</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QDoubleSpinBox" name="doubleSpinBoxLearningR">
+                <property name="decimals">
+                 <number>6</number>
+                </property>
+                <property name="maximum">
+                 <double>100.000000000000000</double>
+                </property>
+                <property name="value">
+                 <double>0.100000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="spinBoxConvWinSize">
+                <property name="value">
+                 <number>10</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBoxExhaustive">
+           <property name="enabled">
+            <bool>true</bool>
+           </property>
+           <property name="title">
+            <string>Exhaustive</string>
+           </property>
+           <property name="collapsed">
+            <bool>false</bool>
+           </property>
+           <layout class="QVBoxLayout" name="RegistrationExhaustiveLayout">
+            <item>
+             <layout class="QGridLayout" name="RegistrationExhaustiveLayout_2">
+              <item row="1" column="0">
+               <widget class="QLabel" name="RegistrationStepLengthLabel">
+                <property name="text">
+                 <string>Step Length</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="RegistrationOptimizerScalesLabel">
+                <property name="text">
+                 <string>Optimizer Scales</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="RegistrationNumberStepsLabel">
+                <property name="text">
+                 <string>Number of Steps</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLineEdit" name="lineEditSteps">
+                <property name="text">
+                 <string>1, 1, 1, 0, 0, 0</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QLineEdit" name="lineEditLength">
+                <property name="text">
+                 <string>pi</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QLineEdit" name="lineEditScale">
+                <property name="text">
+                 <string>1,1,1,1,1,1</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBoxLBFGS2">
+           <property name="title">
+            <string>LBFGS2</string>
+           </property>
+           <layout class="QVBoxLayout" name="RegistrationLBFGS2Layout">
+            <item>
+             <layout class="QGridLayout" name="RegistrationLBFGS2Layout_2">
+              <item row="0" column="0">
+               <widget class="QLabel" name="RegistrationSolutionAcuracyLabel">
+                <property name="text">
+                 <string>Solution Accuracy</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="spinBoxNbIterLBFGS2">
+                <property name="maximum">
+                 <number>1000</number>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLineEdit" name="lineEditSolutionAccuracy">
+                <property name="text">
+                 <string>1e-5</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="RegistrationNumberIterationsLabel_2">
+                <property name="text">
+                 <string>Number of Iterations</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="RegistrationDeltaConvergenceTolerance">
+                <property name="text">
+                 <string>Delta Convergence Tolerance</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QLineEdit" name="lineEditDeltaConv">
+                <property name="text">
+                 <string>0.01</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="ctkPushButton" name="PushButtonRegistration">
+        <property name="text">
+         <string>Start Registration</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer name="InBetweenSpacer2">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Fixed</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <widget class="ctkCollapsibleButton" name="PluginLoadingCollapsibleWidget">
+     <property name="text">
+      <string>Plugins</string>
+     </property>
+     <property name="collapsed">
+      <bool>false</bool>
+     </property>
+     <layout class="QVBoxLayout" name="PluginsVerticalLayout" stretch="0,0">
+      <property name="spacing">
+       <number>12</number>
+      </property>
+      <property name="leftMargin">
+       <number>12</number>
+      </property>
+      <property name="topMargin">
+       <number>12</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>12</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="PluginLoadingDescriptionLabel">
+        <property name="text">
+         <string>Load a custom algorithm and graphical interface.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="PluginLoadingPushButton">
+        <property name="text">
+         <string>Load Plugin</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -478,9 +1004,20 @@
    <container>1</container>
   </customwidget>
   <customwidget>
+   <class>ctkCollapsibleGroupBox</class>
+   <extends>QGroupBox</extends>
+   <header>ctkCollapsibleGroupBox.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>ctkComboBox</class>
    <extends>QComboBox</extends>
    <header>ctkComboBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkPushButton</class>
+   <extends>QPushButton</extends>
+   <header>ctkPushButton.h</header>
   </customwidget>
   <customwidget>
    <class>qSlicerWidget</class>
