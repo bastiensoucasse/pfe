@@ -7,6 +7,7 @@ import datetime
 
 import numpy as np
 import SimpleITK as sitk
+import slicer
 import vtk
 from ctk import ctkComboBox
 from qt import (
@@ -176,11 +177,11 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
         volume_image_data.GetPointData().SetScalars(vtk_array)
         volume = vtkMRMLScalarVolumeNode()
+        volume.SetName(name)
         volume.SetAndObserveImageData(volume_image_data)
 
-        mean = 0
 
-        return volume, mean
+        return volume, np.mean(outputNode)
 
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
@@ -891,6 +892,51 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if name == "Gradient":
             return
         mrmlScene.AddNode(self.difference_map_current_node)
+        self.plot_difference_map_on_yellow_window()
 
-    def plot_difference_map_on_yellow_window(self, node):
-        pass
+    def plot_difference_map_on_yellow_window(self):
+        # Get the yellow slice node
+        slice_node = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow")
+        if not slice_node:
+            self.display_error_message("Could not get the yellow slice node")
+            return
+
+        # Get the yellow slice widget
+        slice_widget = slicer.app.layoutManager().sliceWidget(slice_node.GetLayoutName())
+        if not slice_widget:
+            self.display_error_message("Could not get the yellow slice widget")
+            return
+
+        # Get the slice view
+        slice_view = slice_widget.sliceView()
+        if not slice_view:
+            self.display_error_message("Could not get the slice view")
+            return
+
+        # Set the volume node as the active volume in the yellow slice view
+        slice_view.scheduleRender()
+        slice_widget.sliceLogic().GetSliceCompositeNode().SetBackgroundVolumeID(self.difference_map_current_node.GetID())
+        slice_widget.sliceLogic().FitSliceToAll()
+        slice_widget.sliceLogic().GetSliceNode().Modified()
+
+        # Create a color table node
+        color_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode")
+
+        # Set the type of the color map to a gradient
+        color_node.SetTypeToUser()
+        color_node.SetNumberOfColors(256)
+
+        # Set the colors of the gradient from blue to red
+        for i in range(256):
+            color_node.SetColor(i, i/255.0, 0, (255-i)/255.0)
+
+        # Get the scalar range of your volume node
+        scalar_range = self.difference_map_current_node.GetImageData().GetScalarRange()
+
+        # Set the minimum and maximum scalar values of your color map
+        for i in range(256):
+            value = scalar_range[0] + (scalar_range[1] - scalar_range[0]) * i / 255.0
+            color_node.SetColor(i, value, 0, 1-value)
+
+        # Assign the color map to your volume node
+        self.difference_map_current_node.GetDisplayNode().SetAndObserveColorNodeID(color_node.GetID())
