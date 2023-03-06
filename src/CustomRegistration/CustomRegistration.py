@@ -798,7 +798,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         vtk_image = self.sitk_to_vtk(cropped_image)
 
         # :COMMENT: # :COMMENT: Transfer the initial volume metadata.
-        self.transfer_volume_metadata(self.selected_volume, vtk_image)
+        self.transfer_volume_metadata(self.input_volume, vtk_image)
 
         # :COMMENT: Save the temporary cropped volume.
         self.cropped_volume = vtk_image
@@ -826,7 +826,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Transform the center and radius according to the volume's orientation and spacing.
         matrix = vtk.vtkMatrix4x4()
-        self.selected_volume.GetIJKToRASDirectionMatrix(matrix)
+        self.input_volume.GetIJKToRASDirectionMatrix(matrix)
         transform_matrix = np.array(
             [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
         )
