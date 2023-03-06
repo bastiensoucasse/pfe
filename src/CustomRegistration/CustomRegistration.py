@@ -4,6 +4,7 @@ The Custom Registration module for Slicer provides the features for 3D images re
 
 import datetime
 
+# import sitkUtils
 import numpy as np
 import SimpleITK as sitk
 import vtk
@@ -18,7 +19,14 @@ from qt import (
     QSlider,
     QSpinBox,
 )
-from slicer import app, mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
+from slicer import (
+    app,
+    mrmlScene,
+    util,
+    vtkMRMLScalarVolumeNode,
+    vtkMRMLScene,
+    vtkMRMLVectorVolumeNode,
+)
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -551,6 +559,109 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.selected_volume_roi = self.logic.select_roi(
             self.vtk_to_sitk(self.selected_volume), threshold
         )
+
+        # :DIRTY:Iantsa
+        np_array = sitk.GetArrayFromImage(self.selected_volume_roi)
+        # np_array = sitk.GetArrayViewFromImage(self.selected_volume_roi)
+
+        # Create a new numpy array with three scalar components
+        np_rgb = np.zeros(
+            # (np_array.shape[0], np_array.shape[1], np_array.shape[2], 3),
+            (np_array.shape[2], np_array.shape[1], np_array.shape[0], 3),
+            dtype=np.uint8,
+            order="C",
+        )
+
+        # Set the R component of each voxel to the scalar value in the original numpy array
+        # np_rgb[:, :, :, 0] = np_array
+        np_rgb[:, :, :, 0] = np_array.transpose(2, 1, 0)
+
+        # Create a numpy array with RGB data
+        rgb_data = np_rgb
+
+        # Create a vtkImageData object from the numpy array
+        vtk_data = vtk.vtkImageData()
+        # vtk_data.SetDimensions(rgb_data.shape[0], rgb_data.shape[1], rgb_data.shape[2])
+        vtk_data.SetDimensions(rgb_data.shape[2], rgb_data.shape[1], rgb_data.shape[0])
+        vtk_data.AllocateScalars(vtk.VTK_UNSIGNED_CHAR, 3)
+        vtk_data.GetPointData().GetScalars().SetVoidArray(
+            rgb_data.ravel(), rgb_data.size, 1
+        )
+
+        # Create a new vtkMRMLVectorVolumeNode and set its ImageData property to the vtkImageData object
+        rgb_volume = vtkMRMLVectorVolumeNode()
+        rgb_volume.SetAndObserveImageData(vtk_data)
+        # self.transfer_volume_metadata(self.selected_volume, rgb_volume)
+
+        # :COMMENT: Retrieve the metadata from the source volume.
+        spacing = tuple(reversed(self.selected_volume.GetSpacing()))
+        origin = tuple(reversed(self.selected_volume.GetOrigin()))
+        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
+        self.selected_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+        # print(ijk_to_ras_direction_matrix)
+
+        # Get the elements in the x column
+        matrix = ijk_to_ras_direction_matrix
+        x0, x1, x2, x3 = (
+            matrix.GetElement(0, 0),
+            matrix.GetElement(1, 0),
+            matrix.GetElement(2, 0),
+            matrix.GetElement(3, 0),
+        )
+
+        # Get the elements in the z column
+        z0, z1, z2, z3 = (
+            matrix.GetElement(0, 2),
+            matrix.GetElement(1, 2),
+            matrix.GetElement(2, 2),
+            matrix.GetElement(3, 2),
+        )
+
+        # Swap the x and z column elements
+        matrix.SetElement(0, 0, z0)
+        matrix.SetElement(1, 0, z1)
+        matrix.SetElement(2, 0, z2)
+        matrix.SetElement(3, 0, z3)
+
+        matrix.SetElement(0, 2, x0)
+        matrix.SetElement(1, 2, x1)
+        matrix.SetElement(2, 2, x2)
+        matrix.SetElement(3, 2, x3)
+        # print(matrix)
+
+        # :COMMENT: Apply the metadata to the target volume.
+        rgb_volume.SetSpacing(spacing)
+        rgb_volume.SetOrigin(origin)
+        # rgb_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+        rgb_volume.SetIJKToRASDirectionMatrix(matrix)
+
+        mrmlScene.AddNode(rgb_volume)
+
+        print("Original volume data:")
+        print(self.selected_volume.GetImageData().GetDimensions())
+        print(self.selected_volume.GetOrigin())
+        print(self.selected_volume.GetSpacing())
+        matrix = vtk.vtkMatrix4x4()
+        self.selected_volume.GetIJKToRASDirectionMatrix(matrix)
+        print(matrix)
+
+        print("\n RGB volume data:")
+        print(rgb_volume.GetImageData().GetDimensions())
+        print(rgb_volume.GetOrigin())
+        print(rgb_volume.GetSpacing())
+        matrix2 = vtk.vtkMatrix4x4()
+        self.selected_volume.GetIJKToRASDirectionMatrix(matrix2)
+        print(matrix2)
+        # :END_DIRTY:
+
+        # :COMMENT: Convert the SimpleITK image ROI into a VTK Volume Node.
+        # vtk_roi = self.sitk_to_vtk(self.selected_volume_roi)
+
+        # :COMMENT: Transfer the initial volume metadata.
+        # self.transfer_volume_metadata(self.selected_volume, vtk_roi)
+
+        # :COMMENT: Save the ROI selection volume.
+        # self.add_new_volume(vtk_roi, "roi")
 
         # :COMMENT: Log the ROI selection.
         print(
@@ -1195,6 +1306,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         Parameters:
             volume: VTK Volume Node to be added.
+            name: Type of processing.
         """
 
         # :COMMENT: Ensure that a volume is selected.
