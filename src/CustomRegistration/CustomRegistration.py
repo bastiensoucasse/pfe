@@ -259,9 +259,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def manage_pascal_only_mode(self) -> None:
         """
-        Displays or hides adequatly the 3D view depending on the Pascal Mode checkbox.
+        Displays or hides adequatly the 3D view depending on the Pascal Only Mode checkbox.
         """
 
+        # :TODO:Iantsa: Add the visibility in the observer too.
         if self.pascal_mode_checkbox.isChecked():
             self.threeD_widget.setVisible(True)
         else:
@@ -626,13 +627,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             if not self.selected_volume:
                 print("[DEBUG] No volume selected: Case not handled yet.")
                 # :TODO:Iantsa: Find a way to handle this case.
+                return
 
-            # :COMMENT: First time opening the cropping interface.
+            # :COMMENT: First time opening the ROI selection interface.
             if not self.input_roi_preview:
-                # :COMMENT: Create default input roi preview.
-                self.tmp_input_roi = self.logic.create_mask(
-                    self.vtk_to_sitk(self.selected_volume), 0
-                )
+                self.preview_roi_selection()
 
             else:
                 # :COMMENT: Show the ROI selection preview.
@@ -746,20 +745,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             end_val.append(self.cropping_end[i].value)
 
         # :COMMENT: Check that coordinates are valid.
-        # :TODO:Iantsa: Send an error message only if user clicks "Crop" instead of each time they change a parameter.
         if any(end_val[i] < start_val[i] for i in range(3)):
             self.display_error_message(
                 "End values must be greater than or equal to start values."
             )
             return
-
-        # :COMMENT: Save selected volume's data.
-        data_backup = [
-            self.selected_volume.GetSpacing(),
-            self.selected_volume.GetOrigin(),
-            vtk.vtkMatrix4x4(),
-        ]
-        self.selected_volume.GetIJKToRASDirectionMatrix(data_backup[2])
 
         # :COMMENT: Convert the volume to a SimpleITK image.
         sitk_image = self.vtk_to_sitk(self.selected_volume)
@@ -773,10 +763,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Convert the cropped SimpleITK image back to a VTK Volume Node.
         vtk_image = self.sitk_to_vtk(cropped_image)
 
-        # :COMMENT: Set the new volume's data with the original volume's data.
-        vtk_image.SetSpacing(data_backup[0])
-        vtk_image.SetOrigin(data_backup[1])
-        vtk_image.SetIJKToRASDirectionMatrix(data_backup[2])
+        # :COMMENT: # :COMMENT: Transfer the initial volume metadata.
+        self.transfer_volume_metadata(self.selected_volume, vtk_image)
 
         # :COMMENT: Save the temporary cropped volume.
         self.cropped_volume = vtk_image
@@ -789,6 +777,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropping_box = mrmlScene.AddNewNodeByClass(
             "vtkMRMLMarkupsROINode", "Cropping Preview"
         )
+        self.cropping_box.SetLocked(True)
 
         # :COMMENT: Display cropping box only in red view.
         self.cropping_box.GetDisplayNode().SetViewNodeIDs(["vtkMRMLSliceNodeRed"])
@@ -802,13 +791,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         radius = [size[i] / 2 for i in range(3)]
 
         # :COMMENT: Transform the center and radius according to the volume's orientation and spacing.
+        matrix = vtk.vtkMatrix4x4()
+        self.selected_volume.GetIJKToRASDirectionMatrix(matrix)
         transform_matrix = np.array(
-            [[data_backup[2].GetElement(i, j) for j in range(3)] for i in range(3)]
+            [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
         )
 
         transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
         transformed_radius = np.matmul(
-            transform_matrix, np.array(data_backup[0]) * np.array(radius)
+            transform_matrix, np.array(vtk_image.GetSpacing()) * np.array(radius)
         )
 
         # :COMMENT: Set the center and radius of the cropping box to the transformed center and radius.
