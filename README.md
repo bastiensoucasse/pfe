@@ -63,7 +63,7 @@ A plugin consists of two files:
     - `input_volume`: The input volume defined in Custom Registration (appearing in the top view), which is the one that is either preprocessed or registered. If no volume is selected as input, its value will be `None`.
     - `target_volume`: The target volume defined in Custom Registration (appearing in the bottom-left view), which is the one that is selected as target to process the input volume accordingly. If no volume is selected as target, its value will be `None`.
 
-#### Loading a plugin
+#### Loading a Plugin
 
 Head over to the _Plugins_ section of the Custom Registration module panel, where you can find a _Load Plugin_ button. When clicked, a _Plugin Loading_ dialog window opens. You can choose a name for your plugin, and load the graphical interface and script files. You can then hit _Load_ to add your plugin to the extension module.
 
