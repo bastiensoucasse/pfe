@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>401</width>
-    <height>2040</height>
+    <height>2218</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -702,7 +702,7 @@
        </layout>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="CollapsibleButton">
+       <widget class="ctkCollapsibleButton" name="CollapsibleRegistrationType">
         <property name="text">
          <string>Registration type</string>
         </property>

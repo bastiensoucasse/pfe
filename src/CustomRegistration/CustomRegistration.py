@@ -920,6 +920,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         self.volume_name_edit = self.panel.findChild(QLineEdit, "lineEditNewVolumeName")
+        self.registration_type = self.panel.findChild(ctkCollapsibleButton, "CollapsibleRegistrationType")
+        self.registration_type.collapsed = 0
 
         # :COMMENT: Link settings UI and code
         self.metrics_combo_box = self.panel.findChild(ctkComboBox, "ComboMetrics")
@@ -1054,21 +1056,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # :COMMENT: Ensure the parameters are set.
-        if not self.input_volume:
-            self.display_error_message("No input volume selected.")
-            return
-        if not self.target_volume:
-            self.display_error_message("No target volume selected.")
-            return
-        if self.metrics_combo_box.currentIndex == -1:
-            self.display_error_message("No metrics selected.")
-            return
-        if self.interpolator_combo_box.currentIndex == -1:
-            self.display_error_message("No interpolator selected.")
-            return
-        if self.optimizers_combo_box.currentIndex == -1:
-            self.display_error_message("No optimizer selected.")
-            return
+        # if not self.input_volume:
+        #     self.display_error_message("No input volume selected.")
+        #     return
+        # if not self.target_volume:
+        #     self.display_error_message("No target volume selected.")
+        #     return
+        # if self.metrics_combo_box.currentIndex == -1:
+        #     self.display_error_message("No metrics selected.")
+        #     return
+        # if self.interpolator_combo_box.currentIndex == -1:
+        #     self.display_error_message("No interpolator selected.")
+        #     return
+        # if self.optimizers_combo_box.currentIndex == -1:
+        #     self.display_error_message("No optimizer selected.")
+        #     return
 
         # :COMMENT: utilitiy functions to get sitk images
         fixed_image = su.PullVolumeFromSlicer(self.target_volume)
@@ -1121,7 +1123,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["iterations"] = nb_iteration
         input["convergence_min_val"] = convergence_min_val
         input["convergence_win_size"] = convergence_win_size
-        input["nb_of_steps"] = nb_of_steps
+        input["nb_of_steps"] = self.nb_of_steps
         input["step_length"] = self.step_length
         input["optimizer_scale"] = self.optimizer_scale
         input["solution_accuracy"] = solution_acc
@@ -1150,25 +1152,27 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.activate_timer_and_progress_bar()
         process_logic.run()
 
-    # :TODO: Seek a way to add a callback function when registration is finished
-    # Or use simpleElastix in another script like previously
+    # :TODO: Seek a way to cancel registration
     def elastix_registration(self):
         self.button_registration.setEnabled(False)
         self.button_cancel.setEnabled(True)
         self.activate_timer_and_progress_bar()
-
+        print("elastix registration non-rigid")
         elastix_logic = Elastix.ElastixLogic()
         # this corresponds to  "Parameters_BSpline.txt", a generic registration
         parameterFilenames = elastix_logic.getRegistrationPresets()[0][Elastix.RegistrationPresets_ParameterFilenames]
         #parameterFilenames = "Parameters_BSpline.txt"
         new_volume = mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-        elastix_logic.run(self.target_volume, self.input_volume, parameterFilenames = parameterFilenames, outputVolumeNode = new_volume, logCallback=self.on_registration_completed)
+        elastix_logic.registerVolumes(self.target_volume, self.input_volume, parameterFilenames = parameterFilenames, outputVolumeNode = new_volume)
+        self.on_registration_completed()
 
     def on_registration_completed(self):
         """
         Handles the completion callback.
         """
-
+        self.progressBar.setMaximum(100)
+        self.progressBar.setValue(100)
+        self.timer.stop()
         self.button_registration.setEnabled(True)
         self.button_cancel.setEnabled(False)
         # :COMMENT: Log the registration.
@@ -1181,6 +1185,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
 
     def activate_timer_and_progress_bar(self):
+        self.progressBar.setVisible(True)
+        self.label_status.setVisible(True)
         self.progressBar.setMinimum(0)
         self.progressBar.setMaximum(0)
         self.progressBar.setValue(0)
@@ -1196,16 +1202,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Helper function displaying a timer and a loading bar
         """
         processStates = ["Pending", "Running", "Completed", "Failed"]
-        self.progressBar.setVisible(True)
-        self.label_status.setVisible(True)
         stateJSON = caller.GetAttribute("state")
         if stateJSON:
             state = json.loads(caller.GetAttribute("state"))
             for processState in processStates:
                 if state[processState] and processState == "Completed":
-                    self.progressBar.setMaximum(100)
-                    self.progressBar.setValue(100)
-                    self.timer.stop()
+                    print("Custom Registration Completed")
 
     def update_status(self):
         self.label_status.setText(f"status: {self.elapsed_time.elapsed()//1000}s")
@@ -1737,4 +1739,6 @@ class RegistrationProcess(Process):
         output = pickle.loads(processOutput)
         image_resampled = output["image_resampled"]
         volume_name = output["volume_name"]
+        if image_resampled == None:
+            return
         su.PushVolumeToSlicer(image_resampled, name=volume_name)
