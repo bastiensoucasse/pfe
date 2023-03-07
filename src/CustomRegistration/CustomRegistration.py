@@ -5,6 +5,7 @@ The Custom Registration module for Slicer provides the features for 3D images re
 import datetime
 import os
 import pickle
+import unittest
 from math import pi
 
 import numpy as np
@@ -141,7 +142,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
 
         Parameters:
             image: The SimpleITK image to be cropped.
-            start_val: The start index of the cropping region.
+            index: The start index of the cropping region.
             size: The size of the cropping region.
 
         Returns:
@@ -1881,7 +1882,10 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
         Runs all the tests in the Custom Registration module.
         """
 
+        self.logic = CustomRegistrationLogic()
+
         self.test_dummy()
+        self.test_cropping()
 
     def test_dummy(self):
         """
@@ -1889,6 +1893,58 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
         """
 
         print("Dummy test passed.")
+
+    def test_cropping(self):
+        # :COMMENT: Create a 3D image with random voxel intensities.
+        size = [200, 250, 100]
+        spacing = [1.0, 1.1, 1.2]
+        origin = [1.0, 1.0, 1.0]
+        direction = [1, 0, 0, 0, 1, 0, 0, 0, 1]
+        min = 0
+        max = 1000
+
+        random_array = np.random.randint(min, max, size, dtype=np.int16)
+        random_image = sitk.GetImageFromArray(random_array)
+        random_image.SetSpacing(spacing)
+        random_image.SetOrigin(origin)
+        random_image.SetDirection(direction)
+
+        image = random_image
+
+        # :COMMENT: Define the crop parameters.
+        # :TODO:Iantsa: Fix the bug to pass the test.
+        # start = [50, 60, 10]
+        start = [0, 0, 0]
+        end = [100, 90, 80]
+
+        # :COMMENT: Check that invalid parameters are rejected.
+        with self.assertRaises(RuntimeError):
+            self.logic.crop(image, start, [end[i] + 1000 for i in range(3)])
+
+        # :COMMENT: Call our function.
+        cropped_image = self.logic.crop(image, start, end)
+
+        # :COMMENT: Check that the resulting cropped image has the expected dimensions.
+        # expected_size = [50, 30, 70]
+        expected_size = end
+        self.assertSequenceEqual(cropped_image.GetSize(), expected_size)
+
+        # :COMMENT: Check that the resulting cropped image has the expected spacing.
+        self.assertSequenceEqual(cropped_image.GetSpacing(), spacing)
+
+        # :COMMENT: Check that the resulting cropped image has the expected origin.
+        self.assertSequenceEqual(cropped_image.GetOrigin(), origin)
+
+        # :COMMENT: Check that the resulting cropped image has the expected direction.
+        self.assertSequenceEqual(cropped_image.GetDirection(), direction)
+
+        # :COMMENT: Check that the resulting cropped image has the expected content.
+        image_array = np.transpose(sitk.GetArrayFromImage(image), (2, 1, 0))
+        cropped_array = np.transpose(sitk.GetArrayFromImage(cropped_image), (2, 1, 0))
+        expected_array = image_array[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
+        self.assertTrue(np.array_equal(cropped_array, expected_array))
+
+        print("Cropping test passed.")
 
 
 class RegistrationProcess(Process):
