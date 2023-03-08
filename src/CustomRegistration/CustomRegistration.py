@@ -1078,6 +1078,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         fixed_image = sitk.Cast(fixed_image, sitk.sitkFloat32)
         moving_image = sitk.Cast(moving_image, sitk.sitkFloat32)
 
+        # allows not to update view if registration has been cancelled
+        self.registration_cancelled = False
+
         # :COMMENT: User settings retrieve
         bin_count = self.histogram_bin_count_spin_box.value
         # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
@@ -1136,6 +1139,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
             self.custom_script_registration(scriptPath, fixed_image, moving_image, input)
         elif self.non_rigid_r_button.isChecked():
+            # :TODO: Correct non rigid sitk
+            # :TODO: add another rigid sitk registration
             scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
             self.custom_script_registration(scriptPath, fixed_image, moving_image, input)
         else:
@@ -1152,19 +1157,26 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.activate_timer_and_progress_bar()
         process_logic.run()
 
-    # :TODO: Seek a way to cancel registration
+    # :TODO: -Seek a way to cancel registration
+    # :TODO: -add all elastix presets
+    # :TODO: update the UI
     def elastix_registration(self):
+        self.regProcess = None
         self.button_registration.setEnabled(False)
         self.button_cancel.setEnabled(True)
         self.activate_timer_and_progress_bar()
         print("elastix registration non-rigid")
-        elastix_logic = Elastix.ElastixLogic()
+        self.elastix_logic = Elastix.ElastixLogic()
         # this corresponds to  "Parameters_BSpline.txt", a generic registration
-        parameterFilenames = elastix_logic.getRegistrationPresets()[0][Elastix.RegistrationPresets_ParameterFilenames]
+        parameterFilenames = self.elastix_logic.getRegistrationPresets()[0][Elastix.RegistrationPresets_ParameterFilenames]
         #parameterFilenames = "Parameters_BSpline.txt"
         new_volume = mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-        elastix_logic.registerVolumes(self.target_volume, self.input_volume, parameterFilenames = parameterFilenames, outputVolumeNode = new_volume)
-        self.on_registration_completed()
+        try:
+            self.elastix_logic.registerVolumes(self.target_volume, self.input_volume, parameterFilenames = parameterFilenames, outputVolumeNode = new_volume)
+        except ValueError as ve:
+            print(ve)
+        finally:
+            self.on_registration_completed()
 
     def on_registration_completed(self):
         """
@@ -1176,13 +1188,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_registration.setEnabled(True)
         self.button_cancel.setEnabled(False)
         # :COMMENT: Log the registration.
-        assert self.input_volume
-        print(
-            f'"{self.input_volume.GetName()}" has been registered as "{self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems() - 1).GetName()}".'
-        )
+        if not self.registration_cancelled:
+            assert self.input_volume
+            print(
+                f'"{self.input_volume.GetName()}" has been registered as "{self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems() - 1).GetName()}".'
+            )
 
-        # :COMMENT: Select the new volume to display it.
-        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
+            # :COMMENT: Select the new volume to display it.
+            self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
 
     def activate_timer_and_progress_bar(self):
         self.progressBar.setVisible(True)
@@ -1213,11 +1226,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.label_status.setText(f"status: {self.elapsed_time.elapsed()//1000}s")
 
     def cancel_registration_process(self):
-        assert(self.regProcess)
         self.timer.stop()
         self.progressBar.setMaximum(100)
         self.progressBar.setValue(0)
-        self.regProcess.terminate()
+        self.registration_cancelled = True
+        if self.regProcess:
+            self.regProcess.kill()
+            print("User requested cancel.")
+        if self.elastix_logic:
+            self.elastix_logic.abortRequested = True
     #
     # INPUT VOLUME
     #
