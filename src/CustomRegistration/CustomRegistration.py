@@ -920,8 +920,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         self.volume_name_edit = self.panel.findChild(QLineEdit, "lineEditNewVolumeName")
-        self.registration_type = self.panel.findChild(ctkCollapsibleButton, "CollapsibleRegistrationType")
-        self.registration_type.collapsed = 0
 
         # :COMMENT: Link settings UI and code
         self.metrics_combo_box = self.panel.findChild(ctkComboBox, "ComboMetrics")
@@ -940,12 +938,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
         # :COMMENT: registration types
-        self.non_rigid_r_button = self.panel.findChild(
-            QRadioButton, "radioButtonNonRigid"
+        self.sitk_combo_box = self.panel.findChild(
+            ctkComboBox, "ComboBoxSitk"
         )
-        self.rigid_r_button = self.panel.findChild(QRadioButton, "radioButtonRigid")
-        self.elastix_r_button = self.panel.findChild(QRadioButton, "radioButtonElastix")
-        self.rigid_r_button.toggle()
+        self.sitk_combo_box.addItems(["rigid", "non rigid bspline"])
+
+        self.elastix_combo_box = self.panel.findChild(
+            ctkComboBox, "ComboBoxElastix"
+        )
+        self.elastix_logic = Elastix.ElastixLogic()
+        for preset in self.elastix_logic.getRegistrationPresets():
+            self.elastix_combo_box.addItem("{0} ({1})".format(
+            preset[Elastix.RegistrationPresets_Modality], preset[Elastix.RegistrationPresets_Content]))
 
         # :COMMENT: Gradients parameters
         self.gradients_box = self.panel.findChild(
@@ -1023,6 +1027,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.metrics_combo_box.setCurrentIndex(-1)
         self.optimizers_combo_box.setCurrentIndex(-1)
         self.interpolator_combo_box.setCurrentIndex(-1)
+        self.sitk_combo_box.setCurrentIndex(-1)
+        self.elastix_combo_box.setCurrentIndex(-1)
         self.sampling_strat_combo_box.setCurrentIndex(2)
         self.volume_name_edit.text = ""
 
@@ -1166,7 +1172,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_cancel.setEnabled(True)
         self.activate_timer_and_progress_bar()
         print("elastix registration non-rigid")
-        self.elastix_logic = Elastix.ElastixLogic()
         # this corresponds to  "Parameters_BSpline.txt", a generic registration
         parameterFilenames = self.elastix_logic.getRegistrationPresets()[0][Elastix.RegistrationPresets_ParameterFilenames]
         #parameterFilenames = "Parameters_BSpline.txt"

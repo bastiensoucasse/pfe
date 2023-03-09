@@ -702,31 +702,47 @@
        </layout>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="CollapsibleRegistrationType">
-        <property name="text">
-         <string>Registration type</string>
+       <widget class="QGroupBox" name="groupBoxRegistrationType">
+        <property name="title">
+         <string/>
         </property>
-        <layout class="QVBoxLayout" name="verticalLayout_4">
+        <layout class="QVBoxLayout" name="verticalLayout_2">
          <item>
-          <widget class="QRadioButton" name="radioButtonRigid">
+          <widget class="QLabel" name="label_3">
+           <property name="font">
+            <font>
+             <weight>75</weight>
+             <bold>true</bold>
+            </font>
+           </property>
            <property name="text">
-            <string>Rigid (6 DOF)</string>
+            <string>Registration Type</string>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="QRadioButton" name="radioButtonNonRigid">
-           <property name="text">
-            <string>BSpline (&gt;27 DOF)</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="radioButtonElastix">
-           <property name="text">
-            <string>Elastix</string>
-           </property>
-          </widget>
+          <layout class="QGridLayout" name="gridLayout_2">
+           <item row="0" column="1">
+            <widget class="QLabel" name="label_2">
+             <property name="text">
+              <string>elastix presets</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="label">
+             <property name="text">
+              <string>sitk</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="ctkComboBox" name="ComboBoxSitk"/>
+           </item>
+           <item row="1" column="1">
+            <widget class="ctkComboBox" name="ComboBoxElastix"/>
+           </item>
+          </layout>
          </item>
         </layout>
        </widget>
@@ -1099,6 +1115,9 @@
             <widget class="QLabel" name="label_status">
              <property name="text">
               <string>status:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
              </property>
             </widget>
            </item>
