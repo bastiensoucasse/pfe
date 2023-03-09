@@ -98,9 +98,10 @@ def select_optimizer_and_setup(
         # parametersToPrint = f" number of steps: {nb_of_steps}\n step length: {step_length}\n optimizer scale: {optimizer_scale}"
         optimizer(numberOfSteps=nb_of_steps, stepLength=step_length)
         R.SetOptimizerScales(optimizer_scale)
-    elif optimizer == "LBFGS2":
+    elif optimizer_name == "LBFGS2":
         optimizer(
             solutionAccuracy=solution_acc,
             numberOfIterations=nb_iter_lbfgs2,
             deltaConvergenceTolerance=delta_conv_tol,
         )
+
