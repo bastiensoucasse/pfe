@@ -1016,6 +1016,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.update_optimizer_parameters_group_box
         )
 
+        self.sitk_combo_box.activated.connect(
+            lambda: self.update_registration_combo_box(True)
+        )
+        self.elastix_combo_box.activated.connect(
+            lambda: self.update_registration_combo_box(False)
+        )
+
         # :COMMENT: Initialize the registration.
         self.reset_registration()
 
@@ -1055,6 +1062,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         elif self.optimizers_combo_box.currentText == "LBFGS2":
             self.lbfgs2_box.setEnabled(True)
             self.lbfgs2_box.collapsed = 0
+
+    def update_registration_combo_box(self, is_sitk: bool) -> None:
+        if is_sitk:
+            self.elastix_combo_box.setCurrentIndex(-1)
+            if self.sitk_combo_box.currentIndex == 0:
+                self.scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
+            if self.sitk_combo_box.currentIndex == 1:
+                self.scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
+        else:
+            self.scriptPath=None
+            self.sitk_combo_box.setCurrentIndex(-1)
 
     def register(self):
         """
@@ -1140,16 +1158,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["delta_convergence_tolerance"] = delta_conv_tol
 
         # PARALLEL PROCESSING EXTENSION
-        if self.rigid_r_button.isChecked():
-            scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
-            self.custom_script_registration(scriptPath, fixed_image, moving_image, input)
-        elif self.non_rigid_r_button.isChecked():
-            # :TODO: Correct non rigid sitk
-            # :TODO: add another rigid sitk registration
-            scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
-            self.custom_script_registration(scriptPath, fixed_image, moving_image, input)
+        print(self.scriptPath)
+        if self.scriptPath:
+            self.custom_script_registration(self.scriptPath, fixed_image, moving_image, input)
         else:
             self.elastix_registration()
+
 
     def custom_script_registration(self, scriptPath, fixed_image, moving_image, input):
         self.elastix_logic = None
@@ -1173,7 +1187,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.activate_timer_and_progress_bar()
         print("elastix registration non-rigid")
         # this corresponds to  "Parameters_BSpline.txt", a generic registration
-        parameterFilenames = self.elastix_logic.getRegistrationPresets()[0][Elastix.RegistrationPresets_ParameterFilenames]
+        preset = self.elastix_combo_box.currentIndex
+        parameterFilenames = self.elastix_logic.getRegistrationPresets()[preset][Elastix.RegistrationPresets_ParameterFilenames]
+        print(parameterFilenames)
         #parameterFilenames = "Parameters_BSpline.txt"
         new_volume = mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
         try:
