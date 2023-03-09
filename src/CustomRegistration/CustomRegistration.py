@@ -147,13 +147,37 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         # Run the function.
         return function(*args, **kwargs)
 
+    def transfer_volume_metadata(
+        self,
+        source_volume: vtkMRMLScalarVolumeNode,
+        target_volume: vtkMRMLScalarVolumeNode,
+    ) -> None:
+        """
+        Copies the metadata from the source volume to the target volume.
+
+        Parameters:
+            source_volume: The volume to copy the metadata from.
+            target_volume: The volume to copy the metadata to.
+        """
+
+        # :COMMENT: Retrieve the metadata from the source volume.
+        spacing = source_volume.GetSpacing()
+        origin = source_volume.GetOrigin()
+        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
+        source_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+
+        # :COMMENT: Apply the metadata to the target volume.
+        target_volume.SetSpacing(spacing)
+        target_volume.SetOrigin(origin)
+        target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+
     def mse_difference_map(self, imageData1, imageData2, name):
         # :TODO:Wissam: Modifier la fonction pour utiliser un itérateur, renvoyer un noeud et ne pas l'ajouter
         # :DIRTY:Wissam: Add documentation and comments.
         # :DIRTY:Wissam: Remove commented code.
         dims1 = imageData1.GetImageData().GetDimensions()
         dims2 = imageData2.GetImageData().GetDimensions()
-
+        print("DEBUG input1 ", imageData1.GetName(), " input 2 :", imageData2.GetName())
         if dims1 != dims2:
             raise ValueError("Images must have the same dimensions")
 
@@ -161,27 +185,91 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         np_array = vtk.util.numpy_support.vtk_to_numpy(
             volume_image_data1.GetPointData().GetScalars()
         )
-        np_array1 = np.reshape(np_array, volume_image_data1.GetDimensions()[::-1])
+
+        np_array1 = np.reshape(
+            np_array, volume_image_data1.GetDimensions()[::-1]
+        ).astype(np.float)
 
         volume_image_data2 = imageData2.GetImageData()
         np_array = vtk.util.numpy_support.vtk_to_numpy(
             volume_image_data2.GetPointData().GetScalars()
         )
-        np_array2 = np.reshape(np_array, volume_image_data2.GetDimensions()[::-1])
+        np_array2 = np.reshape(
+            np_array, volume_image_data2.GetDimensions()[::-1]
+        ).astype(np.float)
 
-        outputNode = np.abs(np_array1 - np_array2)
+        outputNode = np.abs(np_array1 - np_array2).astype(np.float)
+
+        #:COMMENT: normlise le vecteur
+        outputNode = outputNode / np.linalg.norm(outputNode)
 
         volume_image_data = vtk.vtkImageData()
         volume_image_data.SetDimensions(outputNode.shape[::-1])
         volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
-        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(outputNode.flatten())
         volume_image_data.GetPointData().SetScalars(vtk_array)
         volume = vtkMRMLScalarVolumeNode()
+
+        self.transfer_volume_metadata(imageData1, volume)
         volume.SetName(name)
         volume.SetAndObserveImageData(volume_image_data)
 
-
         return volume, np.mean(outputNode)
+
+    def gradient_difference(self, imageData1, imageData2, name):
+        dims1 = imageData1.GetImageData().GetDimensions()
+        dims2 = imageData2.GetImageData().GetDimensions()
+        if dims1 != dims2:
+            raise ValueError("Images must have the same dimensions")
+
+        volume_image_data1 = imageData1.GetImageData()
+        np_array1 = vtk.util.numpy_support.vtk_to_numpy(
+            volume_image_data1.GetPointData().GetScalars()
+        )
+        np_array1 = np.reshape(
+            np_array1, volume_image_data1.GetDimensions()[::-1]
+        ).astype(np.float)
+
+        volume_image_data2 = imageData2.GetImageData()
+        np_array2 = vtk.util.numpy_support.vtk_to_numpy(
+            volume_image_data2.GetPointData().GetScalars()
+        )
+        np_array2 = np.reshape(
+            np_array2, volume_image_data2.GetDimensions()[::-1]
+        ).astype(np.float)
+
+        # Compute the gradient of each image
+        grad_x1, grad_y1, grad_z1 = np.gradient(np_array1)
+        grad_x2, grad_y2, grad_z2 = np.gradient(np_array2)
+
+        #:COMMENT:  Compute the difference of the gradient
+        outputNode = (
+            np.abs(grad_x1 - grad_x2)
+            + np.abs(grad_y1 - grad_y2)
+            + np.abs(grad_z1 - grad_z2)
+        )
+        outputNode = outputNode.astype(np.float)
+
+        #:COMMENT:  Normalize the difference
+        outputNode = outputNode / np.linalg.norm(outputNode)
+
+        #:COMMENT:  Create a new volume node for the output
+        volume_image_data = vtk.vtkImageData()
+        volume_image_data.SetDimensions(outputNode.shape[::-1])
+        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(outputNode.flatten())
+        volume_image_data.GetPointData().SetScalars(vtk_array)
+        volume = vtkMRMLScalarVolumeNode()
+
+        #:COMMENT:  Transfer metadata from the first input image data to the output volume node
+        self.transfer_volume_metadata(imageData1, volume)
+        volume.SetName(name)
+        volume.SetAndObserveImageData(volume_image_data)
+
+        #:COMMENT: Compute the mean of the difference
+        mean_difference = np.mean(outputNode)
+
+        return volume, mean_difference
 
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
@@ -658,8 +746,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Add the available volumes to the resampling target volume combo box.
         for i in range(self.volumes.GetNumberOfItems()):
             name = self.volumes.GetItemAsObject(i).GetName()
-            if not self.selected_volume or self.selected_volume.GetName() != name:
-                self.resampling_target_volume_combo_box.addItem(name)
+
+            self.resampling_target_volume_combo_box.addItem(name)
         self.resampling_target_volume_combo_box.setCurrentIndex(-1)
 
     def resample(self) -> None:
@@ -835,6 +923,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     #
 
     def difference_map_setup(self):
+        """
+        Setup the UI of the difference map
+
+        """
+
         # :COMMENT: Difference map algorithms list
         algorithms_difference_map = ["Mean squared error", "Gradient"]
 
@@ -864,9 +957,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
     def on_apply_button_difference_map(self):
-        # :TODO:Wissam: Appel des fonctions
-
+        """
+        Apply the choosen algorithm for difference map (Gradient or MSE)
+        """
         # :GOTCHA: Modifier l'acces du target volume quand Tony aura fini
+        # :TODO: Afficher la moyenne
         if self.resampling_target_volume is None:
             self.display_error_message("No target volume selected")
             return
@@ -888,55 +983,71 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 "Difference Map(MSE) " + str(self.number_of_difference_map),
             )
             self.number_of_difference_map += 1
-        # :TODO:Wissam: Ajouter la fonction quand je l'aurai implémenté
+
         if name == "Gradient":
-            return
+            (
+                self.difference_map_current_node,
+                self.mean_difference_map,
+            ) = self.logic.gradient_difference(
+                self.selected_volume,
+                self.resampling_target_volume,
+                "Difference Map(Gradient) " + str(self.number_of_difference_map),
+            )
+            self.number_of_difference_map += 1
         mrmlScene.AddNode(self.difference_map_current_node)
         self.plot_difference_map_on_yellow_window()
 
     def plot_difference_map_on_yellow_window(self):
-        # Get the yellow slice node
+        """
+        Plot the difference map on the yellow window and apply a Look Up Table
+        """
+
+        # :GOTCHA: Factoriser le code avec celui de Iansta
+
+        # :COMMENT: Get the yellow slice node
         slice_node = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow")
         if not slice_node:
             self.display_error_message("Could not get the yellow slice node")
             return
 
-        # Get the yellow slice widget
-        slice_widget = slicer.app.layoutManager().sliceWidget(slice_node.GetLayoutName())
+        # :COMMENT: Get the yellow slice widget
+        slice_widget = slicer.app.layoutManager().sliceWidget(
+            slice_node.GetLayoutName()
+        )
         if not slice_widget:
             self.display_error_message("Could not get the yellow slice widget")
             return
 
-        # Get the slice view
+        # :COMMENT: Get the slice view
         slice_view = slice_widget.sliceView()
         if not slice_view:
             self.display_error_message("Could not get the slice view")
             return
 
-        # Set the volume node as the active volume in the yellow slice view
+        # :COMMENT: Set the volume node as the active volume in the yellow slice view
         slice_view.scheduleRender()
-        slice_widget.sliceLogic().GetSliceCompositeNode().SetBackgroundVolumeID(self.difference_map_current_node.GetID())
+        slice_widget.sliceLogic().GetSliceCompositeNode().SetBackgroundVolumeID(
+            self.difference_map_current_node.GetID()
+        )
         slice_widget.sliceLogic().FitSliceToAll()
         slice_widget.sliceLogic().GetSliceNode().Modified()
 
-        # Create a color table node
-        color_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode")
+        # :COMMENT: Get the color node for the yellow window
+        color_node = self.difference_map_current_node.GetDisplayNode().GetColorNode()
 
-        # Set the type of the color map to a gradient
-        color_node.SetTypeToUser()
-        color_node.SetNumberOfColors(256)
+        # :COMMENT: Set the "ColdToHotRainbow" lookup table for the yellow window
+        lut_node = slicer.util.getNode("ColdToHotRainbow")
+        if lut_node:
+            color_node.SetLookupTable(lut_node.GetLookupTable())
+        else:
+            self.display_error_message(
+                "Could not find the 'ColdToHotRainbow' lookup table in Slicer"
+            )
+            return
 
-        # Set the colors of the gradient from blue to red
-        for i in range(256):
-            color_node.SetColor(i, i/255.0, 0, (255-i)/255.0)
-
-        # Get the scalar range of your volume node
-        scalar_range = self.difference_map_current_node.GetImageData().GetScalarRange()
-
-        # Set the minimum and maximum scalar values of your color map
-        for i in range(256):
-            value = scalar_range[0] + (scalar_range[1] - scalar_range[0]) * i / 255.0
-            color_node.SetColor(i, value, 0, 1-value)
-
-        # Assign the color map to your volume node
-        self.difference_map_current_node.GetDisplayNode().SetAndObserveColorNodeID(color_node.GetID())
+        # :COMMENT: Set the volume node as the active volume in the yellow slice view
+        slice_widget.sliceLogic().GetSliceCompositeNode().SetBackgroundVolumeID(
+            self.difference_map_current_node.GetID()
+        )
+        # slice_widget.sliceLogic().FitSliceToAll()
+        slice_widget.sliceLogic().GetSliceNode().Modified()
