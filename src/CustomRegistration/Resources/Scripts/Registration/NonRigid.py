@@ -46,9 +46,19 @@ def main():
     R = sitk.ImageRegistrationMethod()
     util.select_metrics(R, bin_count, metrics_name)
     util.select_interpolator(R, interpolator_name)
-    # util.select_optimizer_and_setup(R, optimizer_name, learning_rate, nb_iteration, convergence_min_val, convergence_win_size, nb_of_steps, step_length, optimizer_scale, solution_acc, nb_iter_lbfgs2, delta_conv_tol)
-    R.SetOptimizerAsLBFGS2(
-        solutionAccuracy=1e-2, numberOfIterations=0, deltaConvergenceTolerance=0.01
+    util.select_optimizer_and_setup(
+        R,
+        optimizer_name,
+        learning_rate,
+        nb_iteration,
+        convergence_min_val,
+        convergence_win_size,
+        nb_of_steps,
+        step_length,
+        optimizer_scale,
+        solution_acc,
+        nb_iter_lbfgs2,
+        delta_conv_tol,
     )
 
     R.SetInitialTransformAsBSpline(tx, inPlace=True, scaleFactors=[1, 2, 5])

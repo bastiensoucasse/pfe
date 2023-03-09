@@ -1134,7 +1134,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["delta_convergence_tolerance"] = delta_conv_tol
 
         # PARALLEL PROCESSING EXTENSION
-
         if self.rigid_r_button.isChecked():
             scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
             self.custom_script_registration(scriptPath, fixed_image, moving_image, input)
@@ -1147,17 +1146,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.elastix_registration()
 
     def custom_script_registration(self, scriptPath, fixed_image, moving_image, input):
-        process_logic = ProcessesLogic(completedCallback=lambda: self.on_registration_completed())
+        self.elastix_logic = None
+        self.process_logic = ProcessesLogic(completedCallback=lambda: self.on_registration_completed())
         self.regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
-        process_logic.addProcess(self.regProcess)
-        node = process_logic.getParameterNode()
+        self.process_logic.addProcess(self.regProcess)
+        node = self.process_logic.getParameterNode()
         self.nodeObserverTag = node.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onNodeModified)
         self.button_registration.setEnabled(False)
         self.button_cancel.setEnabled(True)
         self.activate_timer_and_progress_bar()
-        process_logic.run()
+        self.process_logic.run()
 
-    # :TODO: -Seek a way to cancel registration
+
     # :TODO: -add all elastix presets
     # :TODO: update the UI
     def elastix_registration(self):
@@ -1231,10 +1231,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.progressBar.setValue(0)
         self.registration_cancelled = True
         if self.regProcess:
-            self.regProcess.kill()
+            self.regProcess.registration_completed = False
+            self.terminate_process_logic()
             print("User requested cancel.")
         if self.elastix_logic:
             self.elastix_logic.abortRequested = True
+
+    def terminate_process_logic(self):
+        import signal
+        import os
+        os.kill(self.regProcess.processId()+10, signal.SIGKILL)
+        self.regProcess.kill()
+
     #
     # INPUT VOLUME
     #
@@ -1733,6 +1741,7 @@ class RegistrationProcess(Process):
         self.fixed_image = fixed_image
         self.moving_image = moving_image
         self.input_parameters = input_parameters
+        self.registration_completed = True
 
     def prepareProcessInput(self):
         """
@@ -1752,10 +1761,10 @@ class RegistrationProcess(Process):
         Parameters:
             processOutput: a dictionary that contains the results of the script (a registration, a transform...)
         """
-
-        output = pickle.loads(processOutput)
-        image_resampled = output["image_resampled"]
-        volume_name = output["volume_name"]
-        if image_resampled == None:
-            return
-        su.PushVolumeToSlicer(image_resampled, name=volume_name)
+        if self.registration_completed:
+            output = pickle.loads(processOutput)
+            image_resampled = output["image_resampled"]
+            volume_name = output["volume_name"]
+            if image_resampled == None:
+                return
+            su.PushVolumeToSlicer(image_resampled, name=volume_name)
