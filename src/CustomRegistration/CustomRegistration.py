@@ -941,7 +941,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.sitk_combo_box = self.panel.findChild(
             ctkComboBox, "ComboBoxSitk"
         )
-        self.sitk_combo_box.addItems(["rigid", "non rigid bspline"])
+        self.sitk_combo_box.addItems(["Rigid (6DOF)", "Non Rigid Bspline (>27DOF)"])
 
         self.elastix_combo_box = self.panel.findChild(
             ctkComboBox, "ComboBoxElastix"
@@ -950,6 +950,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         for preset in self.elastix_logic.getRegistrationPresets():
             self.elastix_combo_box.addItem("{0} ({1})".format(
             preset[Elastix.RegistrationPresets_Modality], preset[Elastix.RegistrationPresets_Content]))
+
+        self.settings_registration = self.panel.findChild(
+            ctkCollapsibleButton, "RegistrationSettingsCollapsibleButton"
+        )
 
         # :COMMENT: Gradients parameters
         self.gradients_box = self.panel.findChild(
@@ -1065,6 +1069,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_registration_combo_box(self, is_sitk: bool) -> None:
         if is_sitk:
+            self.metrics_combo_box.setEnabled(True)
+            self.interpolator_combo_box.setEnabled(True)
+            self.optimizers_combo_box.setEnabled(True)
+            self.settings_registration.setEnabled(True)
             self.elastix_combo_box.setCurrentIndex(-1)
             if self.sitk_combo_box.currentIndex == 0:
                 self.scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
@@ -1073,6 +1081,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         else:
             self.scriptPath=None
             self.sitk_combo_box.setCurrentIndex(-1)
+            self.metrics_combo_box.setEnabled(False)
+            self.interpolator_combo_box.setEnabled(False)
+            self.optimizers_combo_box.setEnabled(False)
+            self.settings_registration.setEnabled(False)
 
     def register(self):
         """
@@ -1165,6 +1177,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.elastix_registration()
 
 
+    def iteration_callback(self, filter):
+        print('\r{0:.2f}'.format(filter.GetMetricValue()), end='')
+    # :TODO: correct non rigid registration
+    # :TODO: correct LBFGS2 optimizer
+    # :TODO: add a new non-rigid registration algorithm
     def custom_script_registration(self, scriptPath, fixed_image, moving_image, input):
         self.elastix_logic = None
         self.process_logic = ProcessesLogic(completedCallback=lambda: self.on_registration_completed())
@@ -1178,8 +1195,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.process_logic.run()
 
 
-    # :TODO: -add all elastix presets
-    # :TODO: update the UI
     def elastix_registration(self):
         self.regProcess = None
         self.button_registration.setEnabled(False)
