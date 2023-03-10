@@ -27,7 +27,8 @@ from qt import (
     QSpinBox,
     QTimer,
     QElapsedTimer,
-    QProgressBar
+    QProgressBar,
+    QGroupBox
 )
 from slicer import app, mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
 from slicer.ScriptedLoadableModule import (
@@ -921,7 +922,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         self.volume_name_edit = self.panel.findChild(QLineEdit, "lineEditNewVolumeName")
 
-        # :COMMENT: Link settings UI and code
+        # :COMMENT: Settings collapsible button
         self.metrics_combo_box = self.panel.findChild(ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.panel.findChild(
             ctkComboBox, "comboBoxInterpolator"
@@ -941,7 +942,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.sitk_combo_box = self.panel.findChild(
             ctkComboBox, "ComboBoxSitk"
         )
-        self.sitk_combo_box.addItems(["Rigid (6DOF)", "Non Rigid Bspline (>27DOF)"])
+        self.sitk_combo_box.addItems(["Rigid (6DOF)", "Non Rigid Bspline (>27DOF)", "Non Rigid Demons"])
 
         self.elastix_combo_box = self.panel.findChild(
             ctkComboBox, "ComboBoxElastix"
@@ -953,6 +954,23 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         self.settings_registration = self.panel.findChild(
             ctkCollapsibleButton, "RegistrationSettingsCollapsibleButton"
+        )
+
+        # :COMMENT: Bspline only
+        self.bspline_group_box = self.panel.findChild(
+            QGroupBox, "groupBoxNonRigidBspline"
+        )
+        self.transform_domain_mesh_size = self.panel.findChild(
+            QLineEdit, "lineEditTransformDomainMeshSize"
+        )
+        self.scale_factor = self.panel.findChild(
+            QLineEdit, "lineEditScaleFactor"
+        )
+        self.shrink_factor = self.panel.findChild(
+            QLineEdit, "lineEditShrinkFactor"
+        )
+        self.smoothing_sigmas = self.panel.findChild(
+            QLineEdit, "lineEditSmoothingFactor"
         )
 
         # :COMMENT: Gradients parameters
@@ -1021,10 +1039,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
         self.sitk_combo_box.activated.connect(
-            lambda: self.update_registration_combo_box(True)
+            lambda: self.update_registration_combo_box(True, self.sitk_combo_box.currentIndex)
         )
         self.elastix_combo_box.activated.connect(
-            lambda: self.update_registration_combo_box(False)
+            lambda: self.update_registration_combo_box(False, self.elastix_combo_box.currentIndex)
         )
 
         # :COMMENT: Initialize the registration.
@@ -1042,6 +1060,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.elastix_combo_box.setCurrentIndex(-1)
         self.sampling_strat_combo_box.setCurrentIndex(2)
         self.volume_name_edit.text = ""
+        self.bspline_group_box.setEnabled(False)
 
         self.update_optimizer_parameters_group_box()
 
@@ -1067,24 +1086,31 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.lbfgs2_box.setEnabled(True)
             self.lbfgs2_box.collapsed = 0
 
-    def update_registration_combo_box(self, is_sitk: bool) -> None:
+    def update_registration_combo_box(self, is_sitk: bool, index: int) -> None:
+        self.metrics_combo_box.setEnabled(False)
+        self.interpolator_combo_box.setEnabled(False)
+        self.optimizers_combo_box.setEnabled(False)
+        self.settings_registration.setEnabled(False)
+        self.bspline_group_box.setEnabled(False)
         if is_sitk:
-            self.metrics_combo_box.setEnabled(True)
-            self.interpolator_combo_box.setEnabled(True)
-            self.optimizers_combo_box.setEnabled(True)
-            self.settings_registration.setEnabled(True)
             self.elastix_combo_box.setCurrentIndex(-1)
+            # if rigid or bspline, those settings can be changed, thus are enabled
+            if index == 0 or index == 1:
+                self.metrics_combo_box.setEnabled(True)
+                self.interpolator_combo_box.setEnabled(True)
+                self.optimizers_combo_box.setEnabled(True)
+                self.settings_registration.setEnabled(True)
+            # if bspline, set visible psbline parameters
+            if self.sitk_combo_box.currentIndex == 1:
+                self.bspline_group_box.setEnabled(True)
             if self.sitk_combo_box.currentIndex == 0:
                 self.scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
-            if self.sitk_combo_box.currentIndex == 1:
+            if self.sitk_combo_box.currentIndex == 1 or self.sitk_combo_box.currentIndex == 2:
                 self.scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
+        # else elastix presets, scriptPath is None to verify later which function to use (custom_script_registration or elastix_registration)
         else:
             self.scriptPath=None
             self.sitk_combo_box.setCurrentIndex(-1)
-            self.metrics_combo_box.setEnabled(False)
-            self.interpolator_combo_box.setEnabled(False)
-            self.optimizers_combo_box.setEnabled(False)
-            self.settings_registration.setEnabled(False)
 
     def register(self):
         """
@@ -1117,11 +1143,20 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # allows not to update view if registration has been cancelled
         self.registration_cancelled = False
 
-        # :COMMENT: User settings retrieve
+        # :COMMENT:---- User settings retrieve -----
         bin_count = self.histogram_bin_count_spin_box.value
         # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
         sampling_strat = self.sampling_strat_combo_box.currentIndex
         sampling_perc = self.sampling_perc_spin_box.value
+
+        # :COMMENT: Bspline settings only
+        transform_domain_mesh_size = int(self.transform_domain_mesh_size.text)
+        scale_factor = [int(factor) for factor in self.scale_factor.text.split(",")]
+        print(scale_factor)
+        shrink_factor = [int(factor) for factor in self.shrink_factor.text.split(",")]
+        smoothing_sigmas = [int(sig) for sig in self.smoothing_sigmas.text.split(",")]
+        print(shrink_factor)
+        print(smoothing_sigmas)
 
         # :COMMENT: settings for gradients only
         learning_rate = self.learning_rate_spin_box.value
@@ -1151,6 +1186,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         volume_name = f"{self.input_volume.GetName()}_registered_{current_time}"
         if self.volume_name_edit.text:
             volume_name = f"{self.volume_name_edit.text}_registered_{current_time}"
+        input["algorithm"] = self.sitk_combo_box.currentText
         input["volume_name"] = volume_name
         input["histogram_bin_count"] = bin_count
         input["sampling_strategy"] = sampling_strat
@@ -1168,6 +1204,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["solution_accuracy"] = solution_acc
         input["nb_iter_lbfgs2"] = nb_iter_lbfgs2
         input["delta_convergence_tolerance"] = delta_conv_tol
+        input["transform_domain_mesh_size"] = transform_domain_mesh_size
+        input["scale_factor"] = scale_factor
+        input["shrink_factor"] = shrink_factor
+        input["smoothing_sigmas"] = smoothing_sigmas
 
         # PARALLEL PROCESSING EXTENSION
         print(self.scriptPath)

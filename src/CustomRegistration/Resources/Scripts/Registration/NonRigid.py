@@ -14,6 +14,7 @@ fixed_image = input["fixed_image"]
 moving_image = input["moving_image"]
 # user inputs
 parameters = input["parameters"]
+algorithm = parameters["algorithm"]
 volume_name = parameters["volume_name"]
 metrics_name = parameters["metrics"]
 interpolator_name = parameters["interpolator"]
@@ -35,37 +36,48 @@ optimizer_scale = parameters["optimizer_scale"]
 solution_acc = parameters["solution_accuracy"]
 nb_iter_lbfgs2 = parameters["nb_iter_lbfgs2"]
 delta_conv_tol = parameters["delta_convergence_tolerance"]
+# parameters for bspline
+transform_domain_mesh_size = parameters["transform_domain_mesh_size"]
+scale_factor = parameters["scale_factor"]
+shrink_factor = parameters["shrink_factor"]
+smoothing_sigmas = parameters["smoothing_sigmas"]
 
 
 def main():
-    transformDomainMeshSize = [2] * fixed_image.GetDimension()
-    tx = sitk.BSplineTransformInitializer(fixed_image, transformDomainMeshSize)
+    if algorithm == "Non Rigid Demons":
+        demons = sitk.DemonsRegistrationFilter()
+        demons.SetNumberOfIterations(nb_iteration)
+        demons.SetStandardDeviations(1.0)
+        displacementField = demons.Execute(fixed_image, moving_image)
+        outTx = sitk.DisplacementFieldTransform(displacementField)
+    else:
+        transformDomainMeshSize = [transform_domain_mesh_size] * fixed_image.GetDimension()
+        tx = sitk.BSplineTransformInitializer(fixed_image, transformDomainMeshSize)
 
-    print(f"Initial Number of Parameters: {tx.GetNumberOfParameters()}")
+        R = sitk.ImageRegistrationMethod()
+        util.select_metrics(R, bin_count, metrics_name)
+        util.select_interpolator(R, interpolator_name)
+        util.select_optimizer_and_setup(
+            R,
+            optimizer_name,
+            learning_rate,
+            nb_iteration,
+            convergence_min_val,
+            convergence_win_size,
+            nb_of_steps,
+            step_length,
+            optimizer_scale,
+            solution_acc,
+            nb_iter_lbfgs2,
+            delta_conv_tol,
+        )
 
-    R = sitk.ImageRegistrationMethod()
-    util.select_metrics(R, bin_count, metrics_name)
-    util.select_interpolator(R, interpolator_name)
-    util.select_optimizer_and_setup(
-        R,
-        optimizer_name,
-        learning_rate,
-        nb_iteration,
-        convergence_min_val,
-        convergence_win_size,
-        nb_of_steps,
-        step_length,
-        optimizer_scale,
-        solution_acc,
-        nb_iter_lbfgs2,
-        delta_conv_tol,
-    )
+        R.SetInitialTransformAsBSpline(tx, inPlace=True, scaleFactors=scale_factor)
+        R.SetShrinkFactorsPerLevel(shrink_factor)
+        R.SetSmoothingSigmasPerLevel(smoothing_sigmas)
+        outTx = R.Execute(fixed_image, moving_image)
 
-    R.SetInitialTransformAsBSpline(tx, inPlace=True, scaleFactors=[1, 2, 5])
-    R.SetShrinkFactorsPerLevel([4, 2, 1])
-    R.SetSmoothingSigmasPerLevel([4, 2, 1])
 
-    outTx = R.Execute(fixed_image, moving_image)
     resampled = sitk.Resample(
         moving_image,
         fixed_image,
