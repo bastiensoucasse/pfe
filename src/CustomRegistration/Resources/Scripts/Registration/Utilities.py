@@ -105,3 +105,6 @@ def select_optimizer_and_setup(
             deltaConvergenceTolerance=delta_conv_tol,
         )
 
+def get_demons_algorithm(name):
+    demons = getattr(sitk, f"{name}RegistrationFilter")
+    return demons()

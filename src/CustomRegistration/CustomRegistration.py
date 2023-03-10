@@ -942,7 +942,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.sitk_combo_box = self.panel.findChild(
             ctkComboBox, "ComboBoxSitk"
         )
-        self.sitk_combo_box.addItems(["Rigid (6DOF)", "Non Rigid Bspline (>27DOF)", "Non Rigid Demons"])
+        self.sitk_combo_box.addItems(["Rigid (6DOF)",
+        "Non Rigid Bspline (>27DOF)",
+        "Demons",
+        "Diffeomorphic Demons",
+        "Fast Symmetric Forces Demons",
+        "SymmetricForcesDemons"])
 
         self.elastix_combo_box = self.panel.findChild(
             ctkComboBox, "ComboBoxElastix"
@@ -1117,11 +1122,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # if bspline, set visible psbline parameters
             if index == 1:
                 self.bspline_group_box.setEnabled(True)
-            if index == 2:
+            if index >= 2:
                 self.demons_group_box.setEnabled(True)
             if index == 0:
                 self.scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
-            if index == 1 or index == 2:
+            if index >= 1:
                 self.scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
         # else elastix presets, scriptPath is None to verify later which function to use (custom_script_registration or elastix_registration)
         else:
@@ -1200,13 +1205,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: settings for demons
         demons_nb_iter = int(self.demons_nb_iter.text)
         demons_std_dev = float(self.demons_std_deviation.text)
+        print(demons_nb_iter)
+        print(demons_std_dev)
 
         input = {}
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         volume_name = f"{self.input_volume.GetName()}_registered_{current_time}"
         if self.volume_name_edit.text:
             volume_name = f"{self.volume_name_edit.text}_registered_{current_time}"
-        input["algorithm"] = self.sitk_combo_box.currentText
+        input["algorithm"] = self.sitk_combo_box.currentText.replace(" ", "")
         input["volume_name"] = volume_name
         input["histogram_bin_count"] = bin_count
         input["sampling_strategy"] = sampling_strat
@@ -1230,7 +1237,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["smoothing_sigmas"] = smoothing_sigmas
         input["demons_nb_iter"] = demons_nb_iter
         input["demons_std_dev"] = demons_std_dev
-
         # PARALLEL PROCESSING EXTENSION
         print(self.scriptPath)
         if self.scriptPath:

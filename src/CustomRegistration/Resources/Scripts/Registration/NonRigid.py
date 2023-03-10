@@ -47,10 +47,11 @@ demons_std_dev = parameters["demons_std_dev"]
 
 
 def main():
-    if algorithm == "Non Rigid Demons":
-        demons = sitk.DemonsRegistrationFilter()
-        demons.SetNumberOfIterations(demons_nb_iter)
+    if "Demons" in algorithm:
+        demons = util.get_demons_algorithm(algorithm)
+        demons.SetNumberOfIterations(NumberOfIterations=demons_nb_iter)
         demons.SetStandardDeviations(demons_std_dev)
+        moving_image.SetOrigin(fixed_image.GetOrigin())
         displacementField = demons.Execute(fixed_image, moving_image)
         outTx = sitk.DisplacementFieldTransform(displacementField)
     else:
