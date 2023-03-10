@@ -1247,9 +1247,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def iteration_callback(self, filter):
         print('\r{0:.2f}'.format(filter.GetMetricValue()), end='')
-    # :TODO: correct non rigid registration
-    # :TODO: correct LBFGS2 optimizer
-    # :TODO: add a new non-rigid registration algorithm
+
+    # :TODO: add tests
+    # :TODO: clean code (delete print, organize everything)
     def custom_script_registration(self, scriptPath, fixed_image, moving_image, input):
         self.elastix_logic = None
         self.process_logic = ProcessesLogic(completedCallback=lambda: self.on_registration_completed())
@@ -1265,6 +1265,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def elastix_registration(self):
         self.regProcess = None
+        self.elastix_logic = Elastix.ElastixLogic()
         self.button_registration.setEnabled(False)
         self.button_cancel.setEnabled(True)
         self.activate_timer_and_progress_bar()
@@ -1273,7 +1274,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         preset = self.elastix_combo_box.currentIndex
         parameterFilenames = self.elastix_logic.getRegistrationPresets()[preset][Elastix.RegistrationPresets_ParameterFilenames]
         print(parameterFilenames)
-        #parameterFilenames = "Parameters_BSpline.txt"
         new_volume = mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
         try:
             self.elastix_logic.registerVolumes(self.target_volume, self.input_volume, parameterFilenames = parameterFilenames, outputVolumeNode = new_volume)
