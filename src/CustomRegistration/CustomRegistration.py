@@ -973,6 +973,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             QLineEdit, "lineEditSmoothingFactor"
         )
 
+        # :COMMENT: Demons only
+        self.demons_group_box = self.panel.findChild(
+            QGroupBox, "groupBoxDemons"
+        )
+        self.demons_nb_iter = self.panel.findChild(
+            QLineEdit, "lineEditDemonsNbIter"
+        )
+        self.demons_std_deviation = self.panel.findChild(
+            QLineEdit, "lineEditDemonsStdDeviation"
+        )
+
         # :COMMENT: Gradients parameters
         self.gradients_box = self.panel.findChild(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxGradient"
@@ -1061,6 +1072,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.sampling_strat_combo_box.setCurrentIndex(2)
         self.volume_name_edit.text = ""
         self.bspline_group_box.setEnabled(False)
+        self.demons_group_box.setEnabled(False)
 
         self.update_optimizer_parameters_group_box()
 
@@ -1087,25 +1099,29 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.lbfgs2_box.collapsed = 0
 
     def update_registration_combo_box(self, is_sitk: bool, index: int) -> None:
+        print(index)
         self.metrics_combo_box.setEnabled(False)
         self.interpolator_combo_box.setEnabled(False)
         self.optimizers_combo_box.setEnabled(False)
         self.settings_registration.setEnabled(False)
         self.bspline_group_box.setEnabled(False)
+        self.demons_group_box.setEnabled(False)
         if is_sitk:
+            self.settings_registration.setEnabled(True)
             self.elastix_combo_box.setCurrentIndex(-1)
             # if rigid or bspline, those settings can be changed, thus are enabled
             if index == 0 or index == 1:
                 self.metrics_combo_box.setEnabled(True)
                 self.interpolator_combo_box.setEnabled(True)
                 self.optimizers_combo_box.setEnabled(True)
-                self.settings_registration.setEnabled(True)
             # if bspline, set visible psbline parameters
-            if self.sitk_combo_box.currentIndex == 1:
+            if index == 1:
                 self.bspline_group_box.setEnabled(True)
-            if self.sitk_combo_box.currentIndex == 0:
+            if index == 2:
+                self.demons_group_box.setEnabled(True)
+            if index == 0:
                 self.scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
-            if self.sitk_combo_box.currentIndex == 1 or self.sitk_combo_box.currentIndex == 2:
+            if index == 1 or index == 2:
                 self.scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
         # else elastix presets, scriptPath is None to verify later which function to use (custom_script_registration or elastix_registration)
         else:
@@ -1176,10 +1192,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.optimizer_scale = self.opti_scale_edit.text
         self.optimizer_scale = [int(scale) for scale in self.optimizer_scale.split(",")]
 
-        # :COMMENT settings for LBFGS2
+        # :COMMENT: settings for LBFGS2
         solution_acc = self.solution_accuracy_edit.text
         nb_iter_lbfgs2 = self.nb_iter_lbfgs2.value
         delta_conv_tol = self.delta_conv_tol_edit.text
+
+        # :COMMENT: settings for demons
+        demons_nb_iter = int(self.demons_nb_iter.text)
+        demons_std_dev = float(self.demons_std_deviation.text)
 
         input = {}
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -1208,6 +1228,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["scale_factor"] = scale_factor
         input["shrink_factor"] = shrink_factor
         input["smoothing_sigmas"] = smoothing_sigmas
+        input["demons_nb_iter"] = demons_nb_iter
+        input["demons_std_dev"] = demons_std_dev
 
         # PARALLEL PROCESSING EXTENSION
         print(self.scriptPath)

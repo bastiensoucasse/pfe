@@ -41,13 +41,16 @@ transform_domain_mesh_size = parameters["transform_domain_mesh_size"]
 scale_factor = parameters["scale_factor"]
 shrink_factor = parameters["shrink_factor"]
 smoothing_sigmas = parameters["smoothing_sigmas"]
+# parameters for demons
+demons_nb_iter = parameters["demons_nb_iter"]
+demons_std_dev = parameters["demons_std_dev"]
 
 
 def main():
     if algorithm == "Non Rigid Demons":
         demons = sitk.DemonsRegistrationFilter()
-        demons.SetNumberOfIterations(nb_iteration)
-        demons.SetStandardDeviations(1.0)
+        demons.SetNumberOfIterations(demons_nb_iter)
+        demons.SetStandardDeviations(demons_std_dev)
         displacementField = demons.Execute(fixed_image, moving_image)
         outTx = sitk.DisplacementFieldTransform(displacementField)
     else:
