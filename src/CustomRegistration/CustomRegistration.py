@@ -1727,6 +1727,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                         ui_file_label.setText(os.path.basename(path))
                         self.plugin_loading_ui_file = path
 
+                    dialog.raise_()
+
                 # :COMMENT: Create a file dialog for the UI file.
                 ui_file_dialog = QFileDialog(self.parent)
                 ui_file_dialog.setFileMode(QFileDialog.ExistingFile)
@@ -1752,6 +1754,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                         path = python_file_dialog.selectedFiles()[0]
                         python_file_label.setText(os.path.basename(path))
                         self.plugin_loading_python_file = path
+
+                    dialog.raise_()
 
                 # :COMMENT: Create a file dialog for the Python file.
                 python_file_dialog = QFileDialog(self.parent)
