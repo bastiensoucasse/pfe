@@ -82,95 +82,229 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
     def __init__(self) -> None:
         ScriptedLoadableModuleLogic.__init__(self)
 
-    def create_mask(self, image: sitk.Image, threshold: int) -> sitk.Image:
+    def create_mask(
+        self, volume: vtkMRMLScalarVolumeNode, threshold: int
+    ) -> vtkMRMLScalarVolumeNode:
         """
         Create a binary mask that selects the voxel of the image that are greater than the threshold.
 
         Parameters:
-            image: The SimpleITK image.
+            volume: The VTK Volume.
             threshold: The threshold value.
 
         Returns:
-            The ROI binary mask SimpleITK image.
+            The ROI binary mask as a VTK volume.
         """
 
         # :COMMENT: Apply threshold filter.
-        binary_image = sitk.BinaryThreshold(
-            image, lowerThreshold=threshold, upperThreshold=1000000
+        mask = self.sitk_to_vtk(
+            sitk.BinaryThreshold(
+                self.vtk_to_sitk(volume),
+                lowerThreshold=threshold,
+                upperThreshold=1000000,
+            )
         )
-        return binary_image
+        self.transfer_volume_metadata(volume, mask)
+        return mask
 
-    def select_roi(self, image: sitk.Image, binary_image: sitk.Image) -> sitk.Image:
+    def select_roi(
+        self, volume: vtkMRMLScalarVolumeNode, mask: vtkMRMLScalarVolumeNode
+    ) -> vtkMRMLScalarVolumeNode:
         """
         Selects as ROI the largest connected component after a threshold.
 
         Parameters:
-            image: The SimpleITK image.
-            binary_image: The ROI binary mask SimpleITK image.
+            volume: The VTK volume to select the ROI from.
+            mask: The ROI binary mask as a SimpleITK image.
             threshold: The threshold value.
 
         Returns:
-            The ROI SimpleITK image.
+            The VTK volume representing the ROI of the input volume.
         """
 
         # :COMMENT: Apply connected component filter.
-        label_map = sitk.ConnectedComponent(binary_image)
+        label_map = sitk.ConnectedComponent(self.vtk_to_sitk(mask))
+
+        # :COMMENT: Convert the VTK volume to a SimpleITK image.
+        image = self.vtk_to_sitk(volume)
 
         # :COMMENT: Find largest connected component.
         label_shape_stats = sitk.LabelShapeStatisticsImageFilter()
         label_shape_stats.Execute(label_map)
-
         largest_label = 1
-        max_volume = 0
+        max_image = 0
         for label in range(1, label_shape_stats.GetNumberOfLabels() + 1):
-            volume = label_shape_stats.GetPhysicalSize(label)
-            if volume > max_volume:
-                max_volume = volume
+            image = label_shape_stats.GetPhysicalSize(label)
+            if image > max_image:
+                max_image = image
                 largest_label = label
 
         # :COMMENT: Use binary image of largest connected component as ROI.
         roi_binary = sitk.BinaryThreshold(
             label_map, lowerThreshold=largest_label, upperThreshold=largest_label
         )
-        roi = sitk.Mask(image, roi_binary)
+
+        # :COMMENT: Convert the SimpleITK image back to a VTK Volume and return it.
+        roi = self.sitk_to_vtk(sitk.Mask(image, roi_binary))
+        self.transform_volume_metadata(volume, roi)
         return roi
 
-    def crop(self, image: sitk.Image, start, end) -> sitk.Image:
+    def crop(
+        self, volume: vtkMRMLScalarVolumeNode, start, end
+    ) -> vtkMRMLScalarVolumeNode:
         """
         Crops a volume using the selected algorithm.
 
         Parameters:
-            image: The SimpleITK image to be cropped.
+            volume: The VTK volume to be cropped.
             start: The start index of the cropping region.
             end: The end index of the cropping region.
 
         Returns:
-            The cropped SimpleITK image.
+            The cropped VTK volume.
         """
 
+        # :TODO:Iantsa: Delete former implementation when done with report.
         # crop_filter = sitk.ExtractImageFilter()
         # crop_filter.SetIndex(index)
         # crop_filter.SetSize(size)
         # cropped_image = crop_filter.Execute(image)
         # return cropped_image
 
-        # Get the size of the original image
+        # :COMMENT: Convert the volume to a SimpleITK image.
+        image = self.vtk_to_sitk(volume)
+
+        # :COMMENT: Get the size of the original image.
         size = image.GetSize()
 
-        # Create a cropping filter
+        # :COMMENT: Create a cropping filter.
         crop_filter = sitk.CropImageFilter()
 
-        # Set the lower and upper cropping indices
+        # :COMMENT: Set the lower and upper cropping indices
         crop_filter.SetLowerBoundaryCropSize(start)
         crop_filter.SetUpperBoundaryCropSize([size[i] - end[i] for i in range(3)])
 
-        # Crop the image
+        # :COMMENT: Crop the image.
         cropped_image = crop_filter.Execute(image)
 
-        return cropped_image
+        # :COMMENT: Convert the cropped SimpleITK image back to a VTK Volume.
+        cropped_volume = self.sitk_to_vtk(cropped_image)
+
+        # :COMMENT: Transfer the initial volume metadata.
+        self.transfer_volume_metadata(volume, cropped_volume)
+
+        return cropped_volume
+
+    def resample(
+        self,
+        input_volume: vtkMRMLScalarVolumeNode,
+        target_volume: vtkMRMLScalarVolumeNode,
+    ) -> vtkMRMLScalarVolumeNode:
+        """
+        Resamples a volume selected as input to march a volume selected as target (dimensions, pixel size).
+
+        Parameters:
+            input_volume: The VTK volume selected as input volume.
+            target_volume: The VTK volume selected as target volume.
+
+        Returns:
+            The resampled version of the input volume, matchin the target volume.
+        """
+
+        # :COMMENT: Use the default transform.
+        transform = sitk.Transform()
+
+        # :COMMENT: Use the default interpolation.
+        interpolator = sitk.sitkLinear
+
+        # :COMMENT: Resample the input image to match the reference image's size, spacing, and origin.
+        resampled_volume = self.sitk_to_vtk(
+            sitk.Resample(
+                self.vtk_to_sitk(input_volume),
+                self.vtk_to_sitk(target_volume),
+                transform,
+                interpolator,
+            )
+        )
+        self.transfer_volume_metadata(input_volume, resampled_volume)
+
+        # :COMMENT: Return the resampled image.
+        return resampled_volume
+
+    #
+    # UTILITIES
+    #
+
+    def vtk_to_sitk(self, volume: vtkMRMLScalarVolumeNode) -> sitk.Image:
+        """
+        Converts a VTK volume into a SimpleITK image.
+
+        Parameters:
+            volume: The VTK volume to convert.
+
+        Returns:
+            The SimpleITK image.
+        """
+
+        volume_image_data = volume.GetImageData()
+        np_array = vtk.util.numpy_support.vtk_to_numpy(volume_image_data.GetPointData().GetScalars())  # type: ignore
+        np_array = np.reshape(np_array, volume_image_data.GetDimensions()[::-1])
+        image = sitk.GetImageFromArray(np_array)
+        return image
+
+    def sitk_to_vtk(self, image: sitk.Image) -> vtkMRMLScalarVolumeNode:
+        """
+        Converts a SimpleITK image to a VTK volume.
+
+        Parameters:
+            image: The SimpleITK image to convert.
+
+        Returns:
+            The VTK volume.
+        """
+
+        np_array = sitk.GetArrayFromImage(image)
+        volume_image_data = vtk.vtkImageData()
+        volume_image_data.SetDimensions(np_array.shape[::-1])
+        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())  # type: ignore
+        volume_image_data.GetPointData().SetScalars(vtk_array)
+        volume = vtkMRMLScalarVolumeNode()
+        volume.SetAndObserveImageData(volume_image_data)
+        return volume
+
+    def transfer_volume_metadata(
+        self,
+        source_volume: vtkMRMLScalarVolumeNode,
+        target_volume: vtkMRMLScalarVolumeNode,
+    ) -> None:
+        """
+        Copies the metadata from the source volume to the target volume.
+
+        Parameters:
+            source_volume: The VTK volume to copy the metadata from.
+            target_volume: The VTK volume to copy the metadata to.
+        """
+
+        # :COMMENT: Retrieve the metadata from the source volume.
+        spacing = source_volume.GetSpacing()
+        origin = source_volume.GetOrigin()
+        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
+        source_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+
+        # :COMMENT: Apply the metadata to the target volume.
+        target_volume.SetSpacing(spacing)
+        target_volume.SetOrigin(origin)
+        target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+
+    #
+    # DEPRECATED
+    #
 
     def run(self, script_file: str, function_name: str, *args, **kwargs):
         """
+        [DEPRECATED]
+
         Loads and runs a script file.
 
         Parameters:
@@ -182,6 +316,11 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         Returns:
             The result returned.
         """
+
+        # :COMMENT: Add the depracted warning.
+        from warnings import warn
+
+        warn("The run logic method is deprecated.", DeprecationWarning, stacklevel=2)
 
         # :COMMENT: Load the script file.
         with open(script_file, "r") as f:
@@ -551,6 +690,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the ROI selection widget.
         """
 
+        # :COMMENT: Create a color table node that assigns the ROI selection to red.
+        self.color_table_node = mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode")
+        self.color_table_node.SetTypeToUser()
+        self.color_table_node.SetNumberOfColors(2)
+        self.color_table_node.SetColor(0, 0.0, 0.0, 0.0, 0.0)
+        self.color_table_node.SetColor(1, 1.0, 0.0, 0.0, 1.0)
+
         # :COMMENT: Get the collapsible button widget.
         self.roi_collapsible_button = self.get_ui(
             ctkCollapsibleButton, "ROISelectionCollapsibleWidget"
@@ -579,6 +725,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.roi_selection_button.clicked.connect(self.select_roi)
 
         # :COMMENT: Initialize the ROI selection.
+        self.mask = None
         self.reset_roi_selection()
 
     def reset_roi_selection(self) -> None:
@@ -590,13 +737,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.volume_roi_map = {}
 
         # :COMMENT: Reset the temporary ROI node and update the ROI selection parameters.
-        self.tmp_input_roi = None
-        self.input_roi_preview = None
+        if self.mask:
+            mrmlScene.RemoveNode(self.mask)
+            self.mask = None
 
         # :COMMENT: Compute the ROI selection range and value.
         if self.input_volume:
-            input_volume_image_data = self.input_volume.GetImageData()
-            range = input_volume_image_data.GetScalarRange()
+            range = self.input_volume.GetImageData().GetScalarRange()
         else:
             range = (0, 255)
 
@@ -605,7 +752,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.roi_selection_threshold_slider.setMaximum(range[1])
         self.roi_selection_threshold_slider.setValue(range[0])
         self.roi_selection_threshold_value_label.setText(str(range[0]))
-
 
     def preview_roi_selection(self) -> None:
         """
@@ -624,47 +770,32 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if not self.input_volume:
             return
 
+        # :COMMENT: Remove the previous mask if needed.
+        # :BUG:Bastien: Crashes when trying to remove a mask from the scene.
+        # if self.mask:
+        #     print("[DEBUG] Removing previous mask…")
+        #     mrmlScene.RemoveNode(self.mask)
+        #     self.mask = None
+        #     print("[DEBUG] Done.")
+
         # :COMMENT: Call the ROI selection algorithm.
-        self.tmp_input_roi = self.logic.create_mask(
-            self.vtk_to_sitk(self.input_volume), threshold
-        )
-
-        # :COMMENT: Remove the previous input ROI preview if needed.
-        if self.input_roi_preview:
-            mrmlScene.RemoveNode(self.input_roi_preview)
-
-        # :COMMENT: Convert the SimpleITK image ROI into a VTK Volume Node.
-        self.input_roi_preview = self.sitk_to_vtk(self.tmp_input_roi)
+        self.mask = self.logic.create_mask(self.input_volume, threshold)
 
         # :COMMENT: Get or create the new volume display node.
-        input_vtk_roi_display_node = self.input_roi_preview.GetDisplayNode()
-        if input_vtk_roi_display_node is None:
-            input_vtk_roi_display_node = vtkMRMLScalarVolumeDisplayNode()
-            mrmlScene.AddNode(input_vtk_roi_display_node)
-            self.input_roi_preview.SetAndObserveDisplayNodeID(
-                input_vtk_roi_display_node.GetID()
-            )
-
-        # :COMMENT: Create a color table node that assigns the ROI selection to red.
-        color_table_node = mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode")
-        color_table_node.SetTypeToUser()
-        color_table_node.SetNumberOfColors(2)
-        color_table_node.SetColor(0, 0.0, 0.0, 0.0, 0.0)
-        color_table_node.SetColor(1, 1.0, 0.0, 0.0, 1.0)
+        mask_display = self.mask.GetDisplayNode()
+        if mask_display is None:
+            mask_display = vtkMRMLScalarVolumeDisplayNode()
+            # :TODO: Remove display node from scene at some point.
+            mrmlScene.AddNode(mask_display)
+            self.mask.SetAndObserveDisplayNodeID(mask_display.GetID())
 
         # :COMMENT: Assign the color map to the volume node.
-        input_vtk_roi_display_node.SetAndObserveColorNodeID(color_table_node.GetID())
-
-        # :COMMENT: Transfer the initial volume metadata.
-        self.transfer_volume_metadata(self.input_volume, self.input_roi_preview)
+        mask_display.SetAndObserveColorNodeID(self.color_table_node.GetID())
 
         # :TMP: Add the volume to the scene to visualize it.
-        # :BUG:Iantsa: Hidden volumes appear in all combo boxes, and can't be hidden.
-        self.input_roi_preview.SetName(f"{self.input_volume.GetName()} ROI Node")
-        mrmlScene.AddNode(self.input_roi_preview)
-        self.slice_composite_nodes[0].SetForegroundVolumeID(
-            self.input_roi_preview.GetID()
-        )
+        self.mask.SetName(f"{self.input_volume.GetName()} ROI Node")
+        mrmlScene.AddNode(self.mask)
+        self.slice_composite_nodes[0].SetForegroundVolumeID(self.mask.GetID())
         self.slice_composite_nodes[0].SetForegroundOpacity(0.5)
 
     def manage_preview_roi_selection(self) -> None:
@@ -680,21 +811,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 return
 
             # :COMMENT: First time opening the ROI selection interface.
-            if not self.input_roi_preview:
+            if not self.mask:
                 # :COMMENT: Create default input roi preview.
-                self.tmp_input_roi = self.logic.create_mask(
-                    self.vtk_to_sitk(self.input_volume), 0
-                )
+                self.mask = self.logic.create_mask(self.input_volume, 0)
 
             else:
                 # :COMMENT: Show the ROI selection preview.
-                self.slice_composite_nodes[0].SetForegroundVolumeID(
-                    self.input_roi_preview.GetID()
-                )
+                self.slice_composite_nodes[0].SetForegroundVolumeID(self.mask.GetID())
 
         # :COMMENT: Collapsible widget closing.
         else:
-            if not self.input_volume or not self.input_roi_preview:
+            if not self.input_volume or not self.mask:
                 return
 
             else:
@@ -714,19 +841,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         name = self.input_volume.GetName()
 
         # :COMMENT: Save the selected ROI.
-        if not self.tmp_input_roi:
-            input_image = self.vtk_to_sitk(self.input_volume)
+        if not self.mask:
             self.volume_roi_map[name] = self.logic.select_roi(
-                input_image, self.logic.create_mask(input_image, 0)
+                self.input_volume, self.logic.create_mask(self.input_volume, 0)
             )
             # :TODO:Iantsa: Display the preview even in the default case.
         else:
-            # :DEPRECATED:Iantsa:
-            # self.input_volume_roi = self.tmp_input_roi
-
             # :COMMENT: Add the new ROI to the volume ROI map.
-            self.volume_roi_map[name] = self.tmp_input_roi
-            self.tmp_input_roi = None
+            self.volume_roi_map[name] = self.mask
+            self.mask = None
 
         # :COMMENT: Log the ROI selection.
         print(
@@ -822,36 +945,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             end_val.append(self.cropping_end[i].value)
 
         # :COMMENT: Check that coordinates are valid.
-        if any(end_val[i] < start_val[i] for i in range(3)):
-            self.display_error_message(
-                "End values must be greater than or equal to start values."
-            )
+        if any(end_val[i] <= start_val[i] for i in range(3)):
             return
-
-        # :COMMENT: Convert the volume to a SimpleITK image.
-        sitk_image = self.vtk_to_sitk(self.input_volume)
-
-        # :COMMENT: Get the size of the crop region.
-        size = [end_val[i] - start_val[i] for i in range(3)]
-
-        # :COMMENT: Crop the image.
-        for i in range(3):
-            if size[i] <= 0:
-                return
-        try:
-            cropped_image = self.logic.crop(sitk_image, start_val, end_val)
-        except TypeError:
-            print("NAH!")
-            return
-
-        # :COMMENT: Convert the cropped SimpleITK image back to a VTK Volume Node.
-        vtk_image = self.sitk_to_vtk(cropped_image)
-
-        # :COMMENT: Transfer the initial volume metadata.
-        self.transfer_volume_metadata(self.input_volume, vtk_image)
 
         # :COMMENT: Save the temporary cropped volume.
-        self.cropped_volume = vtk_image
+        self.cropped_volume = self.logic.crop(self.input_volume, start_val, end_val)
 
         # :COMMENT: Delete the previous cropping box from the scene if exists.
         if self.cropping_box:
@@ -868,7 +966,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Get the bounds of the volume.
         bounds = [0, 0, 0, 0, 0, 0]
-        vtk_image.GetBounds(bounds)
+        # vtk_image.GetBounds(bounds)
+        self.cropped_volume.GetBounds(bounds)
+
+        # :COMMENT: Get the size of the crop region.
+        size = [end_val[i] - start_val[i] for i in range(3)]
 
         # :COMMENT: Calculate the center and radius of the volume.
         center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
@@ -882,7 +984,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
         transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
         transformed_radius = np.matmul(
-            transform_matrix, np.array(vtk_image.GetSpacing()) * np.array(radius)
+            # transform_matrix, np.array(vtk_image.GetSpacing()) * np.array(radius)
+            transform_matrix,
+            np.array(self.cropped_volume.GetSpacing()) * np.array(radius),
         )
 
         # :COMMENT: Set the center and radius of the cropping box to the transformed center and radius.
@@ -934,6 +1038,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if not self.cropped_volume:  # and not self.cropping_box:
             return
 
+        # :COMMENT: Retrieve coordinates input.
+        start_val = []
+        end_val = []
+        for i in range(3):
+            start_val.append(self.cropping_start[i].value)
+            end_val.append(self.cropping_end[i].value)
+
+        # :COMMENT: Check that coordinates are valid.
+        if any(end_val[i] <= start_val[i] for i in range(3)):
+            self.display_error_message("End values must be greater than start values.")
+            return
+
         # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
         mrmlScene.RemoveNode(self.cropping_box)
         self.cropping_box = None
@@ -983,7 +1099,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Retrieves the selected and target volumes and runs the resampling algorithm.
         """
 
-        # :COMMENT: Ensure that a volume is selected as well as a target volume.
+        # :COMMENT: Ensure that the input and target volumes are selected.
         if not self.input_volume:
             self.display_error_message("Please select a volume to resample.")
             return
@@ -992,20 +1108,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             return
 
         # :COMMENT: Call the resampling algorithm.
-        resampled_volume = self.sitk_to_vtk(
-            self.logic.run(
-                self.resourcePath("Scripts/Resampling.py"),
-                "resample",
-                self.vtk_to_sitk(self.input_volume),
-                self.vtk_to_sitk(self.target_volume),
-            )
-        )
-
-        # :COMMENT: Keep the original volume metadata.
-        self.transfer_volume_metadata(self.input_volume, resampled_volume)
-
-        # :COMMENT: Transfer the spacing.
-        self.target_volume.SetSpacing(self.input_volume.GetSpacing())
+        resampled_volume = self.logic.resample(self.input_volume, self.target_volume)
 
         # :COMMENT: Save the resampled volume.
         self.add_new_volume(resampled_volume, "resampled")
@@ -1795,30 +1898,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Return None if the volume was not found.
         return None
 
-    def transfer_volume_metadata(
-        self,
-        source_volume: vtkMRMLScalarVolumeNode,
-        target_volume: vtkMRMLScalarVolumeNode,
-    ) -> None:
-        """
-        Copies the metadata from the source volume to the target volume.
-
-        Parameters:
-            source_volume: The volume to copy the metadata from.
-            target_volume: The volume to copy the metadata to.
-        """
-
-        # :COMMENT: Retrieve the metadata from the source volume.
-        spacing = source_volume.GetSpacing()
-        origin = source_volume.GetOrigin()
-        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
-        source_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
-
-        # :COMMENT: Apply the metadata to the target volume.
-        target_volume.SetSpacing(spacing)
-        target_volume.SetOrigin(origin)
-        target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
-
     def add_new_volume(self, volume, name: str) -> None:
         """
         Adds a new volume to the scene.
@@ -1838,44 +1917,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Update the MRML scene.
         mrmlScene.AddNode(volume)
-
-    def vtk_to_sitk(self, volume: vtkMRMLScalarVolumeNode) -> sitk.Image:
-        """
-        Converts a VTK volume into a SimpleITK image.
-
-        Parameters:
-            volume: The VTK volume to convert.
-
-        Returns:
-            The SimpleITK image.
-        """
-
-        volume_image_data = volume.GetImageData()
-        np_array = vtk.util.numpy_support.vtk_to_numpy(volume_image_data.GetPointData().GetScalars())  # type: ignore
-        np_array = np.reshape(np_array, volume_image_data.GetDimensions()[::-1])
-        image = sitk.GetImageFromArray(np_array)
-        return image
-
-    def sitk_to_vtk(self, image: sitk.Image) -> vtkMRMLScalarVolumeNode:
-        """
-        Converts a SimpleITK image to a VTK volume.
-
-        Parameters:
-            image: The SimpleITK image to convert.
-
-        Returns:
-            The VTK volume.
-        """
-
-        np_array = sitk.GetArrayFromImage(image)
-        volume_image_data = vtk.vtkImageData()
-        volume_image_data.SetDimensions(np_array.shape[::-1])
-        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
-        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())  # type: ignore
-        volume_image_data.GetPointData().SetScalars(vtk_array)
-        volume = vtkMRMLScalarVolumeNode()
-        volume.SetAndObserveImageData(volume_image_data)
-        return volume
 
     def get_ui(self, type, name: str):
         """
@@ -1950,12 +1991,11 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
         cropped_image = sitk.Image()
         try:
             cropped_image = self.logic.crop(image, start, end)
-        except RuntimeError as e:
+        except RuntimeError:
             print("Oupsi...")
             return
 
-
-        # :COMMENT: Add name checking.            
+        # :COMMENT: Add name checking.
 
         # :COMMENT: Check that the resulting cropped image has the expected dimensions.
         expected_size = [50, 150, 150]
