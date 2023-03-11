@@ -19,6 +19,7 @@ from qt import (
     QSlider,
     QSpinBox,
 )
+from scipy.ndimage import gaussian_filter
 from slicer import mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
@@ -238,6 +239,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             np_array2, volume_image_data2.GetDimensions()[::-1]
         ).astype(np.float)
 
+        outputNode = outputNode.astype(np.float)
         # Compute the gradient of each image
         grad_x1, grad_y1, grad_z1 = np.gradient(np_array1)
         grad_x2, grad_y2, grad_z2 = np.gradient(np_array2)
@@ -248,7 +250,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             + np.abs(grad_y1 - grad_y2)
             + np.abs(grad_z1 - grad_z2)
         )
-        outputNode = outputNode.astype(np.float)
+        
 
         #:COMMENT:  Normalize the difference
         outputNode = outputNode / np.linalg.norm(outputNode)
@@ -271,6 +273,69 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
 
         return volume, mean_difference
 
+    def difference_map(self, imageData1, imageData2, name, mode, sigma):
+        dims1 = imageData1.GetImageData().GetDimensions()
+        dims2 = imageData2.GetImageData().GetDimensions()
+        if dims1 != dims2:
+            raise ValueError("Images must have the same dimensions")
+
+        volume_image_data1 = imageData1.GetImageData()
+        np_array1 = vtk.util.numpy_support.vtk_to_numpy(
+            volume_image_data1.GetPointData().GetScalars()
+        )
+        np_array1 = np.reshape(
+            np_array1, volume_image_data1.GetDimensions()[::-1]
+        ).astype(np.float)
+
+        volume_image_data2 = imageData2.GetImageData()
+        np_array2 = vtk.util.numpy_support.vtk_to_numpy(
+            volume_image_data2.GetPointData().GetScalars()
+        )
+        np_array2 = np.reshape(
+            np_array2, volume_image_data2.GetDimensions()[::-1]
+        ).astype(np.float)
+
+        outputNode = outputNode.astype(np.float)
+
+        if mode == 'gradient':
+            #:COMMENT: Compute the gradient of each image
+            grad_x1, grad_y1, grad_z1 = np.gradient(np_array1)
+            grad_x2, grad_y2, grad_z2 = np.gradient(np_array2)
+
+            #:COMMENT:  Compute the difference of the gradient
+            outputNode = (
+                np.abs(grad_x1 - grad_x2)
+                + np.abs(grad_y1 - grad_y2)
+                + np.abs(grad_z1 - grad_z2)
+            )
+        elif mode == 'absolute':
+            outputNode = np.abs(np_array1 - np_array2).astype(np.float)
+        else:
+            raise ValueError("Invalid mode. Mode must be 'gradient' or 'absolute'.")
+        
+        if sigma >= 1:
+            outputNode = gaussian_filter(outputNode, sigma=sigma, mode='reflect')
+
+        #:COMMENT:  Normalize the difference
+        outputNode = outputNode / np.linalg.norm(outputNode)
+
+        #:COMMENT:  Create a new volume node for the output
+        volume_image_data = vtk.vtkImageData()
+        volume_image_data.SetDimensions(outputNode.shape[::-1])
+        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(outputNode.flatten())
+        volume_image_data.GetPointData().SetScalars(vtk_array)
+        volume = vtkMRMLScalarVolumeNode()
+
+        #:COMMENT:  Transfer metadata from the first input image data to the output volume node
+        self.transfer_volume_metadata(imageData1, volume)
+        volume.SetName(name)
+        volume.SetAndObserveImageData(volume_image_data)
+
+        #:COMMENT: Compute the mean of the difference
+        mean_difference = np.mean(outputNode)
+
+        return volume, mean_difference
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     """
