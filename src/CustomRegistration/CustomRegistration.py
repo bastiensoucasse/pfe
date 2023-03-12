@@ -562,11 +562,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 )
             )
 
-        # :COMMENT: Retrieve the volumes that are not ROI Nodes in the scene.
+        # :COMMENT: Retrieve the volumes that are not ROI masks in the scene.
         self.volumes = [
             x
             for x in mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
-            if not x.GetName().endswith("ROI Node")
+            if not x.GetName().endswith("ROI Mask")
         ]
 
         # :COMMENT: Update the volume combo boxes and information.
@@ -740,7 +740,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Connect the ROI selection button to the algorithm.
         self.roi_selection_button.clicked.connect(self.select_roi)
 
-        # :COMMENT: Create an empty dictionary in which each ROI Node will be store for a specific volume.
+        # :COMMENT: Create an empty dictionary in which each ROI mask will be store for a specific volume.
         self.volume_roi_map = {}
 
         # :COMMENT: Initialize the ROI selection.
@@ -794,22 +794,22 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         if self.input_volume:
             mask = mrmlScene.GetFirstNodeByName(
-                f"{self.input_volume.GetName()} ROI Node"
+                f"{self.input_volume.GetName()} ROI Mask"
             )
             while mask:
                 mrmlScene.RemoveNode(mask)
                 mask = mrmlScene.GetFirstNodeByName(
-                    f"{self.input_volume.GetName()} ROI Node"
+                    f"{self.input_volume.GetName()} ROI Mask"
                 )
 
         if self.target_volume:
             mask = mrmlScene.GetFirstNodeByName(
-                f"{self.target_volume.GetName()} ROI Node"
+                f"{self.target_volume.GetName()} ROI Mask"
             )
             while mask:
                 mrmlScene.RemoveNode(mask)
                 mask = mrmlScene.GetFirstNodeByName(
-                    f"{self.target_volume.GetName()} ROI Node"
+                    f"{self.target_volume.GetName()} ROI Mask"
                 )
 
         self.input_mask = None
@@ -856,7 +856,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             input_mask_display.SetAndObserveColorNodeID(self.color_table_node.GetID())
 
             # :COMMENT: Add the mask to the scene to visualize it.
-            self.input_mask.SetName(f"{self.input_volume.GetName()} ROI Node")
+            self.input_mask.SetName(f"{self.input_volume.GetName()} ROI Mask")
             mrmlScene.AddNode(self.input_mask)
 
         if self.target_volume:
@@ -876,7 +876,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             target_mask_display.SetAndObserveColorNodeID(self.color_table_node.GetID())
 
             # :COMMENT: Add the mask to the scene to visualize it.
-            self.target_mask.SetName(f"{self.target_volume.GetName()} ROI Node")
+            self.target_mask.SetName(f"{self.target_volume.GetName()} ROI Mask")
             mrmlScene.AddNode(self.target_mask)
 
     def manage_preview_roi_selection(self) -> None:
