@@ -762,9 +762,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Clears the temporary ROI selection data.
         """
 
-        # :BUG:Bastien: Crashes when trying to remove a mask from the scene.
         if self.input_volume:
-            mrmlScene.RemoveNode(self.get_volume_by_name(f"{self.input_volume.GetName()} ROI Node"))
+            mask = mrmlScene.GetFirstNodeByName(
+                f"{self.input_volume.GetName()} ROI Node"
+            )
+            while mask is not None:
+                mrmlScene.RemoveNode(mask)
+                mask = mrmlScene.GetFirstNodeByName(
+                    f"{self.input_volume.GetName()} ROI Node"
+                )
 
         self.mask = None
 
@@ -829,7 +835,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
             # :COMMENT: Compute a mask if it's the first time opening the ROI selection interface.
             if not self.mask:
-                self.mask = self.logic.create_mask(self.input_volume, self.roi_selection_threshold_slider.value)
+                self.mask = self.logic.create_mask(
+                    self.input_volume, self.roi_selection_threshold_slider.value
+                )
 
             # :COMMENT: Display the mask (if it already existed or if it has just been created).
             self.slice_composite_nodes[0].SetForegroundVolumeID(self.mask.GetID())
@@ -853,12 +861,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Compute missing mask if needed.
         if not self.mask:
-            self.mask = self.logic.create_mask(self.input_volume, self.roi_selection_threshold_slider.value)
+            self.mask = self.logic.create_mask(
+                self.input_volume, self.roi_selection_threshold_slider.value
+            )
 
         # :COMMENT: Compute and save the ROI using the mask.
-        roi = self.logic.select_roi(
-            self.input_volume, self.mask
-        )
+        roi = self.logic.select_roi(self.input_volume, self.mask)
         self.volume_roi_map[name] = roi
 
         # :COMMENT: Clear the temporary ROI selection data.
