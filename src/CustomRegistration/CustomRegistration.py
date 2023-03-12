@@ -96,8 +96,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             The ROI binary mask as a VTK volume.
         """
 
-        # :COMMENT: Apply threshold filter.
-        mask = self.sitk_to_vtk(
+        mask: vtkMRMLScalarVolumeNode = self.sitk_to_vtk(
             sitk.BinaryThreshold(
                 self.vtk_to_sitk(volume),
                 lowerThreshold=threshold,
@@ -115,7 +114,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
 
         Parameters:
             volume: The VTK volume to select the ROI from.
-            mask: The ROI binary mask as a SimpleITK image.
+            mask_volume: The ROI binary mask as a SimpleITK image.
             threshold: The threshold value.
 
         Returns:
@@ -125,28 +124,24 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         # :COMMENT: Apply connected component filter.
         label_map = sitk.ConnectedComponent(self.vtk_to_sitk(mask))
 
-        # :COMMENT: Convert the VTK volume to a SimpleITK image.
-        image = self.vtk_to_sitk(volume)
-
         # :COMMENT: Find largest connected component.
         label_shape_stats = sitk.LabelShapeStatisticsImageFilter()
         label_shape_stats.Execute(label_map)
+        max_size = 0
         largest_label = 1
-        max_image = 0
         for label in range(1, label_shape_stats.GetNumberOfLabels() + 1):
-            image = label_shape_stats.GetPhysicalSize(label)
-            if image > max_image:
-                max_image = image
+            size = label_shape_stats.GetPhysicalSize(label)
+            if size > max_size:
+                max_size = size
                 largest_label = label
 
         # :COMMENT: Use binary image of largest connected component as ROI.
-        roi_binary = sitk.BinaryThreshold(
+        binary = sitk.BinaryThreshold(
             label_map, lowerThreshold=largest_label, upperThreshold=largest_label
         )
 
-        # :COMMENT: Convert the SimpleITK image back to a VTK volume and return it.
-        roi = self.sitk_to_vtk(sitk.Mask(image, roi_binary))
-        self.transform_volume_metadata(volume, roi)
+        roi = self.sitk_to_vtk(sitk.Mask(self.vtk_to_sitk(volume), binary))
+        self.transfer_volume_metadata(volume, roi)
         return roi
 
     def crop(
@@ -227,8 +222,6 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             )
         )
         self.transfer_volume_metadata(input_volume, resampled_volume)
-
-        # :COMMENT: Return the resampled image.
         return resampled_volume
 
     #
@@ -724,6 +717,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Connect the ROI selection button to the algorithm.
         self.roi_selection_button.clicked.connect(self.select_roi)
 
+        # :COMMENT: Create an empty dictionary in which each ROI Node will be store for a specific volume.
+        self.volume_roi_map = {}
+
         # :COMMENT: Initialize the ROI selection.
         self.mask = None
         self.reset_roi_selection()
@@ -735,9 +731,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Disable the preview before resetting the cropping parameters.
         self.roi_selection_preview_is_allowed = False
-
-        # :COMMENT: Create an empty dictionary in which each ROI Node will be store for a specific volume.
-        self.volume_roi_map = {}
 
         # :COMMENT: Remove the previous mask if needed.
         self.clear_roi_selection_mask()
@@ -869,13 +862,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         roi = self.logic.select_roi(self.input_volume, self.mask)
         self.volume_roi_map[name] = roi
 
-        # :COMMENT: Clear the temporary ROI selection data.
-        self.clear_roi_selection_mask()
-
         # :COMMENT: Log the ROI selection.
         print(
             f'ROI has been selected with a threshold value of {self.roi_selection_threshold_slider.value} in "{name}".'
         )
+
+        # :COMMENT: Reset the ROI selection data.
+        self.reset_roi_selection()
 
     #
     # CROPPING
