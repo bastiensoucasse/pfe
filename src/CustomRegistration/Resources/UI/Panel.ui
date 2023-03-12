@@ -307,9 +307,16 @@
           </widget>
          </item>
          <item>
-          <layout class="QHBoxLayout" name="ROISelectionThresholdLayout">
+          <layout class="QHBoxLayout" name="InputROISelectionThresholdLayout">
            <item>
-            <widget class="QSlider" name="ROISelectionThresholdSlider">
+            <widget class="QLabel" name="InputROISelectionThresholdLabel">
+             <property name="text">
+              <string>Input:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSlider" name="InputROISelectionThresholdSlider">
              <property name="maximum">
               <number>255</number>
              </property>
@@ -334,7 +341,50 @@
             </widget>
            </item>
            <item>
-            <widget class="QLabel" name="ROISelectionThresholdValueLabel">
+            <widget class="QLabel" name="InputROISelectionThresholdValueLabel">
+             <property name="text">
+              <string>0</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="TargetROISelectionThresholdLayout">
+           <item>
+            <widget class="QLabel" name="TargetROISelectionThresholdLabel">
+             <property name="text">
+              <string>Target:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSlider" name="TargetROISelectionThresholdSlider">
+             <property name="maximum">
+              <number>255</number>
+             </property>
+             <property name="tracking">
+              <bool>true</bool>
+             </property>
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="invertedAppearance">
+              <bool>false</bool>
+             </property>
+             <property name="invertedControls">
+              <bool>false</bool>
+             </property>
+             <property name="tickPosition">
+              <enum>QSlider::NoTicks</enum>
+             </property>
+             <property name="tickInterval">
+              <number>10</number>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="TargetROISelectionThresholdValueLabel">
              <property name="text">
               <string>0</string>
              </property>
