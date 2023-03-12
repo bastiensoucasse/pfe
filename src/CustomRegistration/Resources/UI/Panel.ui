@@ -256,7 +256,7 @@
      <property name="collapsed">
       <bool>false</bool>
      </property>
-     <layout class="QVBoxLayout" name="PreprocessingVerticalLayout" stretch="0,0,0,0">
+     <layout class="QVBoxLayout" name="PreprocessingVerticalLayout" stretch="0,0,0">
       <property name="spacing">
        <number>12</number>
       </property>
@@ -380,55 +380,19 @@
           <number>12</number>
          </property>
          <item>
-          <widget class="QLabel" name="label_8">
+          <widget class="QLabel" name="CroppingInstructionLabel">
            <property name="text">
             <string>Crop a volume according to a start point and an end point.</string>
            </property>
           </widget>
          </item>
          <item>
-          <layout class="QGridLayout" name="crop_interface">
+          <layout class="QGridLayout" name="CroppingLayout">
            <item row="3" column="2">
             <widget class="QSpinBox" name="ez"/>
            </item>
-           <item row="1" column="2">
-            <widget class="QSpinBox" name="ex"/>
-           </item>
-           <item row="3" column="0">
-            <widget class="QLabel" name="z">
-             <property name="text">
-              <string>Z</string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="1">
-            <widget class="QSpinBox" name="sz"/>
-           </item>
-           <item row="2" column="2">
-            <widget class="QSpinBox" name="ey"/>
-           </item>
-           <item row="2" column="1">
-            <widget class="QSpinBox" name="sy"/>
-           </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="x">
-             <property name="text">
-              <string>X</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="0">
-            <widget class="QLabel" name="y">
-             <property name="text">
-              <string>Y</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QSpinBox" name="sx"/>
-           </item>
            <item row="0" column="1">
-            <widget class="QLabel" name="label_15">
+            <widget class="QLabel" name="StartLabel">
              <property name="text">
               <string>Start</string>
              </property>
@@ -438,7 +402,7 @@
             </widget>
            </item>
            <item row="0" column="2">
-            <widget class="QLabel" name="label_16">
+            <widget class="QLabel" name="EndLabel">
              <property name="text">
               <string>End</string>
              </property>
@@ -447,12 +411,111 @@
              </property>
             </widget>
            </item>
+           <item row="1" column="2">
+            <widget class="QSpinBox" name="ex"/>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="YLabel">
+             <property name="text">
+              <string>Y</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QSpinBox" name="sx"/>
+           </item>
+           <item row="2" column="1">
+            <widget class="QSpinBox" name="sy"/>
+           </item>
+           <item row="3" column="1">
+            <widget class="QSpinBox" name="sz"/>
+           </item>
+           <item row="2" column="2">
+            <widget class="QSpinBox" name="ey"/>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="XLabel">
+             <property name="text">
+              <string>X</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="ZLabel">
+             <property name="text">
+              <string>Z</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <layout class="QFormLayout" name="formLayout"/>
+           </item>
           </layout>
          </item>
          <item>
-          <widget class="QPushButton" name="crop_button">
+          <widget class="QPushButton" name="CroppingButton">
            <property name="text">
             <string>Crop</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="AutomaticCroppingInstructionLabel">
+           <property name="text">
+            <string>Crop a volume according to ROI selection and length in each axis.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QGridLayout" name="gridLayout">
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <item row="1" column="0">
+            <widget class="QLabel" name="AutomaticYLabel">
+             <property name="text">
+              <string>Y</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="AutomaticXLabel">
+             <property name="minimumSize">
+              <size>
+               <width>110</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="lineWidth">
+              <number>0</number>
+             </property>
+             <property name="text">
+              <string>X</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="AutomaticZLabel">
+             <property name="text">
+              <string>Z</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1" colspan="2">
+            <widget class="QSpinBox" name="xLength"/>
+           </item>
+           <item row="1" column="1" colspan="2">
+            <widget class="QSpinBox" name="yLength"/>
+           </item>
+           <item row="2" column="1" colspan="2">
+            <widget class="QSpinBox" name="zLength"/>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QPushButton" name="AutomaticCroppingButton">
+           <property name="text">
+            <string>Automatic Crop</string>
            </property>
           </widget>
          </item>
@@ -467,7 +530,7 @@
         <property name="collapsed">
          <bool>false</bool>
         </property>
-        <layout class="QVBoxLayout" name="ResamplingVerticalLayout" stretch="0,0,0">
+        <layout class="QVBoxLayout" name="ResamplingVerticalLayout" stretch="0,0">
          <property name="spacing">
           <number>12</number>
          </property>
