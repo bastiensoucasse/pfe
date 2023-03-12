@@ -31,6 +31,7 @@ from qt import (
 )
 from slicer import (
     app,
+    modules,
     mrmlScene,
     util,
     vtkMRMLScalarVolumeDisplayNode,
@@ -1966,6 +1967,20 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
     def __init__(self):
         ScriptedLoadableModuleTest().__init__()
 
+    def resourcePath(self, path: str) -> str:
+        """
+        Returns the absolute path to the resource with the given name.
+
+        Parameters:
+            path: The name of the resource.
+
+        Returns:
+            The absolute path to the resource.
+        """
+
+        module_path = os.path.dirname(modules.customregistration.path)
+        return os.path.join(module_path, "Resources", path)
+
     def runTest(self):
         """
         Runs all the tests in the Custom Registration module.
@@ -1983,23 +1998,9 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
 
         print("Dummy test passed.")
 
-    # :DIRTY: Will be upgraded/fixed according to new crop function.
     def test_cropping(self):
-        # :COMMENT: Create a 3D image with MRHead properties and random voxel intensities.
-        size = [256, 256, 130]
-        spacing = [1.0, 1.0, 1.3]
-        origin = [-86.6449, 133.9286, 116.7857]
-        direction = [0, 0, 1, -1, 0, 0, 0, -1, 0]
-        min = 0
-        max = 1000
-
-        random_array = np.random.randint(min, max, size, dtype=np.int16)
-        random_image = sitk.GetImageFromArray(random_array)
-        random_image.SetSpacing(spacing)
-        random_image.SetOrigin(origin)
-        random_image.SetDirection(direction)
-
-        image = random_image
+        # :COMMENT: Load a volume as test data.
+        volume = util.loadVolume(self.resourcePath("TestData/MR-head.nrrd"))
 
         # :COMMENT: Define the crop parameters.
         start = [50, 50, 50]
@@ -2007,39 +2008,64 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
 
         # :COMMENT: Check that invalid parameters are rejected.
         with self.assertRaises(TypeError):
-            self.logic.crop(image, start, [end[i] + 1000 for i in range(3)])
+            self.logic.crop(volume, start, [end[i] + 1000 for i in range(3)])
 
         with self.assertRaises(TypeError):
-            self.logic.crop(image, [start[i] - 1000 for i in range(3)], end)
+            self.logic.crop(volume, [start[i] - 1000 for i in range(3)], end)
 
         # :COMMENT: Call our function on valid parameters.
-        cropped_image = sitk.Image()
+        cropped_volume = vtkMRMLScalarVolumeNode()
         try:
-            cropped_image = self.logic.crop(image, start, end)
+            cropped_volume = self.logic.crop(volume, start, end)
         except RuntimeError:
-            print("Oupsi...")
+            print("[ERROR] Cropping test failed.")
             return
 
-        # :COMMENT: Add name checking.
-
         # :COMMENT: Check that the resulting cropped image has the expected dimensions.
-        expected_size = [50, 150, 150]
-        self.assertSequenceEqual(cropped_image.GetSize(), expected_size)
+        self.assertSequenceEqual(
+            cropped_volume.GetImageData().GetDimensions(), [150, 150, 50]
+        )
 
-        # # :COMMENT: Check that the resulting cropped image has the expected spacing.
-        # self.assertSequenceEqual(cropped_image.GetSpacing(), spacing)
+        # :COMMENT: Check that the resulting cropped image has the expected spacing.
+        self.assertSequenceEqual(cropped_volume.GetSpacing(), volume.GetSpacing())
 
-        # # :COMMENT: Check that the resulting cropped image has the expected origin.
-        # self.assertSequenceEqual(cropped_image.GetOrigin(), origin)
+        # :COMMENT: Check that the resulting cropped image has the expected origin.
+        self.assertSequenceEqual(cropped_volume.GetOrigin(), volume.GetOrigin())
 
-        # # :COMMENT: Check that the resulting cropped image has the expected direction.
-        # self.assertSequenceEqual(cropped_image.GetDirection(), direction)
+        # :COMMENT: Check that the resulting cropped image has the expected direction.
+        cropped_volume_direction = vtk.vtkMatrix4x4()
+        volume_direction = vtk.vtkMatrix4x4()
 
-        # # :COMMENT: Check that the resulting cropped image has the expected content.
-        # image_array = np.transpose(sitk.GetArrayFromImage(image), (2, 1, 0))
-        # cropped_array = np.transpose(sitk.GetArrayFromImage(cropped_image), (2, 1, 0))
-        # expected_array = image_array[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
-        # self.assertTrue(np.array_equal(cropped_array, expected_array))
+        cropped_volume.GetIJKToRASDirectionMatrix(cropped_volume_direction)
+        volume.GetIJKToRASDirectionMatrix(volume_direction)
+
+        cropped_volume_direction_array = [
+            [int(cropped_volume_direction.GetElement(i, j)) for j in range(4)]
+            for i in range(4)
+        ]
+        volume_direction_array = [
+            [int(volume_direction.GetElement(i, j)) for j in range(4)] for i in range(4)
+        ]
+
+        self.assertSequenceEqual(cropped_volume_direction_array, volume_direction_array)
+
+        # :COMMENT: Check that the resulting cropped image has the expected content.
+        volume_array = vtk.util.numpy_support.vtk_to_numpy(volume.GetImageData().GetPointData().GetScalars())  # type: ignore
+        volume_array = np.reshape(
+            volume_array, volume.GetImageData().GetDimensions()[::-1]
+        )
+
+        cropped_array = vtk.util.numpy_support.vtk_to_numpy(cropped_volume.GetImageData().GetPointData().GetScalars())  # type: ignore
+        cropped_array = np.reshape(
+            cropped_array, cropped_volume.GetImageData().GetDimensions()[::-1]
+        )
+
+        expected_array = volume_array[
+            start[2] : end[2], start[1] : end[1], start[0] : end[0]
+        ]
+        self.assertTrue(np.array_equal(cropped_array, expected_array))
+
+        mrmlScene.RemoveNode(volume)
 
         print("Cropping test passed.")
 
