@@ -968,15 +968,19 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.transform_domain_mesh_size = self.panel.findChild(
             QLineEdit, "lineEditTransformDomainMeshSize"
         )
+        self.transform_domain_mesh_size.editingFinished.connect(self.verify_transform_domain_ms)
         self.scale_factor = self.panel.findChild(
             QLineEdit, "lineEditScaleFactor"
         )
+        self.scale_factor.editingFinished.connect(self.verify_scale_factor)
         self.shrink_factor = self.panel.findChild(
             QLineEdit, "lineEditShrinkFactor"
         )
+        self.shrink_factor.editingFinished.connect(lambda: self.verify_shrink_factor(self.shrink_factor))
         self.smoothing_sigmas = self.panel.findChild(
             QLineEdit, "lineEditSmoothingFactor"
         )
+        self.smoothing_sigmas.editingFinished.connect(lambda: self.verify_shrink_factor(self.smoothing_sigmas))
 
         # :COMMENT: Demons only
         self.demons_group_box = self.panel.findChild(
@@ -1177,8 +1181,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         sampling_perc = self.sampling_perc_spin_box.value
 
         # :COMMENT: Bspline settings only
-        #:test : transform is positve integer
-        #:test : all others have positive 3 positive values (mutli-resolution approach)
+        #test : all others have positive 3 positive values (mutli-resolution approach)
         transform_domain_mesh_size = int(self.transform_domain_mesh_size.text)
         scale_factor = [int(factor) for factor in self.scale_factor.text.split(",")]
         shrink_factor = [int(factor) for factor in self.shrink_factor.text.split(",")]
@@ -1209,7 +1212,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: settings for demons
         demons_nb_iter = int(self.demons_nb_iter.text)
-        #test : positive value
         demons_std_dev = float(self.demons_std_deviation.text)
 
         input = {}
@@ -1416,6 +1418,44 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         except ValueError:
             self.display_error_message("not a value.")
             self.demons_std_deviation.text = "1.0"
+
+    def verify_transform_domain_ms(self):
+        value = self.transform_domain_mesh_size.text
+        try:
+            if int(value) <= 0:
+                self.display_error_message("must be a positive integer.")
+                self.transform_domain_mesh_size.text = "2"
+        except ValueError:
+            self.display_error_message("not a value or float entered.")
+            self.transform_domain_mesh_size.text = "2"
+
+    def verify_scale_factor(self):
+        try:
+            scale_factor = [int(factor) for factor in self.scale_factor.text.split(",")]
+            if len(scale_factor) != 3:
+                self.display_error_message("must have 3 values.")
+                self.scale_factor.text = "1, 2, 5"
+                return
+            if any(factor <0 for factor in scale_factor):
+                self.display_error_message("must have positive values.")
+                self.scale_factor.text = "1, 2, 5"
+        except ValueError:
+            self.display_error_message("not values.")
+            self.scale_factor.text = "1, 2, 5"
+
+    def verify_shrink_factor(self, QLineEdit):
+        try:
+            factor = [int(factor) for factor in QLineEdit.text.split(",")]
+            if len(factor) != 3:
+                self.display_error_message("must have 3 values.")
+                QLineEdit.text = "4, 2, 1"
+                return
+            if any(factor < 0 for factor in factor):
+                self.display_error_message("must have positive values.")
+                QLineEdit.text = "4, 2, 1"
+        except ValueError:
+            self.display_error_message("not values.")
+            QLineEdit.text = "4, 2, 1"
     #
     # INPUT VOLUME
     #
