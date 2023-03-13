@@ -141,8 +141,10 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             label_map, lowerThreshold=largest_label, upperThreshold=largest_label
         )
 
-        roi = self.sitk_to_vtk(sitk.Mask(self.vtk_to_sitk(volume), binary))
+        # roi = self.sitk_to_vtk(sitk.Mask(self.vtk_to_sitk(volume), binary))
+        roi = self.sitk_to_vtk(binary)
         self.transfer_volume_metadata(volume, roi)
+
         return roi
 
     def crop(
@@ -361,7 +363,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         util.setApplicationLogoVisible(False)
         util.setModulePanelTitleVisible(False)
         util.setModuleHelpSectionVisible(False)
-        util.setDataProbeVisible(False)
+        # util.setDataProbeVisible(False)
 
         # :COMMENT: Apply the color palette to the panel.
         self.panel.setPalette(util.mainWindow().palette)
@@ -383,6 +385,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Set up the preprocessing.
         self.setup_roi_selection()
         self.setup_cropping()
+        self.setup_automatic_cropping()
         self.setup_resampling()
 
         # :COMMENT: Set up the registration.
@@ -892,7 +895,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropping_collapsible_button.clicked.connect(self.manage_preview_cropping)
 
         # :COMMENT: Get the crop button widget.
-        self.cropping_button = self.get_ui(QPushButton, "crop_button")
+        self.cropping_button = self.get_ui(QPushButton, "CroppingButton")
         self.cropping_button.clicked.connect(self.crop)
 
         # :COMMENT: Get the coordinates spinbox widgets.
@@ -981,7 +984,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Get the bounds of the volume.
         bounds = [0, 0, 0, 0, 0, 0]
-        # vtk_image.GetBounds(bounds)
         self.cropped_volume.GetBounds(bounds)
 
         # :COMMENT: Get the size of the crop region.
@@ -999,7 +1001,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
         transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
         transformed_radius = np.matmul(
-            # transform_matrix, np.array(vtk_image.GetSpacing()) * np.array(radius)
             transform_matrix,
             np.array(self.cropped_volume.GetSpacing()) * np.array(radius),
         )
@@ -1083,6 +1084,129 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Delete the temporary cropped volume.
         self.cropped_volume = None
+
+    #
+    # AUTOMATIC CROPPING
+    #
+
+    def setup_automatic_cropping(self) -> None:
+        """
+        Sets up the automatic cropping widget by linking the UI to the scene and algorithm.
+        """
+
+        # :COMMENT: Get the automatic crop button widget.
+        self.automatic_cropping_button = self.get_ui(QPushButton, "AutomaticCroppingButton")
+        self.automatic_cropping_button.clicked.connect(self.automatic_crop)
+
+        # :COMMENT: Get the coordinates spinbox widgets.
+        self.automatic_cropping_length = []
+        axis = ["x", "y", "z"]
+        for i in range(len(axis)):
+            self.automatic_cropping_length.append(self.get_ui(QSpinBox, axis[i] + "Length"))
+
+    def reset_automatic_cropping(self) -> None:
+        """
+        Reset the automatic cropping parameters.
+        """
+        # :TODO:Iantsa:
+        return
+
+    def automatic_crop(self) -> None:
+
+        # :COMMENT: Ensure that a volume is selected.
+        if not self.input_volume:
+            self.display_error_message("Please select a volume to automatically crop.")
+            return
+
+        # :COMMENT: Retrieve the name of the selected input volume.
+        name = self.input_volume.GetName()
+
+        # :COMMENT: Check that a ROI has been selected.
+        if name not in self.volume_roi_map:
+            self.display_error_message("Please select a ROI.")
+            return
+        roi = self.volume_roi_map[name] # type: ignore
+
+        # :COMMENT: Retrieve coordinates input.
+        length = []
+        for i in range(3):
+            length.append(self.automatic_cropping_length[i].value)
+
+        # :COMMENT: Get the pixel data array and dimensions of the image data.
+        roi_image_data = roi.GetImageData()
+        dims = roi_image_data.GetDimensions()
+
+        # :COMMENT: Convert the pixel data array into a numpy array.
+        pixel_data_array = vtk.util.numpy_support.vtk_to_numpy(roi_image_data.GetPointData().GetScalars())
+        pixel_data_array = pixel_data_array.reshape(dims, order='F')
+
+        # :COMMENT: Get the bounds of the ROI.
+        mins = [pixel_data_array.shape[i] - 1 for i in range(3)]
+        maxs = [0, 0, 0]
+        it = np.nditer(pixel_data_array, flags=['multi_index'], order='F')
+        while not it.finished:
+            if it[0]:
+                idx = it.multi_index
+                for i in range(3):
+                    mins[i] = min(mins[i], idx[i])
+                    maxs[i] = max(maxs[i], idx[i])
+            it.iternext()
+        print(mins)
+        print(maxs)
+
+        # # :COMMENT: Create a new cropping box.
+        # self.automatic_cropping_box = mrmlScene.AddNewNodeByClass(
+        #     "vtkMRMLMarkupsROINode", "Automatic Cropping Preview"
+        # )
+        # self.automatic_cropping_box.SetLocked(True)
+
+        # # :COMMENT: Display cropping box only in red view.
+        # self.automatic_cropping_box.GetDisplayNode().SetViewNodeIDs(["vtkMRMLSliceNodeRed"])
+
+        # # :COMMENT: Get the size of ROI.
+        # start_val = mins
+        # end_val = maxs
+        # size = [end_val[i] - start_val[i] for i in range(3)]
+
+        # # :COMMENT: Calculate the center and radius of the ROI.
+        # bounds = [mins[i] for i in range(3)] + [maxs[i] for i in range(3)]
+        # center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
+        # radius = [size[i] / 2 for i in range(3)]
+
+        # # :COMMENT: Transform the center and radius according to the volume's orientation and spacing.
+        # matrix = vtk.vtkMatrix4x4()
+        # roi.GetIJKToRASDirectionMatrix(matrix)
+        # transform_matrix = np.array(
+        #     [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
+        # )
+        # transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
+        # transformed_radius = np.matmul(
+        #     transform_matrix,
+        #     np.array(roi.GetSpacing()) * np.array(radius),
+        # )
+
+        # # :COMMENT: Set the center and radius of the cropping box to the transformed center and radius.
+        # self.automatic_cropping_box.SetXYZ(transformed_center)
+        # self.automatic_cropping_box.SetRadiusXYZ(transformed_radius)
+
+        # # :COMMENT: Show the automatic cropping preview.
+        # self.automatic_cropping_box.GetDisplayNode().SetVisibility(True)
+
+        # print("[DEBUG] Done")
+
+        # # :COMMENT: Check that coordinates are valid.
+        # if any(end_val[i] <= start_val[i] for i in range(3)):
+        #     self.display_error_message("End values must be greater than start values.")
+        #     return
+
+        # :COMMENT: Log the automatic cropping.
+        # new_size = self.cropped_volume.GetImageData().GetDimensions()
+        # print(
+        #     f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{self.cropped_volume.GetName()}".'
+        # )
+
+        # :COMMENT: Reset the ROI selection data.
+        self.reset_roi_selection()
 
     #
     # RESAMPLING
