@@ -988,6 +988,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.demons_std_deviation = self.panel.findChild(
             QLineEdit, "lineEditDemonsStdDeviation"
         )
+        self.demons_std_deviation.editingFinished.connect(self.verify_demons_std_deviation)
 
         # :COMMENT: Gradients parameters
         self.gradients_box = self.panel.findChild(
@@ -998,6 +999,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
         self.nb_of_iter_spin_box = self.panel.findChild(QSpinBox, "spinBoxNbIter")
         self.conv_min_val_edit = self.panel.findChild(QLineEdit, "lineEditConvMinVal")
+        self.conv_min_val_edit.editingFinished.connect(self.verify_convergence_min_val)
         self.conv_win_size_spin_box = self.panel.findChild(
             QSpinBox, "spinBoxConvWinSize"
         )
@@ -1007,8 +1009,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxExhaustive"
         )
         self.step_length_edit = self.panel.findChild(QLineEdit, "lineEditLength")
+        self.step_length_edit.editingFinished.connect(self.verify_step_length)
         self.nb_steps_edit = self.panel.findChild(QLineEdit, "lineEditSteps")
+        self.nb_steps_edit.editingFinished.connect(self.verify_nb_steps)
         self.opti_scale_edit = self.panel.findChild(QLineEdit, "lineEditScale")
+        self.opti_scale_edit.editingFinished.connect(self.verify_opti_scale_edit)
 
         # :COMMENT: LBFGS2 parameters
         self.lbfgs2_box = self.panel.findChild(
@@ -1017,8 +1022,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.solution_accuracy_edit = self.panel.findChild(
             QLineEdit, "lineEditSolutionAccuracy"
         )
+        self.solution_accuracy_edit.editingFinished.connect(self.verify_solution_accuracy)
         self.nb_iter_lbfgs2 = self.panel.findChild(QSpinBox, "spinBoxNbIterLBFGS2")
         self.delta_conv_tol_edit = self.panel.findChild(QLineEdit, "lineEditDeltaConv")
+        self.delta_conv_tol_edit.editingFinished.connect(self.verify_delta_conv_tol)
 
         # :COMMENT: Fill them combo boxes.
         self.metrics_combo_box.addItems(["Mean Squares", "Mattes Mutual Information"])
@@ -1104,7 +1111,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.lbfgs2_box.collapsed = 0
 
     def update_registration_combo_box(self, is_sitk: bool, index: int) -> None:
-        print(index)
         self.metrics_combo_box.setEnabled(False)
         self.interpolator_combo_box.setEnabled(False)
         self.optimizers_combo_box.setEnabled(False)
@@ -1139,21 +1145,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # :COMMENT: Ensure the parameters are set.
-        # if not self.input_volume:
-        #     self.display_error_message("No input volume selected.")
-        #     return
-        # if not self.target_volume:
-        #     self.display_error_message("No target volume selected.")
-        #     return
-        # if self.metrics_combo_box.currentIndex == -1:
-        #     self.display_error_message("No metrics selected.")
-        #     return
-        # if self.interpolator_combo_box.currentIndex == -1:
-        #     self.display_error_message("No interpolator selected.")
-        #     return
-        # if self.optimizers_combo_box.currentIndex == -1:
-        #     self.display_error_message("No optimizer selected.")
-        #     return
+        if not self.input_volume:
+            self.display_error_message("No input volume selected.")
+            return
+        if not self.target_volume:
+            self.display_error_message("No target volume selected.")
+            return
+        if self.metrics_combo_box.currentIndex == -1:
+            self.display_error_message("No metrics selected.")
+            return
+        if self.interpolator_combo_box.currentIndex == -1:
+            self.display_error_message("No interpolator selected.")
+            return
+        if self.optimizers_combo_box.currentIndex == -1:
+            self.display_error_message("No optimizer selected.")
+            return
 
         # :COMMENT: utilitiy functions to get sitk images
         fixed_image = su.PullVolumeFromSlicer(self.target_volume)
@@ -1171,13 +1177,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         sampling_perc = self.sampling_perc_spin_box.value
 
         # :COMMENT: Bspline settings only
+        #:test : transform is positve integer
+        #:test : all others have positive 3 positive values (mutli-resolution approach)
         transform_domain_mesh_size = int(self.transform_domain_mesh_size.text)
         scale_factor = [int(factor) for factor in self.scale_factor.text.split(",")]
-        print(scale_factor)
         shrink_factor = [int(factor) for factor in self.shrink_factor.text.split(",")]
         smoothing_sigmas = [int(sig) for sig in self.smoothing_sigmas.text.split(",")]
-        print(shrink_factor)
-        print(smoothing_sigmas)
 
         # :COMMENT: settings for gradients only
         learning_rate = self.learning_rate_spin_box.value
@@ -1204,9 +1209,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: settings for demons
         demons_nb_iter = int(self.demons_nb_iter.text)
+        #test : positive value
         demons_std_dev = float(self.demons_std_deviation.text)
-        print(demons_nb_iter)
-        print(demons_std_dev)
 
         input = {}
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -1238,7 +1242,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["demons_nb_iter"] = demons_nb_iter
         input["demons_std_dev"] = demons_std_dev
         # PARALLEL PROCESSING EXTENSION
-        print(self.scriptPath)
         if self.scriptPath:
             self.custom_script_registration(self.scriptPath, fixed_image, moving_image, input)
         else:
@@ -1255,8 +1258,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.process_logic = ProcessesLogic(completedCallback=lambda: self.on_registration_completed())
         self.regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
         self.process_logic.addProcess(self.regProcess)
-        node = self.process_logic.getParameterNode()
-        self.nodeObserverTag = node.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onNodeModified)
         self.button_registration.setEnabled(False)
         self.button_cancel.setEnabled(True)
         self.activate_timer_and_progress_bar()
@@ -1269,8 +1270,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_registration.setEnabled(False)
         self.button_cancel.setEnabled(True)
         self.activate_timer_and_progress_bar()
-        print("elastix registration non-rigid")
-        # this corresponds to  "Parameters_BSpline.txt", a generic registration
         preset = self.elastix_combo_box.currentIndex
         parameterFilenames = self.elastix_logic.getRegistrationPresets()[preset][Elastix.RegistrationPresets_ParameterFilenames]
         print(parameterFilenames)
@@ -1313,19 +1312,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.timer.start(1000)
         self.elapsed_time.start()
 
-
-    def onNodeModified(self, caller, event):
-        """
-        Helper function displaying a timer and a loading bar
-        """
-        processStates = ["Pending", "Running", "Completed", "Failed"]
-        stateJSON = caller.GetAttribute("state")
-        if stateJSON:
-            state = json.loads(caller.GetAttribute("state"))
-            for processState in processStates:
-                if state[processState] and processState == "Completed":
-                    print("Custom Registration Completed")
-
     def update_status(self):
         self.label_status.setText(f"status: {self.elapsed_time.elapsed()//1000}s")
 
@@ -1347,6 +1333,89 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         os.kill(self.regProcess.processId()+10, signal.SIGKILL)
         self.regProcess.kill()
 
+    def verify_convergence_min_val(self):
+        value = self.conv_min_val_edit.text
+        try:
+            float(value)
+            if float(value) < 0 or float(value) > 1:
+                self.display_error_message("value must be between 0 and 1.") 
+                self.conv_min_val_edit.text = "1e-6"
+        except ValueError:
+            self.display_error_message("not a value.")
+            self.conv_min_val_edit.text = "1e-6"
+        
+    def verify_nb_steps(self):
+        nb_of_steps = self.nb_steps_edit.text
+        try:
+            nb_of_steps = [int(step) for step in nb_of_steps.split(",")]
+            if len(nb_of_steps) != 6:
+                self.display_error_message("must have 6 values.")
+                self.nb_steps_edit.text = "1, 1, 1, 0, 0, 0"
+                return
+            if any(step < 0 for step in nb_of_steps):
+                self.display_error_message("must be positive values.")
+                self.nb_steps_edit.text = "1, 1, 1, 0, 0, 0"
+        except ValueError:
+            self.display_error_message("not values.")
+            self.nb_steps_edit.text = "1, 1, 1, 0, 0, 0"
+    
+    def verify_step_length(self):
+        step_length = self.step_length_edit.text
+        if step_length == "pi":
+            return
+        try:
+            float(step_length)
+        except ValueError:
+            self.display_error_message("not a value.")
+            self.step_length_edit.text = "pi"
+    
+    def verify_opti_scale_edit(self):
+        optimizer_scale = self.opti_scale_edit.text
+        try:
+            optimizer_scale = [int(scale) for scale in optimizer_scale.split(",")]
+            if len(optimizer_scale) != 6:
+                self.display_error_message("must have 6 values.")
+                self.opti_scale_edit.text = "1,1,1,1,1,1"
+                return
+            if any(scale < 0 for scale in optimizer_scale):
+                self.display_error_message("must be positive values")
+                self.opti_scale_edit.text = "1,1,1,1,1,1"
+        except ValueError:
+            self.display_error_message("not values")
+            self.opti_scale_edit.text = "1,1,1,1,1,1"
+
+    def verify_solution_accuracy(self):
+        value = self.solution_accuracy_edit.text
+        try:
+            float(value)
+            if float(value) <= 0:
+                self.display_error_message("must be a positive value.")
+                self.solution_accuracy_edit.text = "1e-5"
+        except ValueError:
+            self.display_error_message("not a value.")
+            self.solution_accuracy_edit.text = "1e-5"
+
+    def verify_delta_conv_tol(self):
+        value = self.delta_conv_tol_edit.text
+        try:
+            float(value)
+            if float(value) <= 0:
+                self.display_error_message("must be a positive value.")
+                self.delta_conv_tol_edit.text = "0.01"
+        except ValueError:
+            self.display_error_message("not a value.")
+            self.delta_conv_tol_edit.text = "0.01"
+
+    def verify_demons_std_deviation(self):
+        value = self.demons_std_deviation.text
+        try:
+            float(value)
+            if float(value) <= 0:
+                self.display_error_message("must be a positive value")
+                self.demons_std_deviation.text = "1.0"
+        except ValueError:
+            self.display_error_message("not a value.")
+            self.demons_std_deviation.text = "1.0"
     #
     # INPUT VOLUME
     #
