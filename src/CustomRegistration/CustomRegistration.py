@@ -395,7 +395,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update(self, caller=None, event=None) -> None:
         """
-        Updates the list of volumes, the view, and the panel.
+        Updates the list of volumes, the view, and the panel, as well as the different module regions accordingly.
 
         Parameters:
             caller: The widget calling this method.
@@ -503,8 +503,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.update_roi_selection()
         # self.update_cropping()
         self.update_resampling()
-        # self.update_registration()
-        # self.update_plugin_loading()
+        self.update_registration()
+        self.update_plugin_loading()
 
     #
     # VIEW INTERFACE
@@ -512,7 +512,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_view(self) -> None:
         """
-        Sets up the viewer interface by retrieving the 2D views widgets.
+        Sets up the view by retrieving the 2D views.
         """
 
         VIEWS = ["Red", "Green", "Yellow"]
@@ -540,7 +540,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_view(self) -> None:
         """
-        Resets the view by clearing the slice composite nodes.
+        Resets the view by clearing the 2D views.
         """
 
         # :COMMENT: Clear each of the slice composite nodes.
@@ -553,7 +553,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_view(self) -> None:
         """
-        Sets all the view to their volume, or to blank if there is no volume assigned.
+        Updates the view by setting all the 2D views to their volume, or to blank if there is no volume assigned.
         """
 
         # :COMMENT: Update the input view.
@@ -587,11 +587,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         mask: vtkMRMLScalarVolumeNode = None,
     ) -> None:
         """
-        Updates a given 2D view with the selected volume.
+        Updates a given 2D view with the given volume and mask if needed.
 
         Parameters:
-            volume: The selected volume.
             view_id: The 2D view ID.
+            volume: The given volume.
+            mask: The given mask.
         """
 
         # :COMMENT: Set to blank if no volume.
@@ -615,7 +616,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_pascal_only_mode(self) -> None:
         """
-        Sets up the Pascal-only mode by retrieving the UI elements, and connecting them to their event handlers.
+        …
         """
 
         # :COMMENT: Retrieve the Pascal-only mode checkbox.
@@ -640,7 +641,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_pascal_only_mode(self) -> None:
         """
-        Resets the Pascal-only mode by disabling the Pascal-only mode.
+        …
         """
 
         # :COMMENT: Uncheck the Pascal-only mode checkbox and update the Pascal-only mode.
@@ -649,7 +650,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_pascal_only_mode(self) -> None:
         """
-        Updates the content of the Pascal-only mode.
+        …
         """
 
         # :COMMENT: Remove any volume from the 3D view.
@@ -692,7 +693,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_roi_selection(self) -> None:
         """
-        Sets up the ROI selection widget.
+        …
         """
 
         # :COMMENT: Create a color table node that assigns the ROI selection to red.
@@ -753,35 +754,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_roi_selection(self) -> None:
         """
-        Resets the ROI selection.
+        …
         """
 
         # :COMMENT: Set the update rule to blocked.
         self.update_allowed = False
 
-        # :COMMENT: Compute the input ROI selection range and value.
-        if self.input_volume:
-            range = self.input_volume.GetImageData().GetScalarRange()
-        else:
-            range = (0, 255)
-
-        # :COMMENT: Update the input ROI selection range and value.
-        self.input_roi_selection_threshold_slider.setMinimum(range[0])
-        self.input_roi_selection_threshold_slider.setMaximum(range[1])
-        self.input_roi_selection_threshold_slider.setValue(range[0])
-        self.input_roi_selection_threshold_value_label.setText(str(int(range[0])))
-
-        # :COMMENT: Compute the target ROI selection range and value.
-        if self.target_volume:
-            range = self.target_volume.GetImageData().GetScalarRange()
-        else:
-            range = (0, 255)
-
-        # :COMMENT: Update the target ROI selection range and value.
-        self.target_roi_selection_threshold_slider.setMinimum(range[0])
-        self.target_roi_selection_threshold_slider.setMaximum(range[1])
-        self.target_roi_selection_threshold_slider.setValue(range[0])
-        self.target_roi_selection_threshold_value_label.setText(str(int(range[0])))
+        # :COMMENT: Update the ROI selection threshold value.
+        self.input_roi_selection_threshold_slider.setValue(0)
+        self.target_roi_selection_threshold_slider.setValue(0)
 
         # :COMMENT: Set the update rule to allowed.
         self.update_allowed = True
@@ -791,7 +772,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_roi_selection(self, variation: str = "all") -> None:
         """
-        Update the ROI selection UI and preview if needed.
+        …
         """
 
         assert variation in ["input", "target", "all"]
@@ -805,14 +786,28 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Update the input threshold value.
         if variation == "input":
+            if self.input_volume:
+                range = self.input_volume.GetImageData().GetScalarRange()
+            else:
+                range = (0, 255)
+            self.input_roi_selection_threshold_slider.setMinimum(range[0])
+            self.input_roi_selection_threshold_slider.setMaximum(range[1])
+
             threshold = self.input_roi_selection_threshold_slider.value
-            self.input_roi_selection_threshold_value_label.setText(str(int(threshold)))
+            self.input_roi_selection_threshold_value_label.setText(int(threshold))
             self.slice_composite_nodes[0].SetForegroundVolumeID("")
 
         # :COMMENT: Update the target threshold value.
         if variation == "target":
+            if self.target_volume:
+                range = self.target_volume.GetImageData().GetScalarRange()
+            else:
+                range = (0, 255)
+            self.target_roi_selection_threshold_slider.setMinimum(range[0])
+            self.target_roi_selection_threshold_slider.setMaximum(range[1])
+
             threshold = self.target_roi_selection_threshold_slider.value
-            self.target_roi_selection_threshold_value_label.setText(str(int(threshold)))
+            self.target_roi_selection_threshold_value_label.setText(int(threshold))
             self.slice_composite_nodes[1].SetForegroundVolumeID("")
 
         if (
@@ -823,7 +818,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def preview_roi_selection(self, variation: str = "all") -> None:
         """
-        Generates a red display node to preview the ROI selection.
+        …
         """
 
         assert variation in ["input", "target", "all"]
@@ -904,7 +899,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def select_roi(self) -> None:
         """
-        Selects the ROI.
+        …
         """
 
         # :COMMENT: Ensure that a volume is selected.
@@ -1162,6 +1157,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{self.cropped_volume.GetName()}".'
         )
 
+        # :COMMENT: Reset the cropping.
+        self.reset_cropping()
+
         # :COMMENT: Select the cropped volume.
         self.choose_input_volume(len(self.volumes) - 1)
 
@@ -1239,7 +1237,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_registration(self) -> None:
         """
-        Sets up the preprocessing widget by retrieving the volume selection widget and initializing it.
+        …
         """
 
         # :COMMENT: Link settings UI and code
@@ -1307,7 +1305,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_registration.clicked.connect(self.register)
 
         self.optimizers_combo_box.currentIndexChanged.connect(
-            self.update_optimizer_parameters_group_box
+            self.update_registration
         )
 
         # :COMMENT: Initialize the registration.
@@ -1315,7 +1313,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_registration(self) -> None:
         """
-        Resets all the registration parameters to their default values.
+        …
         """
 
         self.metrics_combo_box.setCurrentIndex(-1)
@@ -1323,11 +1321,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.interpolator_combo_box.setCurrentIndex(-1)
         self.sampling_strat_combo_box.setCurrentIndex(2)
 
-        self.update_optimizer_parameters_group_box()
+        self.update_registration()
 
-    def update_optimizer_parameters_group_box(self) -> None:
+    def update_registration(self) -> None:
         """
-        Updates the optimizer parameters group box based on the chosen optimizer algorithm.
+        …
         """
 
         self.gradients_box.setEnabled(False)
@@ -1349,7 +1347,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def register(self):
         """
-        Launches the registration process.
+        …
         """
 
         # :COMMENT: Ensure the parameters are set.
@@ -1453,6 +1451,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
             )
 
+            # :COMMENT: Reset the registration.
+            self.reset_registration()
+
             # :COMMENT: Select the new volume to display it.
             self.choose_input_volume(len(self.volumes) - 1)
 
@@ -1464,6 +1465,253 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
         logic.addProcess(regProcess)
         logic.run()
+
+    #
+    # PLUGIN LOADING
+    #
+
+    def setup_plugin_loading(self) -> None:
+        """
+        …
+        """
+
+        # :COMMENT: Initialize the plugin script list.
+        self.plugins = {}
+
+        # :COMMENT: Retrieve the plugin loading button.
+        self.plugin_loading_button = self.get_ui(QPushButton, "PluginLoadingPushButton")
+
+        # :COMMENT: Define the handler.
+        def on_plugin_loading_button_clicked() -> None:
+            """
+            Opens a loading window with a label for the name of the plugin, and two horizontal layouts, one for the UI file and one for the Python file, each with a label for the name of the file and a button to load the file.
+            """
+
+            # :COMMENT: Create an empty dialog.
+            dialog = QDialog(self.parent)
+            dialog.setWindowTitle("Plugin Loading")
+
+            # :COMMENT: Create a base vertical layout.
+            base_layout = QVBoxLayout()
+            base_layout.setContentsMargins(12, 12, 12, 12)
+            base_layout.setSpacing(12)
+            dialog.setLayout(base_layout)
+
+            # :COMMENT: Create an horizontal layout with a label for the description and a line edit for the name of the plugin (My Plugin by default).
+            name_label = QLabel("Plugin Name:")
+            name_line_edit = QLineEdit()
+            name_line_edit.setText("My Plugin")
+            name_layout = QHBoxLayout()
+            name_layout.setSpacing(12)
+            name_layout.addWidget(name_label)
+            name_layout.addWidget(name_line_edit)
+            base_layout.addLayout(name_layout)
+
+            # :COMMENT: Create an horizontal layout for the UI file loading with a label for the name of the file and a button to load this file.
+            self.plugin_loading_ui_file = None
+            ui_file_label = QLabel("No UI file selected.")
+            ui_file_button = QPushButton()
+            ui_file_button.setText("Choose an UI file…")
+            ui_file_layout = QHBoxLayout()
+            ui_file_layout.setSpacing(12)
+            ui_file_layout.addWidget(ui_file_label)
+            ui_file_layout.addWidget(ui_file_button)
+            base_layout.addLayout(ui_file_layout)
+
+            # :COMMENT: Create an horizontal layout for the Python file loading with a label for the name of the file and a button to load this file.
+            self.plugin_loading_python_file = None
+            python_file_label = QLabel("No Python file selected.")
+            python_file_button = QPushButton()
+            python_file_button.setText("Choose a Python file…")
+            python_file_layout = QHBoxLayout()
+            python_file_layout.setSpacing(12)
+            python_file_layout.addWidget(python_file_label)
+            python_file_layout.addWidget(python_file_button)
+            base_layout.addLayout(python_file_layout)
+
+            def on_ui_file_button_clicked() -> None:
+                """
+                Opens a file opening dialog for a UI file.
+                """
+
+                def on_ui_file_dialog_finished(result) -> None:
+                    """
+                    Loads the UI file.
+
+                    Parameters:
+                        result: The result of the file dialog.
+                    """
+
+                    if result == QDialog.Accepted:
+                        path = ui_file_dialog.selectedFiles()[0]
+                        ui_file_label.setText(os.path.basename(path))
+                        self.plugin_loading_ui_file = path
+
+                    dialog.raise_()
+
+                # :COMMENT: Create a file dialog for the UI file.
+                ui_file_dialog = QFileDialog(self.parent)
+                ui_file_dialog.setFileMode(QFileDialog.ExistingFile)
+                ui_file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
+                ui_file_dialog.setNameFilter("*.ui")
+                ui_file_dialog.finished.connect(on_ui_file_dialog_finished)
+                ui_file_dialog.show()
+
+            def on_python_file_button_clicked() -> None:
+                """
+                Opens a file opening dialog for a Python file.
+                """
+
+                def on_python_file_dialog_finished(result) -> None:
+                    """
+                    Loads the Python file.
+
+                    Parameters:
+                        result: The result of the file dialog.
+                    """
+
+                    if result == QDialog.Accepted:
+                        path = python_file_dialog.selectedFiles()[0]
+                        python_file_label.setText(os.path.basename(path))
+                        self.plugin_loading_python_file = path
+
+                    dialog.raise_()
+
+                # :COMMENT: Create a file dialog for the Python file.
+                python_file_dialog = QFileDialog(self.parent)
+                python_file_dialog.setFileMode(QFileDialog.ExistingFile)
+                python_file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
+                python_file_dialog.setNameFilter("*.py")
+                python_file_dialog.finished.connect(on_python_file_dialog_finished)
+                python_file_dialog.show()
+
+            # :COMMENT: Connect the buttons.
+            ui_file_button.clicked.connect(on_ui_file_button_clicked)
+            python_file_button.clicked.connect(on_python_file_button_clicked)
+
+            def on_load_button_clicked() -> None:
+                """
+                Loads the new plugin.
+                """
+
+                # :COMMENT: Retrieve the plugin name.
+                plugin_name = name_line_edit.text
+
+                # :COMMENT: Check if the plugin name is valid.
+                if plugin_name in self.plugins.keys():
+                    self.display_error_message(
+                        f'A plugin named "{plugin_name}" already exists.'
+                    )
+                    return
+
+                # :COMMENT: Check if the UI file is valid.
+                if not self.plugin_loading_ui_file:
+                    self.display_error_message("No UI file selected.")
+                    return
+
+                # :COMMENT: Check if the Python file is valid.
+                if not self.plugin_loading_python_file:
+                    self.display_error_message("No Python file selected.")
+                    return
+
+                # :COMMENT: Retrieve the plugins layout.
+                self.plugins_layout = self.get_ui(QVBoxLayout, "PluginsVerticalLayout")
+
+                # :COMMENT: Add a collapsible button.
+                plugin_collapsible_button = ctkCollapsibleButton()
+                plugin_collapsible_button.text = plugin_name
+                plugin_collapsible_button.collapsed = True
+                plugin_layout = QVBoxLayout()
+                plugin_layout.setContentsMargins(12, 12, 0, 12)
+                plugin_layout.setSpacing(12)
+                plugin_collapsible_button.setLayout(plugin_layout)
+                self.plugins_layout.addWidget(plugin_collapsible_button)
+
+                # :COMMENT: Add the UI of the file inside the collapsible widget.
+                plugin_ui = util.loadUI(self.plugin_loading_ui_file)
+                assert plugin_ui
+                plugin_ui.setPalette(util.mainWindow().palette)
+                plugin_layout.addWidget(plugin_ui)
+
+                def on_run_button_clicked() -> None:
+                    """
+                    Runs the plugin.
+                    """
+
+                    plugin_folder = os.path.dirname(self.plugins[plugin_name])
+                    plugin_file = os.path.basename(
+                        os.path.splitext(self.plugins[plugin_name])[0]
+                    )
+
+                    import sys
+
+                    sys.path.append(plugin_folder)
+
+                    import importlib
+
+                    plugin_script = importlib.import_module(plugin_file)
+
+                    plugin_script.run(
+                        ui=plugin_ui,
+                        scene=mrmlScene,
+                        input_volume=self.input_volume,
+                        target_volume=self.target_volume,
+                    )
+
+                # :COMMENT: Add the run button to launch the plugin script.
+                plugin_run_button = QPushButton()
+                plugin_run_button.setText(f"Run {plugin_name}")
+                plugin_layout.addWidget(plugin_run_button)
+                plugin_run_button.clicked.connect(on_run_button_clicked)
+
+                # :COMMENT: Add the plugin path to the plugin list.
+                self.plugins[plugin_name] = self.plugin_loading_python_file
+
+                # :COMMENT: Reset the temporary variables and close the dialog.
+                self.plugin_loading_ui_file = None
+                self.plugin_loading_python_file = None
+                dialog.accept()
+
+            # :COMMENT: Add a load button and connect it to a dedicated handler.
+            load_button = QPushButton()
+            load_button.setText("Load")
+            base_layout.addWidget(load_button)
+            load_button.clicked.connect(on_load_button_clicked)
+
+            # :COMMENT: Show the dialog.
+            dialog.show()
+
+        # :COMMENT: Connect the handler.
+        self.plugin_loading_button.clicked.connect(on_plugin_loading_button_clicked)
+
+    def reset_plugin_loading(self) -> None:
+        """
+        …
+        """
+
+        # :COMMENT: Nothing to reset.
+
+        # :COMMENt: Update the plugin loading.
+        self.update_plugin_loading()
+
+    def update_plugin_loading(self) -> None:
+        """
+        …
+        """
+
+        # :COMMENT: Nothing to update.
+
+
+
+
+
+
+
+
+
+
+
+
 
     #
     # INPUT VOLUME
@@ -1750,231 +1998,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.reset_target_volume()
         mrmlScene.RemoveNode(volume)
         print(f'"{volume.GetName()}" has been deleted.')
-
-    #
-    # PLUGIN LOADING
-    #
-
-    def setup_plugin_loading(self) -> None:
-        """
-        Sets up the plugin loading architecture by initializing the data and retrieving the UI widgets.
-        """
-
-        # :COMMENT: Initialize the plugin script list.
-        self.plugins = {}
-
-        # :COMMENT: Retrieve the plugin loading button.
-        self.plugin_loading_button = self.get_ui(QPushButton, "PluginLoadingPushButton")
-
-        # :COMMENT: Define the handler.
-        def on_plugin_loading_button_clicked() -> None:
-            """
-            Opens a loading window with a label for the name of the plugin, and two horizontal layouts, one for the UI file and one for the Python file, each with a label for the name of the file and a button to load the file.
-            """
-
-            # :COMMENT: Create an empty dialog.
-            dialog = QDialog(self.parent)
-            dialog.setWindowTitle("Plugin Loading")
-
-            # :COMMENT: Create a base vertical layout.
-            base_layout = QVBoxLayout()
-            base_layout.setContentsMargins(12, 12, 12, 12)
-            base_layout.setSpacing(12)
-            dialog.setLayout(base_layout)
-
-            # :COMMENT: Create an horizontal layout with a label for the description and a line edit for the name of the plugin (My Plugin by default).
-            name_label = QLabel("Plugin Name:")
-            name_line_edit = QLineEdit()
-            name_line_edit.setText("My Plugin")
-            name_layout = QHBoxLayout()
-            name_layout.setSpacing(12)
-            name_layout.addWidget(name_label)
-            name_layout.addWidget(name_line_edit)
-            base_layout.addLayout(name_layout)
-
-            # :COMMENT: Create an horizontal layout for the UI file loading with a label for the name of the file and a button to load this file.
-            self.plugin_loading_ui_file = None
-            ui_file_label = QLabel("No UI file selected.")
-            ui_file_button = QPushButton()
-            ui_file_button.setText("Choose an UI file…")
-            ui_file_layout = QHBoxLayout()
-            ui_file_layout.setSpacing(12)
-            ui_file_layout.addWidget(ui_file_label)
-            ui_file_layout.addWidget(ui_file_button)
-            base_layout.addLayout(ui_file_layout)
-
-            # :COMMENT: Create an horizontal layout for the Python file loading with a label for the name of the file and a button to load this file.
-            self.plugin_loading_python_file = None
-            python_file_label = QLabel("No Python file selected.")
-            python_file_button = QPushButton()
-            python_file_button.setText("Choose a Python file…")
-            python_file_layout = QHBoxLayout()
-            python_file_layout.setSpacing(12)
-            python_file_layout.addWidget(python_file_label)
-            python_file_layout.addWidget(python_file_button)
-            base_layout.addLayout(python_file_layout)
-
-            def on_ui_file_button_clicked() -> None:
-                """
-                Opens a file opening dialog for a UI file.
-                """
-
-                def on_ui_file_dialog_finished(result) -> None:
-                    """
-                    Loads the UI file.
-
-                    Parameters:
-                        result: The result of the file dialog.
-                    """
-
-                    if result == QDialog.Accepted:
-                        path = ui_file_dialog.selectedFiles()[0]
-                        ui_file_label.setText(os.path.basename(path))
-                        self.plugin_loading_ui_file = path
-
-                    dialog.raise_()
-
-                # :COMMENT: Create a file dialog for the UI file.
-                ui_file_dialog = QFileDialog(self.parent)
-                ui_file_dialog.setFileMode(QFileDialog.ExistingFile)
-                ui_file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
-                ui_file_dialog.setNameFilter("*.ui")
-                ui_file_dialog.finished.connect(on_ui_file_dialog_finished)
-                ui_file_dialog.show()
-
-            def on_python_file_button_clicked() -> None:
-                """
-                Opens a file opening dialog for a Python file.
-                """
-
-                def on_python_file_dialog_finished(result) -> None:
-                    """
-                    Loads the Python file.
-
-                    Parameters:
-                        result: The result of the file dialog.
-                    """
-
-                    if result == QDialog.Accepted:
-                        path = python_file_dialog.selectedFiles()[0]
-                        python_file_label.setText(os.path.basename(path))
-                        self.plugin_loading_python_file = path
-
-                    dialog.raise_()
-
-                # :COMMENT: Create a file dialog for the Python file.
-                python_file_dialog = QFileDialog(self.parent)
-                python_file_dialog.setFileMode(QFileDialog.ExistingFile)
-                python_file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
-                python_file_dialog.setNameFilter("*.py")
-                python_file_dialog.finished.connect(on_python_file_dialog_finished)
-                python_file_dialog.show()
-
-            # :COMMENT: Connect the buttons.
-            ui_file_button.clicked.connect(on_ui_file_button_clicked)
-            python_file_button.clicked.connect(on_python_file_button_clicked)
-
-            def on_load_button_clicked() -> None:
-                """
-                Loads the new plugin.
-                """
-
-                # :COMMENT: Retrieve the plugin name.
-                plugin_name = name_line_edit.text
-
-                # :COMMENT: Check if the plugin name is valid.
-                if plugin_name in self.plugins.keys():
-                    self.display_error_message(
-                        f'A plugin named "{plugin_name}" already exists.'
-                    )
-                    return
-
-                # :COMMENT: Check if the UI file is valid.
-                if not self.plugin_loading_ui_file:
-                    self.display_error_message("No UI file selected.")
-                    return
-
-                # :COMMENT: Check if the Python file is valid.
-                if not self.plugin_loading_python_file:
-                    self.display_error_message("No Python file selected.")
-                    return
-
-                # :COMMENT: Retrieve the plugins layout.
-                self.plugins_layout = self.get_ui(QVBoxLayout, "PluginsVerticalLayout")
-
-                # :COMMENT: Add a collapsible button.
-                plugin_collapsible_button = ctkCollapsibleButton()
-                plugin_collapsible_button.text = plugin_name
-                plugin_collapsible_button.collapsed = True
-                plugin_layout = QVBoxLayout()
-                plugin_layout.setContentsMargins(12, 12, 0, 12)
-                plugin_layout.setSpacing(12)
-                plugin_collapsible_button.setLayout(plugin_layout)
-                self.plugins_layout.addWidget(plugin_collapsible_button)
-
-                # :COMMENT: Add the UI of the file inside the collapsible widget.
-                plugin_ui = util.loadUI(self.plugin_loading_ui_file)
-                assert plugin_ui
-                plugin_ui.setPalette(util.mainWindow().palette)
-                plugin_layout.addWidget(plugin_ui)
-
-                def on_run_button_clicked() -> None:
-                    """
-                    Runs the plugin.
-                    """
-
-                    plugin_folder = os.path.dirname(self.plugins[plugin_name])
-                    plugin_file = os.path.basename(
-                        os.path.splitext(self.plugins[plugin_name])[0]
-                    )
-
-                    import sys
-
-                    sys.path.append(plugin_folder)
-
-                    import importlib
-
-                    plugin_script = importlib.import_module(plugin_file)
-
-                    plugin_script.run(
-                        ui=plugin_ui,
-                        scene=mrmlScene,
-                        input_volume=self.input_volume,
-                        target_volume=self.target_volume,
-                    )
-
-                # :COMMENT: Add the run button to launch the plugin script.
-                plugin_run_button = QPushButton()
-                plugin_run_button.setText(f"Run {plugin_name}")
-                plugin_layout.addWidget(plugin_run_button)
-                plugin_run_button.clicked.connect(on_run_button_clicked)
-
-                # :COMMENT: Add the plugin path to the plugin list.
-                self.plugins[plugin_name] = self.plugin_loading_python_file
-
-                # :COMMENT: Reset the temporary variables and close the dialog.
-                self.plugin_loading_ui_file = None
-                self.plugin_loading_python_file = None
-                dialog.accept()
-
-            # :COMMENT: Add a load button and connect it to a dedicated handler.
-            load_button = QPushButton()
-            load_button.setText("Load")
-            base_layout.addWidget(load_button)
-            load_button.clicked.connect(on_load_button_clicked)
-
-            # :COMMENT: Show the dialog.
-            dialog.show()
-
-        # :COMMENT: Connect the handler.
-        self.plugin_loading_button.clicked.connect(on_plugin_loading_button_clicked)
-
-    def reset_plugin_loading(self) -> None:
-        """
-        Resets the plugin loading.
-        """
-
-        # Nothing to do here.
 
     #
     # UTILITIES
