@@ -54,14 +54,6 @@ class CustomRegistration(ScriptedLoadableModule):
     def __init__(self, parent) -> None:
         ScriptedLoadableModule.__init__(self, parent)
 
-        # :COMMENT: Set the module metadata.
-        self.set_metadata()
-
-    def set_metadata(self) -> None:
-        """
-        Sets the metadata for the module, i.e., the title, categories, contributors, help text, and acknowledgement text.
-        """
-
         self.parent.title = "CustomRegistration"
         self.parent.categories = ["PFE"]
         self.parent.dependencies = []
@@ -83,6 +75,10 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
     def __init__(self) -> None:
         ScriptedLoadableModuleLogic.__init__(self)
 
+    #
+    # ROI SELECTION
+    #
+
     def create_mask(
         self, volume: vtkMRMLScalarVolumeNode, threshold: int
     ) -> vtkMRMLScalarVolumeNode:
@@ -97,7 +93,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             The ROI binary mask as a VTK volume.
         """
 
-        mask: vtkMRMLScalarVolumeNode = self.sitk_to_vtk(
+        mask = self.sitk_to_vtk(
             sitk.BinaryThreshold(
                 self.vtk_to_sitk(volume),
                 lowerThreshold=threshold,
@@ -145,6 +141,10 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         self.transfer_volume_metadata(volume, roi)
         return roi
 
+    #
+    # CROPPING
+    #
+
     def crop(
         self, volume: vtkMRMLScalarVolumeNode, start, end
     ) -> vtkMRMLScalarVolumeNode:
@@ -153,8 +153,8 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
 
         Parameters:
             volume: The VTK volume to be cropped.
-            start: The start index of the cropping region.
-            end: The end index of the cropping region.
+            start: The start point of the cropping region.
+            end: The end point of the cropping region.
 
         Returns:
             The cropped VTK volume.
@@ -190,6 +190,10 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         self.transfer_volume_metadata(volume, cropped_volume)
 
         return cropped_volume
+
+    #
+    # RESAMPLING
+    #
 
     def resample(
         self,
@@ -291,42 +295,6 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         target_volume.SetOrigin(origin)
         target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
 
-    #
-    # DEPRECATED
-    #
-
-    def run(self, script_file: str, function_name: str, *args, **kwargs):
-        """
-        [DEPRECATED]
-
-        Loads and runs a script file.
-
-        Parameters:
-            script_file: The script file.
-            function_name: The name of the function to run.
-            args: Positional arguments to pass.
-            kwargs: Keyword arguments to pass.
-
-        Returns:
-            The result returned.
-        """
-
-        # :COMMENT: Add the depracted warning.
-        from warnings import warn
-
-        warn("The run logic method is deprecated.", DeprecationWarning, stacklevel=2)
-
-        # :COMMENT: Load the script file.
-        with open(script_file, "r") as f:
-            code = f.read()
-            exec(code, globals())
-
-        # :COMMENT: Retrieve the function.
-        function = globals()[function_name]
-
-        # :COMMENT: Run the function.
-        return function(*args, **kwargs)
-
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     """
@@ -348,20 +316,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.logic = CustomRegistrationLogic()
         assert self.logic
 
-        # :COMMENT: Initialize the volume list.
-        self.volumes = []
-        self.input_volume = None
-        self.target_volume = None
-
-        # :COMMENT: Load the panel UI.
-        self.panel = util.loadUI(self.resourcePath("UI/Panel.ui"))
-        assert self.panel
-
         # :COMMENT: Hide the useless widgets.
         util.setApplicationLogoVisible(False)
         util.setModulePanelTitleVisible(False)
         util.setModuleHelpSectionVisible(False)
-        util.setDataProbeVisible(False)
+
+        # :COMMENT: Load the panel UI.
+        self.panel = util.loadUI(self.resourcePath("UI/Panel.ui"))
+        assert self.panel
 
         # :COMMENT: Apply the color palette to the panel.
         self.panel.setPalette(util.mainWindow().palette)
@@ -374,24 +336,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         for collapsible_widget in collapsible_buttons:
             collapsible_widget.collapsed = True
 
-        # :COMMENT: Set up the Pascal Mode Only.
-        self.setup_pascal_only_mode()
+        # :COMMENT: Initialize the volume list.
+        self.volumes = []
+        self.input_volume = None
+        self.target_volume = None
 
-        # :COMMENT: Set up the view interface.
+        # :COMMENT: Set up the module regions.
         self.setup_view()
-
-        # :COMMENT: Set up the preprocessing.
+        self.setup_pascal_only_mode()
         self.setup_roi_selection()
         self.setup_cropping()
         self.setup_resampling()
-
-        # :COMMENT: Set up the registration.
         self.setup_registration()
-
-        # :COMMENT: Set up the plugin loading.
         self.setup_plugin_loading()
 
-        # :COMMENT: Set up the selected/target volume architecture.
+        # :COMMENT: Set up the input/target volume architecture.
         self.setup_input_volume()
         self.setup_target_volume()
 
@@ -403,104 +362,76 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         ]
 
         # :COMMENT: Launch the first volume list update.
+        self.update_allowed = True
         self.update()
+
+    def cleanup(self) -> None:
+        """
+        Cleans up the module from any observer.
+        """
+
+        for observer in self.scene_observers:
+            mrmlScene.RemoveObserver(observer)
+
+        self.reset()
 
     def reset(self) -> None:
         """
         Resets all parameters to their default values.
         """
 
+        # Reset the input/target volume architecture.
         self.reset_input_volume()
         self.reset_target_volume()
 
-        self.reset_pascal_only_mode()
+        # Reset the module regions.
         self.reset_view()
+        self.reset_pascal_only_mode()
         self.reset_roi_selection()
         self.reset_cropping()
         self.reset_resampling()
         self.reset_registration()
-
-    def cleanup(self) -> None:
-        """
-        Cleans up the module from any observer.
-
-        Called when reloading the module.
-        """
-
-        self.reset()
-
-        for observer in self.scene_observers:
-            mrmlScene.RemoveObserver(observer)
-
-    #
-    # PASCAL ONLY MODE
-    #
-
-    def setup_pascal_only_mode(self) -> None:
-        """
-        Sets up the Pascal Mode Only checkbox.
-        """
-
-        self.threeD_widget = app.layoutManager().threeDWidget(0)
-        assert self.threeD_widget
-
-        self.pascal_mode_checkbox = self.get_ui(QCheckBox, "PascalOnlyModeCheckBox")
-
-        self.pascal_mode_checkbox.clicked.connect(self.manage_pascal_only_mode)
-
-        # :COMMENT: Set the Pascal Only Mode to disabled by default.
-        self.reset_pascal_only_mode()
-
-    def reset_pascal_only_mode(self) -> None:
-        """
-        Resets the Pascal Only Mode to its default state: disabled by default.
-        """
-
-        self.pascal_mode_checkbox.setChecked(False)
-        self.threeD_widget.setVisible(False)
-
-    def manage_pascal_only_mode(self) -> None:
-        """
-        Displays or hides adequatly the 3D view depending on the Pascal Only Mode checkbox.
-        """
-
-        # :TODO:Iantsa: Add the visibility in the observer too.
-        if self.pascal_mode_checkbox.isChecked():
-            self.threeD_widget.setVisible(True)
-        else:
-            self.threeD_widget.setVisible(False)
-
-    #
-    # GENERAL MANAGEMENT
-    #
+        self.reset_plugin_loading()
 
     def update(self, caller=None, event=None) -> None:
         """
-        Updates the list of volumes in the volume combobox when a change is detected in the MRML Scene.
+        Updates the list of volumes, the view, and the panel.
 
         Parameters:
             caller: The widget calling this method.
             event: The event that triggered this method.
         """
 
-        def update_volume_combo_boxes_and_information_labels(
-            variation: str = "all",
-        ) -> None:
+        if not self.update_allowed:
+            return
+
+        def update_volume_list() -> None:
             """
-            Updates the volume combo boxes and information labels (dimensions, spacing...).
+            Updates the list of volumes by retrieving the volumes that are not ROI masks in the scene.
+            """
+
+            self.volumes = [
+                volume
+                for volume in mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
+                if not volume.GetName().endswith("ROI Mask")
+            ]
+
+        def update_panel(variation: str = "all") -> None:
+            """
+            Updates the elements from the panel such as the volume combo boxes and their information labels (dimensions and spacing).
 
             Parameters:
                 variation: Either "input", "target", or "all".
             """
 
+            # :COMMENT: Ensure the variation is valid.
+            assert variation in ["input", "target", "all"]
+
             # :COMMENT: Handle the "all" variation.
             if variation == "all":
-                update_volume_combo_boxes_and_information_labels("input")
-                update_volume_combo_boxes_and_information_labels("target")
+                update_panel("input")
+                update_panel("target")
                 return
-
-            # :COMMENT: Ensure the variation is valid.
-            assert variation in ["input", "target"]
 
             # :COMMENT: Define the combo boxes.
             volume_combo_box = self.get_ui(
@@ -522,8 +453,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 volume_combo_box.addItem(volume.GetName())
 
             # :COMMENT: Add the utility options to the combo box.
-            volume_combo_box.addItem("Rename current volume...")
-            volume_combo_box.addItem("Delete current volume...")
+            volume_combo_box.addItem("Rename current volume…")
+            volume_combo_box.addItem("Delete current volume…")
 
             # :COMMENT: Retrieve the volume and its index.
             if variation == "input":
@@ -536,7 +467,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :COMMENT: Reset the combo box if volume is None.
             if not volume:
                 volume_combo_box.setCurrentIndex(-1)
-                volume_dimensions_value_label.setText("...")
+                volume_dimensions_value_label.setText("…")
                 return
 
             # :COMMENT: Set the combo box position.
@@ -562,18 +493,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 )
             )
 
-        # :COMMENT: Retrieve the volumes that are not ROI masks in the scene.
-        self.volumes = [
-            x
-            for x in mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
-            if not x.GetName().endswith("ROI Mask")
-        ]
+        # :COMMENT: Update the in-memory volume list and the associated panel elements.
+        update_volume_list()
+        update_panel()
 
-        # :COMMENT: Update the volume combo boxes and information.
-        update_volume_combo_boxes_and_information_labels("all")
-
-        # :COMMENT: Reset the view.
-        self.reset_view()
+        # :COMMENT: Update the module regions.
+        self.update_view()
+        self.update_pascal_only_mode()
+        self.update_roi_selection()
+        # self.update_cropping()
+        self.update_resampling()
+        # self.update_registration()
+        # self.update_plugin_loading()
 
     #
     # VIEW INTERFACE
@@ -581,7 +512,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_view(self) -> None:
         """
-        Sets up the viewer interface by retrieving the 2D views widgets and clearing the 2D views.
+        Sets up the viewer interface by retrieving the 2D views widgets.
         """
 
         VIEWS = ["Red", "Green", "Yellow"]
@@ -595,7 +526,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Retrieve the objects for each view.
         for i in range(len(VIEWS)):
             self.slice_composite_nodes.append(
-                mrmlScene.GetNodeByID("vtkMRMLSliceCompositeNode" + VIEWS[i])
+                mrmlScene.GetNodeByID(f"vtkMRMLSliceCompositeNode{VIEWS[i]}")
             )
             assert self.slice_composite_nodes[i]
 
@@ -604,18 +535,55 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
             assert self.slice_logic[i]
 
-            # :COMMENT: Clear the 2D view.
-            self.slice_composite_nodes[i].SetBackgroundVolumeID("")
+        # :COMMENT: Initialize the view.
+        self.reset_view()
 
-            # :COMMENT: Initialize the view orientation to "Axial".
+    def reset_view(self) -> None:
+        """
+        Resets the view by clearing the slice composite nodes.
+        """
+
+        # :COMMENT: Clear each of the slice composite nodes.
+        for i in range(len(self.slice_composite_nodes)):
             slice_node = self.slice_logic[i].GetSliceNode()
             slice_node.SetOrientationToAxial()
 
-    def update_view(
+        # :COMMENT: Update the slice composite nodes.
+        self.update_view()
+
+    def update_view(self) -> None:
+        """
+        Sets all the view to their volume, or to blank if there is no volume assigned.
+        """
+
+        # :COMMENT: Update the input view.
+        if self.input_volume:
+            self.update_specific_view(
+                0,
+                self.input_volume,
+                mask=self.input_mask,
+            )
+        else:
+            self.update_specific_view(0, None)
+
+        # :COMMENT: Update the target view.
+        if self.target_volume:
+            self.update_specific_view(
+                1,
+                self.target_volume,
+                mask=self.target_mask,
+            )
+        else:
+            self.update_specific_view(1, None)
+
+        # :COMMENT: Update the difference map view.
+        # :TODO:Bastien: Add support for the difference map (during merge).
+        self.update_specific_view(2, None)
+
+    def update_specific_view(
         self,
-        volume: vtkMRMLScalarVolumeNode,
         view_id: int,
-        orientation: str = "",
+        volume: vtkMRMLScalarVolumeNode,
         mask: vtkMRMLScalarVolumeNode = None,
     ) -> None:
         """
@@ -624,7 +592,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Parameters:
             volume: The selected volume.
             view_id: The 2D view ID.
-            orientation: The orientation of the 2D view ("Axial", "Coronal", or "Sagittal").
         """
 
         # :COMMENT: Set to blank if no volume.
@@ -633,54 +600,91 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.slice_composite_nodes[view_id].SetForegroundVolumeID("")
             return
 
-        # :COMMENT: Ensure the orientation is valid.
-        assert orientation in ["Axial", "Coronal", "Sagittal"]
-
         # :COMMENT: Display the selected volume.
         self.slice_composite_nodes[view_id].SetBackgroundVolumeID(volume.GetID())
         if mask:
             self.slice_composite_nodes[view_id].SetForegroundVolumeID(mask.GetID())
             self.slice_composite_nodes[view_id].SetForegroundOpacity(0.5)
 
-        # :COMMENT: Update the slice view.
-        slice_node = self.slice_logic[view_id].GetSliceNode()
-        if orientation == "Axial":
-            slice_node.SetOrientationToAxial()
-        if orientation == "Coronal":
-            slice_node.SetOrientationToCoronal()
-        if orientation == "Sagittal":
-            slice_node.SetOrientationToSagittal()
-
         # :COMMENT: Scale the view to the volumes.
         self.slice_logic[view_id].FitSliceToAll()
 
-    def reset_view(self) -> None:
+    #
+    # PASCAL-ONLY MODE
+    #
+
+    def setup_pascal_only_mode(self) -> None:
         """
-        Sets all the view to their volume, or to blank if there is no volume assigned.
+        Sets up the Pascal-only mode by retrieving the UI elements, and connecting them to their event handlers.
         """
 
+        # :COMMENT: Retrieve the Pascal-only mode checkbox.
+        self.pascal_only_mode_checkbox = self.get_ui(
+            QCheckBox, "PascalOnlyModeCheckBox"
+        )
+        self.pascal_only_mode_checkbox.clicked.connect(self.update_pascal_only_mode)
+
+        # :COMMENT: Retrieve the 3D widget.
+        self.three_dimension_widget = app.layoutManager().threeDWidget(0)
+        assert self.three_dimension_widget
+
+        # :COMMENT: Retrieve the rendering logic.
+        self.rendering_logic = modules.volumerendering.logic()
+        assert self.rendering_logic
+
+        # :COMMENT: Initialize the rendering dispplay node.
+        self.rendering_display_node = None
+
+        # :COMMENT: Initialize the Pascal-only mode.
+        self.reset_pascal_only_mode()
+
+    def reset_pascal_only_mode(self) -> None:
+        """
+        Resets the Pascal-only mode by disabling the Pascal-only mode.
+        """
+
+        # :COMMENT: Uncheck the Pascal-only mode checkbox and update the Pascal-only mode.
+        self.pascal_only_mode_checkbox.setChecked(False)
+        self.update_pascal_only_mode()
+
+    def update_pascal_only_mode(self) -> None:
+        """
+        Updates the content of the Pascal-only mode.
+        """
+
+        # :COMMENT: Remove any volume from the 3D view.
+        if self.rendering_display_node:
+            self.update_allowed = False
+            mrmlScene.RemoveNode(self.rendering_display_node)
+            self.rendering_display_node = None
+            self.update_allowed = True
+
+        # :COMMENT: If Pascal-only mode is disabled, hide the 3D widget and return.
+        if not self.pascal_only_mode_checkbox.isChecked():
+            self.three_dimension_widget.setVisible(False)
+            return
+
+        # :COMMENT: Display the 3D widget.
+        self.three_dimension_widget.setVisible(True)
+
+        # :COMMENT: Display the input volume into the 3D view.
         if self.input_volume:
-            self.update_view(
-                self.input_volume,
-                0,
-                orientation=self.slice_logic[0].GetSliceNode().GetOrientation(),
-                mask=self.input_mask,
+            self.update_allowed = False
+            self.rendering_display_node = (
+                self.rendering_logic.CreateVolumeRenderingDisplayNode()
             )
-        else:
-            self.update_view(None, 0)
-
-        if self.target_volume:
-            self.update_view(
-                self.target_volume,
-                1,
-                orientation=self.slice_logic[1].GetSliceNode().GetOrientation(),
-                mask=self.target_mask,
+            self.rendering_display_node.UnRegister(self.rendering_logic)
+            self.rendering_display_node.SetName(
+                "CustomRegistrationRenderingDisplayNode"
             )
-        else:
-            self.update_view(None, 1)
-
-        # :MERGE:Bastien: Add support for the difference map.
-        self.update_view(None, 2)
+            mrmlScene.AddNode(self.rendering_display_node)
+            self.input_volume.AddAndObserveDisplayNodeID(
+                self.rendering_display_node.GetID()
+            )
+            self.rendering_logic.UpdateDisplayNodeFromVolumeNode(
+                self.rendering_display_node, self.input_volume
+            )
+            self.update_allowed = True
 
     #
     # ROI SELECTION
@@ -703,41 +707,39 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             ctkCollapsibleButton, "ROISelectionCollapsibleWidget"
         )
         self.roi_selection_collapsible_button.clicked.connect(
-            self.manage_preview_roi_selection
+            lambda: self.update_roi_selection()
         )
 
         # :COMMENT: Connect the input ROI selection threshold slider.
         self.input_roi_selection_threshold_slider = self.get_ui(
             QSlider, "InputROISelectionThresholdSlider"
         )
-        self.input_roi_selection_threshold_value_label = self.get_ui(
-            QLabel, "InputROISelectionThresholdValueLabel"
-        )
-        self.input_roi_selection_threshold_slider.valueChanged.connect(
-            self.preview_roi_selection
-        )
         self.input_roi_selection_threshold_slider.setStyleSheet(
             "QSlider::disabled { background-color: rgba(0, 0, 0, .25); }"
+        )
+        self.input_roi_selection_threshold_slider.valueChanged.connect(
+            lambda: self.update_roi_selection("input")
+        )
+        self.input_roi_selection_threshold_value_label = self.get_ui(
+            QLabel, "InputROISelectionThresholdValueLabel"
         )
 
         # :COMMENT: Connect the target ROI selection threshold slider.
         self.target_roi_selection_threshold_slider = self.get_ui(
             QSlider, "TargetROISelectionThresholdSlider"
         )
-        self.target_roi_selection_threshold_value_label = self.get_ui(
-            QLabel, "TargetROISelectionThresholdValueLabel"
-        )
-        self.target_roi_selection_threshold_slider.valueChanged.connect(
-            self.preview_roi_selection
-        )
         self.target_roi_selection_threshold_slider.setStyleSheet(
             "QSlider::disabled { background-color: rgba(0, 0, 0, .25); }"
+        )
+        self.target_roi_selection_threshold_slider.valueChanged.connect(
+            lambda: self.update_roi_selection("target")
+        )
+        self.target_roi_selection_threshold_value_label = self.get_ui(
+            QLabel, "TargetROISelectionThresholdValueLabel"
         )
 
         # :COMMENT: Get the ROI selection button.
         self.roi_selection_button = self.get_ui(QPushButton, "ROISelectionButton")
-
-        # :COMMENT: Connect the ROI selection button to the algorithm.
         self.roi_selection_button.clicked.connect(self.select_roi)
 
         # :COMMENT: Create an empty dictionary in which each ROI mask will be store for a specific volume.
@@ -746,19 +748,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Initialize the ROI selection.
         self.input_mask = None
         self.target_mask = None
+        self.roi_selection_preview_is_allowed = True
         self.reset_roi_selection()
-        self.update_roi_selection_ui()
 
     def reset_roi_selection(self) -> None:
         """
         Resets the ROI selection.
         """
 
-        # :COMMENT: Disable the preview before resetting the cropping parameters.
-        self.roi_selection_preview_is_allowed = False
-
-        # :COMMENT: Remove the previous mask if needed.
-        self.clear_roi_selection_masks()
+        # :COMMENT: Set the update rule to blocked.
+        self.update_allowed = False
 
         # :COMMENT: Compute the input ROI selection range and value.
         if self.input_volume:
@@ -784,138 +783,124 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.target_roi_selection_threshold_slider.setValue(range[0])
         self.target_roi_selection_threshold_value_label.setText(str(int(range[0])))
 
-        # :COMMENT: Disable the preview before resetting the cropping parameters.
-        self.roi_selection_preview_is_allowed = True
+        # :COMMENT: Set the update rule to allowed.
+        self.update_allowed = True
 
-    def clear_roi_selection_masks(self) -> None:
+        # :COMMENT: Update the ROI selection.
+        self.update_roi_selection()
+
+    def update_roi_selection(self, variation: str = "all") -> None:
         """
-        Clears the temporary ROI selection data.
+        Update the ROI selection UI and preview if needed.
         """
 
-        if self.input_volume:
-            mask = mrmlScene.GetFirstNodeByName(
-                f"{self.input_volume.GetName()} ROI Mask"
-            )
-            while mask:
-                mrmlScene.RemoveNode(mask)
-                mask = mrmlScene.GetFirstNodeByName(
-                    f"{self.input_volume.GetName()} ROI Mask"
-                )
+        assert variation in ["input", "target", "all"]
 
-        if self.target_volume:
-            mask = mrmlScene.GetFirstNodeByName(
-                f"{self.target_volume.GetName()} ROI Mask"
-            )
-            while mask:
-                mrmlScene.RemoveNode(mask)
-                mask = mrmlScene.GetFirstNodeByName(
-                    f"{self.target_volume.GetName()} ROI Mask"
-                )
+        if variation == "all":
+            self.update_roi_selection("input")
+            self.update_roi_selection("target")
 
-        self.input_mask = None
-        self.target_mask = None
+        # :COMMENT: Initialize the threshold value.
+        threshold = 0
 
-    def preview_roi_selection(self) -> None:
+        # :COMMENT: Update the input threshold value.
+        if variation == "input":
+            threshold = self.input_roi_selection_threshold_slider.value
+            self.input_roi_selection_threshold_value_label.setText(str(int(threshold)))
+            self.slice_composite_nodes[0].SetForegroundVolumeID("")
+
+        # :COMMENT: Update the target threshold value.
+        if variation == "target":
+            threshold = self.target_roi_selection_threshold_slider.value
+            self.target_roi_selection_threshold_value_label.setText(str(int(threshold)))
+            self.slice_composite_nodes[1].SetForegroundVolumeID("")
+
+        if (
+            self.roi_selection_collapsible_button.isChecked()
+            and self.roi_selection_preview_is_allowed
+        ):
+            self.preview_roi_selection(variation)
+
+    def preview_roi_selection(self, variation: str = "all") -> None:
         """
         Generates a red display node to preview the ROI selection.
-
-        Called when the ROI selection threshold slider value is changed.
         """
 
-        # :COMMENT: Retrieve the input threshold value.
-        input_threshold = self.input_roi_selection_threshold_slider.value
-        self.input_roi_selection_threshold_value_label.setText(
-            str(int(input_threshold))
-        )
+        assert variation in ["input", "target", "all"]
 
-        # :COMMENT: Retrieve the target threshold value.
-        target_threshold = self.target_roi_selection_threshold_slider.value
-        self.target_roi_selection_threshold_value_label.setText(
-            str(int(target_threshold))
-        )
+        if variation == "all":
+            self.preview_roi_selection("input")
+            self.preview_roi_selection("target")
 
-        # :COMMENT: Ensure that preview is allowed.
-        if not self.roi_selection_preview_is_allowed:
-            return
+        if variation == "input":
+            # :COMMENT: Set the update rule to blocked.
+            self.update_allowed = False
 
-        # :COMMENT: Remove the previous masks if needed.
-        self.clear_roi_selection_masks()
+            # :COMMENT: Remove the previous input mask if needed.
+            mrmlScene.RemoveNode(self.input_mask)
 
-        if self.input_volume:
+            # :COMMENT: Ensure the input volume is not None.
+            if not self.input_volume:
+                return
+
+            # :COMMENT: Retrieve the threshold value.
+            threshold = self.input_roi_selection_threshold_slider.value
+
             # :COMMENT: Call the ROI selection algorithm.
-            self.input_mask = self.logic.create_mask(self.input_volume, input_threshold)
+            self.input_mask = self.logic.create_mask(self.input_volume, threshold)
 
             # :COMMENT: Get or create the mask display node.
-            input_mask_display = self.input_mask.GetDisplayNode()
-            if not input_mask_display:
-                input_mask_display = vtkMRMLScalarVolumeDisplayNode()
-                mrmlScene.AddNode(input_mask_display)
-                self.input_mask.SetAndObserveDisplayNodeID(input_mask_display.GetID())
+            mask_display_node = self.input_mask.GetDisplayNode()
+            if not mask_display_node:
+                mask_display_node = vtkMRMLScalarVolumeDisplayNode()
+                mrmlScene.AddNode(mask_display_node)
+                self.input_mask.SetAndObserveDisplayNodeID(mask_display_node.GetID())
 
             # :COMMENT: Assign the color map to the mask display.
-            input_mask_display.SetAndObserveColorNodeID(self.color_table_node.GetID())
+            mask_display_node.SetAndObserveColorNodeID(self.color_table_node.GetID())
 
             # :COMMENT: Add the mask to the scene to visualize it.
             self.input_mask.SetName(f"{self.input_volume.GetName()} ROI Mask")
             mrmlScene.AddNode(self.input_mask)
 
-        if self.target_volume:
+            # :COMMENT: Set the update rule to allowed.
+            self.update_allowed = True
+            self.update_specific_view(0, self.input_volume, self.input_mask)
+
+        if variation == "target":
+            # :COMMENT: Set the update rule to blocked.
+            self.update_allowed = False
+
+            # :COMMENT: Remove the previous target mask if needed.
+            mrmlScene.RemoveNode(self.target_mask)
+
+            # :COMMENT: Ensure the input volume is not None.
+            if not self.target_volume:
+                return
+
+            # :COMMENT: Retrieve the threshold value.
+            threshold = self.target_roi_selection_threshold_slider.value
+
             # :COMMENT: Call the ROI selection algorithm.
-            self.target_mask = self.logic.create_mask(
-                self.target_volume, target_threshold
-            )
+            self.target_mask = self.logic.create_mask(self.target_volume, threshold)
 
             # :COMMENT: Get or create the mask display node.
-            target_mask_display = self.target_mask.GetDisplayNode()
-            if not target_mask_display:
-                target_mask_display = vtkMRMLScalarVolumeDisplayNode()
-                mrmlScene.AddNode(target_mask_display)
-                self.target_mask.SetAndObserveDisplayNodeID(target_mask_display.GetID())
+            mask_display_node = self.target_mask.GetDisplayNode()
+            if not mask_display_node:
+                mask_display_node = vtkMRMLScalarVolumeDisplayNode()
+                mrmlScene.AddNode(mask_display_node)
+                self.target_mask.SetAndObserveDisplayNodeID(mask_display_node.GetID())
 
             # :COMMENT: Assign the color map to the mask display.
-            target_mask_display.SetAndObserveColorNodeID(self.color_table_node.GetID())
+            mask_display_node.SetAndObserveColorNodeID(self.color_table_node.GetID())
 
             # :COMMENT: Add the mask to the scene to visualize it.
             self.target_mask.SetName(f"{self.target_volume.GetName()} ROI Mask")
             mrmlScene.AddNode(self.target_mask)
 
-    def manage_preview_roi_selection(self) -> None:
-        """
-        Manages the displaying of the ROI selection preview.
-        """
-
-        self.slice_composite_nodes[0].SetForegroundVolumeID("")
-        self.slice_composite_nodes[1].SetForegroundVolumeID("")
-
-        if self.roi_selection_collapsible_button.isChecked():
-            if not self.roi_selection_preview_is_allowed:
-                return
-
-            if self.input_volume:
-                # :COMMENT: Compute a mask if it's the first time opening the ROI selection interface.
-                if not self.input_mask:
-                    self.input_mask = self.logic.create_mask(
-                        self.input_volume,
-                        self.input_roi_selection_threshold_slider.value,
-                    )
-
-                # :COMMENT: Display the mask (if it already existed or if it has just been created).
-                self.slice_composite_nodes[0].SetForegroundVolumeID(
-                    self.input_mask.GetID()
-                )
-
-            if self.target_volume:
-                # :COMMENT: Compute a mask if it's the first time opening the ROI selection interface.
-                if not self.target_mask:
-                    self.target_mask = self.logic.create_mask(
-                        self.target_volume,
-                        self.target_roi_selection_threshold_slider.value,
-                    )
-
-                # :COMMENT: Display the mask (if it already existed or if it has just been created).
-                self.slice_composite_nodes[1].SetForegroundVolumeID(
-                    self.target_mask.GetID()
-                )
+            # :COMMENT: Set the update rule to allowed.
+            self.update_allowed = True
+            self.update_specific_view(1, self.target_volume, self.target_mask)
 
     def select_roi(self) -> None:
         """
@@ -969,21 +954,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Reset the ROI selection data.
         self.reset_roi_selection()
-
-    def update_roi_selection_ui(self) -> None:
-        """
-        Displays or hides the ROI selection sliders according to which volumes (input or target) are selected.
-        """
-
-        if self.input_volume:
-            self.input_roi_selection_threshold_slider.setEnabled(True)
-        else:
-            self.input_roi_selection_threshold_slider.setEnabled(False)
-
-        if self.target_volume:
-            self.target_roi_selection_threshold_slider.setEnabled(True)
-        else:
-            self.target_roi_selection_threshold_slider.setEnabled(False)
 
     #
     # CROPPING
@@ -1204,7 +1174,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_resampling(self) -> None:
         """
-        Sets up the resampling widget by linking the UI to the scene and algorithm.
+        …
         """
 
         # :COMMENT: Get the resampling button.
@@ -1218,14 +1188,24 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_resampling(self) -> None:
         """
-        Updates the list of available resampling targets in the resampling target volume combo box.
+        …
         """
 
-        # :COMMENT: Nothing to do here.
+        # :COMMENT: Nothing to reset.
+
+        # :COMMENT: Update the resampling.
+        self.update_resampling()
+
+    def update_resampling(self) -> None:
+        """
+        …
+        """
+
+        # :COMMENT: Nothing to update.
 
     def resample(self) -> None:
         """
-        Retrieves the selected and target volumes and runs the resampling algorithm.
+        …
         """
 
         # :COMMENT: Ensure that the input and target volumes are selected.
@@ -1246,6 +1226,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         print(
             f'"{self.input_volume.GetName()}" has been resampled to match "{self.target_volume.GetName()}" as "{resampled_volume.GetName()}".'
         )
+
+        # :COMMENT: Reset the resampling.
+        self.reset_resampling()
 
         # :COMMENT: Select the resampled volume.
         self.choose_input_volume(len(self.volumes) - 1)
@@ -1508,7 +1491,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 index: The input volume index.
             """
 
-            OPTIONS = ["Delete current volume...", "Rename current volume..."]
+            OPTIONS = ["Delete current volume…", "Rename current volume…"]
 
             # :COMMENT: Retrieve the selection text.
             name = self.input_volume_combo_box.currentText
@@ -1527,11 +1510,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     self.display_error_message("Please select a volume first.")
                     return
 
-                if name == "Rename current volume...":
+                if name == "Rename current volume…":
                     self.rename_input_volume()
                     return
 
-                if name == "Delete current volume...":
+                if name == "Delete current volume…":
                     self.delete_input_volume()
                     return
 
@@ -1555,7 +1538,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.maximum_pixel_value = 255
 
         # :COMMENT: Clear the view (top visualization).
-        self.update_view(None, 0)
+        self.update_specific_view(0, None)
 
     def choose_input_volume(self, index: int) -> None:
         """
@@ -1566,10 +1549,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.input_volume_index = index
         self.input_volume = self.volumes[index]
         assert self.input_volume
-
-        self.update_roi_selection_ui()
-        self.reset_roi_selection()
-        self.reset_cropping()
         self.update()
 
     def rename_input_volume(self) -> None:
@@ -1656,7 +1635,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 index: The target volume index.
             """
 
-            OPTIONS = ["Delete current volume...", "Rename current volume..."]
+            OPTIONS = ["Delete current volume…", "Rename current volume…"]
 
             # :COMMENT: Retrieve the selection text.
             name = self.target_volume_combo_box.currentText
@@ -1675,11 +1654,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     self.display_error_message("Please select a volume first.")
                     return
 
-                if name == "Rename current volume...":
+                if name == "Rename current volume…":
                     self.rename_target_volume()
                     return
 
-                if name == "Delete current volume...":
+                if name == "Delete current volume…":
                     self.delete_target_volume()
                     return
 
@@ -1701,7 +1680,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.target_volume_index = None
 
         # :COMMENT: Clear the view (top visualization).
-        self.update_view(None, 1)
+        self.update_specific_view(1, None)
 
     def choose_target_volume(self, index: int) -> None:
         """
@@ -1712,9 +1691,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.target_volume_index = index
         self.target_volume = self.volumes[index]
         assert self.target_volume
-
-        self.update_roi_selection_ui()
-        self.reset_roi_selection()
         self.update()
 
     def rename_target_volume(self) -> None:
@@ -1820,7 +1796,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.plugin_loading_ui_file = None
             ui_file_label = QLabel("No UI file selected.")
             ui_file_button = QPushButton()
-            ui_file_button.setText("Choose an UI file...")
+            ui_file_button.setText("Choose an UI file…")
             ui_file_layout = QHBoxLayout()
             ui_file_layout.setSpacing(12)
             ui_file_layout.addWidget(ui_file_label)
@@ -1831,7 +1807,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.plugin_loading_python_file = None
             python_file_label = QLabel("No Python file selected.")
             python_file_button = QPushButton()
-            python_file_button.setText("Choose a Python file...")
+            python_file_button.setText("Choose a Python file…")
             python_file_layout = QHBoxLayout()
             python_file_layout.setSpacing(12)
             python_file_layout.addWidget(python_file_label)
@@ -1992,6 +1968,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Connect the handler.
         self.plugin_loading_button.clicked.connect(on_plugin_loading_button_clicked)
+
+    def reset_plugin_loading(self) -> None:
+        """
+        Resets the plugin loading.
+        """
+
+        # Nothing to do here.
 
     #
     # UTILITIES
@@ -2179,13 +2162,13 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
 
 class RegistrationProcess(Process):
     """
-    ...
+    …
 
     Parameters:
-        scriptPath: ...
-        fixedImageVolume ...
-        movingImageVolume: ...
-        input_parameters: ...
+        scriptPath: …
+        fixedImageVolume …
+        movingImageVolume: …
+        input_parameters: …
 
     :TODO:Tony: Complete class documentation.
     """
@@ -2200,7 +2183,7 @@ class RegistrationProcess(Process):
 
     def prepareProcessInput(self):
         """
-        ...
+        …
 
         :TODO:Tony: Complete method documentation.
         """
@@ -2213,10 +2196,10 @@ class RegistrationProcess(Process):
 
     def useProcessOutput(self, processOutput):
         """
-        ...
+        …
 
         Parameters:
-            processOutput: ...
+            processOutput: …
 
         :TODO:Tony: Complete method documentation.
         """
