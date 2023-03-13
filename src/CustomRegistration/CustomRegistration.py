@@ -5,14 +5,12 @@ The Custom Registration module for Slicer provides the features for 3D images re
 import datetime
 import pickle
 from math import pi
-
 import numpy as np
 import SimpleITK as sitk
 import sitkUtils as su
 import vtk
 from ctk import ctkCollapsibleButton, ctkCollapsibleGroupBox, ctkComboBox
 from Processes import Process, ProcessesLogic
-import json
 from qt import (
     QCheckBox,
     QDialog,
@@ -1926,15 +1924,17 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
         Runs all the tests in the Custom Registration module.
         """
 
-        self.test_dummy()
+        self.test_rigid_registration()
 
-    def test_dummy(self):
+    def test_rigid_registration(self):
         """
-        Dummy test to check if the module works as expected.
+        rigid registration test
         """
-
-        print("Dummy test passed.")
-
+        import os
+        import sys
+        sys.path.append(os.path.dirname(os.path.realpath (__file__)))
+        import Resources.Scripts.Registration.Rigid as rig
+        rig.test_rigid_registration()
 
 class RegistrationProcess(Process):
     """

@@ -40,8 +40,6 @@ def select_interpolator(R, interpolator_name) -> None:
 
     interpolator = getattr(sitk, f"sitk{interpolator_name}")
 
-    # :DIRTY:Tony: For debug only (to be removed).
-    # print(f"[DEBUG] Interpolator: {interpolator}.")
 
     R.SetInterpolator(interpolator)
 
