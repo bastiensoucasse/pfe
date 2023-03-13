@@ -1610,7 +1610,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.lbfgs2_box.setEnabled(True)
             self.lbfgs2_box.collapsed = 0
 
-    def register(self):
+    def register(self) -> None:
         """
         …
         """
@@ -2004,7 +2004,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Return None if the volume was not found.
         return None
 
-    def add_new_volume(self, volume, name: str) -> None:
+    def add_new_volume(self, volume: vtkMRMLScalarVolumeNode, name: str) -> None:
         """
         Adds a new volume to the scene.
 
