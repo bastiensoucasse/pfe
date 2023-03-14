@@ -54,9 +54,10 @@ def select_optimizer_and_setup(
     nb_of_steps,
     step_length,
     optimizer_scale,
-    solution_acc,
+    gradient_conv_tol,
     nb_iter_lbfgs2,
-    delta_conv_tol,
+    max_nb_correction,
+    max_func_eval
 ) -> None:
     """
     Sets the optimizer (gradient descent, exhaustive…) and the respective parameters to be executed.
@@ -96,11 +97,12 @@ def select_optimizer_and_setup(
         # parametersToPrint = f" number of steps: {nb_of_steps}\n step length: {step_length}\n optimizer scale: {optimizer_scale}"
         optimizer(numberOfSteps=nb_of_steps, stepLength=step_length)
         R.SetOptimizerScales(optimizer_scale)
-    elif optimizer_name == "LBFGS2":
+    elif optimizer_name == "LBFGSB":
         optimizer(
-            solutionAccuracy=solution_acc,
+            gradientConvergenceTolerance=gradient_conv_tol,
             numberOfIterations=nb_iter_lbfgs2,
-            deltaConvergenceTolerance=delta_conv_tol,
+            maximumNumberOfCorrections=max_nb_correction,
+            maximumNumberOfFunctionEvaluations=max_func_eval
         )
 
 def get_demons_algorithm(name):

@@ -27,9 +27,10 @@ def rigid_registration(fixed_image, moving_image, parameters):
     step_length = parameters["step_length"]
     optimizer_scale = parameters["optimizer_scale"]
     # parameters for lbfgs2 optimizer
-    solution_acc = parameters["solution_accuracy"]
+    gradient_conv_tol = parameters["gradient_conv_tol"]
     nb_iter_lbfgs2 = parameters["nb_iter_lbfgs2"]
-    delta_conv_tol = parameters["delta_convergence_tolerance"]
+    max_nb_correction = parameters["max_nb_correction"]
+    max_func_eval = parameters["max_func_eval"]
 
     initial_transform = sitk.CenteredTransformInitializer(
         fixed_image,
@@ -40,7 +41,7 @@ def rigid_registration(fixed_image, moving_image, parameters):
 
     R = sitk.ImageRegistrationMethod()
     R.SetMetricSamplingStrategy(sampling_strat)
-    R.SetMetricSamplingPercentage(sampling_perc)
+    R.SetMetricSamplingPercentage(sampling_perc, seed=10)
     util.select_metrics(R, bin_count, metrics_name)
     util.select_interpolator(R, interpolator_name)
     util.select_optimizer_and_setup(
@@ -53,9 +54,10 @@ def rigid_registration(fixed_image, moving_image, parameters):
         nb_of_steps,
         step_length,
         optimizer_scale,
-        solution_acc,
+        gradient_conv_tol,
         nb_iter_lbfgs2,
-        delta_conv_tol,
+        max_nb_correction,
+        max_func_eval
     )
     R.SetOptimizerScalesFromPhysicalShift()
     R.SetInitialTransform(initial_transform, inPlace=False)
@@ -68,49 +70,7 @@ def rigid_registration(fixed_image, moving_image, parameters):
 
     return final_transform
 
-def test_rigid_registration():
-    thisPath = os.path.dirname(os.path.abspath(__file__))
-    fixed_image = os.path.join(thisPath, "test_data", "RegLib_C01_MRMeningioma_1.nrrd")
-    moving_image = os.path.join(thisPath, "test_data", "RegLib_C01_MRMeningioma_2.nrrd")
-
-    fixed_image = sitk.ReadImage(fixed_image, sitk.sitkFloat32)
-    moving_image = sitk.ReadImage(moving_image, sitk.sitkFloat32)
-
-    parameters = {}
-    parameters["metrics"] = "MeanSquares"
-    parameters["interpolator"] = "Linear"
-    parameters["optimizer"] = "GradientDescent"
-    parameters["histogram_bin_count"] = 50
-    parameters["sampling_strategy"] = 2
-    parameters["sampling_percentage"] = 0.001
-
-    # parameters for gradient optimizer
-    parameters["learning_rate"] = 5
-    parameters["iterations"] = 100
-    parameters["convergence_min_val"] = 1e-6
-    parameters["convergence_win_size"] = 10
-    # parameters for exhaustive optimizer
-    parameters["nb_of_steps"] = None
-    parameters["step_length"] = None
-    parameters["optimizer_scale"] = None
-    # parameters for lbfgs2 optimizer
-    parameters["solution_accuracy"] = None
-    parameters["nb_iter_lbfgs2"] = None
-    parameters["delta_convergence_tolerance"] = None
-
-    final_transform = rigid_registration(fixed_image, moving_image, parameters)
-    expected_transform = sitk.ReadTransform(os.path.join(thisPath, "test_data", "expected_transform_1.tfm"))
-    assert final_transform
-    assert final_transform.GetDimension() == expected_transform.GetDimension()
-    assert final_transform.GetNumberOfFixedParameters() == expected_transform.GetNumberOfFixedParameters()
-    assert final_transform.GetNumberOfParameters() == expected_transform.GetNumberOfParameters()
-
-    print("rigid test 1 passed !")
-
 if __name__ == "__main__":
-    if "--test" in sys.argv:
-        test_rigid_registration()
-        sys.exit(0)
     pickledInput = sys.stdin.buffer.read()
     input = pickle.loads(pickledInput)
     fixed_image = input["fixed_image"]

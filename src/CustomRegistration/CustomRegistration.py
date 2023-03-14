@@ -1017,21 +1017,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.opti_scale_edit = self.panel.findChild(QLineEdit, "lineEditScale")
         self.opti_scale_edit.editingFinished.connect(self.verify_opti_scale_edit)
 
-        # :COMMENT: LBFGS2 parameters
+        # :COMMENT: LBFGSB parameters
         self.lbfgs2_box = self.panel.findChild(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxLBFGS2"
         )
-        self.solution_accuracy_edit = self.panel.findChild(
-            QLineEdit, "lineEditSolutionAccuracy"
+        self.gradient_conv_tol_edit = self.panel.findChild(
+            QLineEdit, "lineEditGradientConvTol"
         )
-        self.solution_accuracy_edit.editingFinished.connect(self.verify_solution_accuracy)
+        self.gradient_conv_tol_edit.editingFinished.connect(self.verify_gradient_conv_tol)
         self.nb_iter_lbfgs2 = self.panel.findChild(QSpinBox, "spinBoxNbIterLBFGS2")
-        self.delta_conv_tol_edit = self.panel.findChild(QLineEdit, "lineEditDeltaConv")
-        self.delta_conv_tol_edit.editingFinished.connect(self.verify_delta_conv_tol)
+        self.max_nb_correction_spin_box = self.panel.findChild(QSpinBox, "spinBoxMaxNbCorrection")
+        self.max_nb_func_eval_spin_box = self.panel.findChild(QSpinBox, "spinBoxMaxNbFuncEval")
 
         # :COMMENT: Fill them combo boxes.
         self.metrics_combo_box.addItems(["Mean Squares", "Mattes Mutual Information"])
-        self.optimizers_combo_box.addItems(["Gradient Descent", "Exhaustive", "LBFGS2"])
+        self.optimizers_combo_box.addItems(["Gradient Descent", "Exhaustive", "LBFGSB"])
         self.interpolator_combo_box.addItems(
             [
                 "Linear",
@@ -1108,7 +1108,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         elif self.optimizers_combo_box.currentText == "Exhaustive":
             self.exhaustive_box.setEnabled(True)
             self.exhaustive_box.collapsed = 0
-        elif self.optimizers_combo_box.currentText == "LBFGS2":
+        elif self.optimizers_combo_box.currentText == "LBFGSB":
             self.lbfgs2_box.setEnabled(True)
             self.lbfgs2_box.collapsed = 0
 
@@ -1153,15 +1153,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if not self.target_volume:
             self.display_error_message("No target volume selected.")
             return
-        if self.metrics_combo_box.currentIndex == -1:
-            self.display_error_message("No metrics selected.")
-            return
-        if self.interpolator_combo_box.currentIndex == -1:
-            self.display_error_message("No interpolator selected.")
-            return
-        if self.optimizers_combo_box.currentIndex == -1:
-            self.display_error_message("No optimizer selected.")
-            return
+        if self.elastix_combo_box.currentIndex == -1:
+            if self.metrics_combo_box.currentIndex == -1:
+                self.display_error_message("No metrics selected.")
+                return
+            if self.interpolator_combo_box.currentIndex == -1:
+                self.display_error_message("No interpolator selected.")
+                return
+            if self.optimizers_combo_box.currentIndex == -1:
+                self.display_error_message("No optimizer selected.")
+                return
 
         # :COMMENT: utilitiy functions to get sitk images
         fixed_image = su.PullVolumeFromSlicer(self.target_volume)
@@ -1203,10 +1204,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.optimizer_scale = self.opti_scale_edit.text
         self.optimizer_scale = [int(scale) for scale in self.optimizer_scale.split(",")]
 
-        # :COMMENT: settings for LBFGS2
-        solution_acc = self.solution_accuracy_edit.text
+        # :COMMENT: settings for LBFGSB
+        gradient_conv_tol = self.gradient_conv_tol_edit.text
         nb_iter_lbfgs2 = self.nb_iter_lbfgs2.value
-        delta_conv_tol = self.delta_conv_tol_edit.text
+        max_nb_correction = self.max_nb_correction_spin_box.value
+        max_func_eval = self.max_nb_func_eval_spin_box.value
 
         # :COMMENT: settings for demons
         demons_nb_iter = int(self.demons_nb_iter.text)
@@ -1232,9 +1234,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["nb_of_steps"] = self.nb_of_steps
         input["step_length"] = self.step_length
         input["optimizer_scale"] = self.optimizer_scale
-        input["solution_accuracy"] = solution_acc
+        input["gradient_conv_tol"] = gradient_conv_tol
         input["nb_iter_lbfgs2"] = nb_iter_lbfgs2
-        input["delta_convergence_tolerance"] = delta_conv_tol
+        input["max_nb_correction"] = max_nb_correction
+        input["max_func_eval"] = max_func_eval
         input["transform_domain_mesh_size"] = transform_domain_mesh_size
         input["scale_factor"] = scale_factor
         input["shrink_factor"] = shrink_factor
@@ -1384,27 +1387,27 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("not values")
             self.opti_scale_edit.text = "1,1,1,1,1,1"
 
-    def verify_solution_accuracy(self):
-        value = self.solution_accuracy_edit.text
+    def verify_gradient_conv_tol(self):
+        value = self.gradient_conv_tol_edit.text
         try:
             float(value)
             if float(value) <= 0:
                 self.display_error_message("must be a positive value.")
-                self.solution_accuracy_edit.text = "1e-5"
+                self.gradient_conv_tol_edit.text = "1e-5"
         except ValueError:
             self.display_error_message("not a value.")
-            self.solution_accuracy_edit.text = "1e-5"
+            self.gradient_conv_tol_edit.text = "1e-5"
 
     def verify_delta_conv_tol(self):
-        value = self.delta_conv_tol_edit.text
+        value = self.max_nb_correction_spin_box.text
         try:
             float(value)
             if float(value) <= 0:
                 self.display_error_message("must be a positive value.")
-                self.delta_conv_tol_edit.text = "0.01"
+                self.max_nb_correction_spin_box.text = "0.01"
         except ValueError:
             self.display_error_message("not a value.")
-            self.delta_conv_tol_edit.text = "0.01"
+            self.max_nb_correction_spin_box.text = "0.01"
 
     def verify_demons_std_deviation(self):
         value = self.demons_std_deviation.text
@@ -1923,18 +1926,7 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
         """
         Runs all the tests in the Custom Registration module.
         """
-
-        self.test_rigid_registration()
-
-    def test_rigid_registration(self):
-        """
-        rigid registration test
-        """
-        import os
-        import sys
-        sys.path.append(os.path.dirname(os.path.realpath (__file__)))
-        import Resources.Scripts.Registration.Rigid as rig
-        rig.test_rigid_registration()
+        print("Please run test_registration.py outside of Slicer for unittesting.")
 
 class RegistrationProcess(Process):
     """

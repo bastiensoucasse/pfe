@@ -26,7 +26,15 @@ def main(args):
 
     R = sitk.ImageRegistrationMethod()
     R.SetMetricAsMeanSquares()
-    R.SetOptimizerAsGradientDescent(5, 100, 1e-6, 10)
+    R.SetMetricSamplingStrategy(R.RANDOM)
+    #avoid randomization with by putting a seed
+    R.SetMetricSamplingPercentage(0.01, seed=10)
+
+    # Set the optimizer to LBFGS2
+    R.SetOptimizerAsLBFGSB(gradientConvergenceTolerance=1e-5,
+    numberOfIterations=100,
+    maximumNumberOfCorrections=5,
+    maximumNumberOfFunctionEvaluations=1000)
     initial_transform = sitk.CenteredTransformInitializer(
         fixed,
         moving,
@@ -47,6 +55,6 @@ def main(args):
     print(f" Iteration: {R.GetOptimizerIteration()}")
     print(f" Metric value: {R.GetMetricValue()}")
 
-    sitk.WriteTransform(outTx, "expected_transform_1.tfm")
+    sitk.WriteTransform(outTx, "expected_transform_3.tfm")
 
 main(sys.argv)

@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>401</width>
-    <height>2482</height>
+    <height>2513</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -722,15 +722,8 @@
          </item>
          <item>
           <layout class="QGridLayout" name="gridLayout_2">
-           <item row="0" column="1">
-            <widget class="QLabel" name="label_2">
-             <property name="toolTip">
-              <string>SlicerElastix registration algorithms</string>
-             </property>
-             <property name="text">
-              <string>elastix presets</string>
-             </property>
-            </widget>
+           <item row="1" column="0">
+            <widget class="ctkComboBox" name="ComboBoxSitk"/>
            </item>
            <item row="0" column="0">
             <widget class="QLabel" name="label">
@@ -742,10 +735,17 @@
              </property>
             </widget>
            </item>
-           <item row="1" column="0">
-            <widget class="ctkComboBox" name="ComboBoxSitk"/>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_2">
+             <property name="toolTip">
+              <string>SlicerElastix registration algorithms</string>
+             </property>
+             <property name="text">
+              <string>elastix presets</string>
+             </property>
+            </widget>
            </item>
-           <item row="1" column="1">
+           <item row="3" column="0">
             <widget class="ctkComboBox" name="ComboBoxElastix"/>
            </item>
           </layout>
@@ -1247,18 +1247,25 @@ It is a positive scalar value that specify the standard deviation for each dimen
             <string>Limited memory Broyden Fletcher Goldfarb Shannon minimization without bounds.</string>
            </property>
            <property name="title">
-            <string>LBFGS2</string>
+            <string>LBFGSB</string>
            </property>
            <layout class="QVBoxLayout" name="RegistrationLBFGS2Layout">
             <item>
              <layout class="QGridLayout" name="RegistrationLBFGS2Layout_2">
-              <item row="0" column="0">
-               <widget class="QLabel" name="RegistrationSolutionAcuracyLabel">
+              <item row="2" column="0">
+               <widget class="QLabel" name="RegistrationDeltaConvergenceTolerance">
                 <property name="toolTip">
-                 <string>the magnitude of the gradient. The smaller the value, the more accurate the solution, but also more iterations and computation required.</string>
+                 <string>ensures the decrease of the metric.  The optimizer will stop if the change in metric value is less than this value for a specified number of iterations.</string>
                 </property>
                 <property name="text">
-                 <string>Solution Accuracy</string>
+                 <string>Max Nb of Correction</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="RegistrationNumberIterationsLabel_2">
+                <property name="text">
+                 <string>Number of Iterations</string>
                 </property>
                </widget>
               </item>
@@ -1271,38 +1278,51 @@ It is a positive scalar value that specify the standard deviation for each dimen
                  <number>1000</number>
                 </property>
                 <property name="value">
-                 <number>50</number>
+                 <number>100</number>
                 </property>
                </widget>
               </item>
               <item row="0" column="1">
-               <widget class="QLineEdit" name="lineEditSolutionAccuracy">
+               <widget class="QLineEdit" name="lineEditGradientConvTol">
                 <property name="text">
                  <string>1e-5</string>
                 </property>
                </widget>
               </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="RegistrationNumberIterationsLabel_2">
+              <item row="0" column="0">
+               <widget class="QLabel" name="RegistrationSolutionAcuracyLabel">
+                <property name="toolTip">
+                 <string>the magnitude of the gradient. The smaller the value, the more accurate the solution, but also more iterations and computation required.</string>
+                </property>
                 <property name="text">
-                 <string>Number of Iterations</string>
+                 <string>Gradient Convergence Tol.</string>
                 </property>
                </widget>
               </item>
-              <item row="2" column="0">
-               <widget class="QLabel" name="RegistrationDeltaConvergenceTolerance">
-                <property name="toolTip">
-                 <string>ensures the decrease of the metric.  The optimizer will stop if the change in metric value is less than this value for a specified number of iterations.</string>
-                </property>
+              <item row="3" column="0">
+               <widget class="QLabel" name="label_13">
                 <property name="text">
-                 <string>Delta Convergence Tolerance</string>
+                 <string>Max Nb of Function Eval.</string>
                 </property>
                </widget>
               </item>
               <item row="2" column="1">
-               <widget class="QLineEdit" name="lineEditDeltaConv">
-                <property name="text">
-                 <string>0.01</string>
+               <widget class="QSpinBox" name="spinBoxMaxNbCorrection">
+                <property name="maximum">
+                 <number>10000</number>
+                </property>
+                <property name="value">
+                 <number>5</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="spinBoxMaxNbFuncEval">
+                <property name="maximum">
+                 <number>10000</number>
+                </property>
+                <property name="value">
+                 <number>1000</number>
                 </property>
                </widget>
               </item>
