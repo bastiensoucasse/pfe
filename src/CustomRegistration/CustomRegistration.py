@@ -224,7 +224,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Set up the selected/target volume architecture.
         self.setup_input_volume()
         self.setup_target_volume()
-
         # :COMMENT: Add observer to update combobox when new volume is added to MRML Scene.
         self.scene_observers = [
             mrmlScene.AddObserver(vtkMRMLScene.NodeAddedEvent, self.update_volume_list),
@@ -1112,6 +1111,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.lbfgs2_box.setEnabled(True)
             self.lbfgs2_box.collapsed = 0
 
+    # :TODO: lock scale factor if lbfgsb optimizer is selected
     def update_registration_combo_box(self, is_sitk: bool, index: int) -> None:
         self.metrics_combo_box.setEnabled(False)
         self.interpolator_combo_box.setEnabled(False)
@@ -1173,47 +1173,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # allows not to update view if registration has been cancelled
         self.registration_cancelled = False
 
-        # :COMMENT:---- User settings retrieve -----
-        bin_count = self.histogram_bin_count_spin_box.value
-        # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
-        sampling_strat = self.sampling_strat_combo_box.currentIndex
-        sampling_perc = self.sampling_perc_spin_box.value
-
-        # :COMMENT: Bspline settings only
-        #test : all others have positive 3 positive values (mutli-resolution approach)
-        transform_domain_mesh_size = int(self.transform_domain_mesh_size.text)
-        scale_factor = [int(factor) for factor in self.scale_factor.text.split(",")]
-        shrink_factor = [int(factor) for factor in self.shrink_factor.text.split(",")]
-        smoothing_sigmas = [int(sig) for sig in self.smoothing_sigmas.text.split(",")]
-
-        # :COMMENT: settings for gradients only
-        learning_rate = self.learning_rate_spin_box.value
-        nb_iteration = self.nb_of_iter_spin_box.value
-        convergence_min_val = self.conv_min_val_edit.text
-        convergence_win_size = self.conv_win_size_spin_box.value
-
-        # :COMMENT: settings for exhaustive only
-        nb_of_steps = self.nb_steps_edit.text
-        self.nb_of_steps = [int(step) for step in nb_of_steps.split(",")]
-        self.step_length = self.step_length_edit.text
-        if self.step_length == "pi":
-            self.step_length = pi
-        else:
-            self.step_length = float(self.step_length)
-
-        self.optimizer_scale = self.opti_scale_edit.text
-        self.optimizer_scale = [int(scale) for scale in self.optimizer_scale.split(",")]
-
-        # :COMMENT: settings for LBFGSB
-        gradient_conv_tol = self.gradient_conv_tol_edit.text
-        nb_iter_lbfgs2 = self.nb_iter_lbfgs2.value
-        max_nb_correction = self.max_nb_correction_spin_box.value
-        max_func_eval = self.max_nb_func_eval_spin_box.value
-
-        # :COMMENT: settings for demons
-        demons_nb_iter = int(self.demons_nb_iter.text)
-        demons_std_dev = float(self.demons_std_deviation.text)
-
         input = {}
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         volume_name = f"{self.input_volume.GetName()}_registered_{current_time}"
@@ -1221,35 +1180,60 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             volume_name = f"{self.volume_name_edit.text}_registered_{current_time}"
         input["algorithm"] = self.sitk_combo_box.currentText.replace(" ", "")
         input["volume_name"] = volume_name
-        input["histogram_bin_count"] = bin_count
-        input["sampling_strategy"] = sampling_strat
-        input["sampling_percentage"] = sampling_perc
-        input["metrics"] = self.metrics_combo_box.currentText.replace(" ", "")
-        input["interpolator"] = self.interpolator_combo_box.currentText.replace(" ", "")
-        input["optimizer"] = self.optimizers_combo_box.currentText.replace(" ", "")
-        input["learning_rate"] = learning_rate
-        input["iterations"] = nb_iteration
-        input["convergence_min_val"] = convergence_min_val
-        input["convergence_win_size"] = convergence_win_size
-        input["nb_of_steps"] = self.nb_of_steps
-        input["step_length"] = self.step_length
-        input["optimizer_scale"] = self.optimizer_scale
-        input["gradient_conv_tol"] = gradient_conv_tol
-        input["nb_iter_lbfgs2"] = nb_iter_lbfgs2
-        input["max_nb_correction"] = max_nb_correction
-        input["max_func_eval"] = max_func_eval
-        input["transform_domain_mesh_size"] = transform_domain_mesh_size
-        input["scale_factor"] = scale_factor
-        input["shrink_factor"] = shrink_factor
-        input["smoothing_sigmas"] = smoothing_sigmas
-        input["demons_nb_iter"] = demons_nb_iter
-        input["demons_std_dev"] = demons_std_dev
+        self.data_to_dictionary(input)
+
         # PARALLEL PROCESSING EXTENSION
         if self.scriptPath:
             self.custom_script_registration(self.scriptPath, fixed_image, moving_image, input)
         else:
             self.elastix_registration()
 
+    def data_to_dictionary(self, data_dictionary):
+
+        # :COMMENT:---- User settings retrieve -----
+        data_dictionary["histogram_bin_count"] = self.histogram_bin_count_spin_box.value
+        # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
+        data_dictionary["sampling_strategy"] = self.sampling_strat_combo_box.currentIndex
+        data_dictionary["sampling_percentage"] = self.sampling_perc_spin_box.value
+        data_dictionary["metrics"] = self.metrics_combo_box.currentText.replace(" ", "")
+        data_dictionary["interpolator"] = self.interpolator_combo_box.currentText
+        data_dictionary["optimizer"] = self.optimizers_combo_box.currentText
+
+        # :COMMENT: Bspline settings only
+        #test : all others have positive 3 positive values (mutli-resolution approach)
+        data_dictionary["transform_domain_mesh_size"] = int(self.transform_domain_mesh_size.text)
+        data_dictionary["scale_factor"] = [int(factor) for factor in self.scale_factor.text.split(",")]
+        data_dictionary["shrink_factor"] = [int(factor) for factor in self.shrink_factor.text.split(",")]
+        data_dictionary["smoothing_sigmas"] = [int(sig) for sig in self.smoothing_sigmas.text.split(",")]
+
+        # :COMMENT: settings for gradients only
+        data_dictionary["learning_rate"] = self.learning_rate_spin_box.value
+        data_dictionary["nb_iteration"] = self.nb_of_iter_spin_box.value
+        data_dictionary["convergence_min_val"] = self.conv_min_val_edit.text
+        data_dictionary["convergence_win_size"] = self.conv_win_size_spin_box.value
+
+        # :COMMENT: settings for exhaustive only
+        nb_of_steps = self.nb_steps_edit.text
+        data_dictionary["nb_of_steps"]= [int(step) for step in nb_of_steps.split(",")]
+        self.step_length = self.step_length_edit.text
+        if self.step_length == "pi":
+            data_dictionary["step_length"] = pi
+        else:
+           data_dictionary["step_length"] = float(self.step_length)
+
+        optimizer_scale = self.opti_scale_edit.text
+        data_dictionary["optimizer_scale"] = [int(scale) for scale in optimizer_scale.split(",")]
+
+        # :COMMENT: settings for LBFGSB
+        data_dictionary["gradient_conv_tol"] = self.gradient_conv_tol_edit.text
+        data_dictionary["nb_iter_lbfgsb"] = self.nb_iter_lbfgs2.value
+        data_dictionary["max_nb_correction"] = self.max_nb_correction_spin_box.value
+        data_dictionary["max_func_eval"] = self.max_nb_func_eval_spin_box.value
+
+        # :COMMENT: settings for demons
+        data_dictionary["demons_nb_iter"] = int(self.demons_nb_iter.text)
+        data_dictionary["demons_std_dev"] = float(self.demons_std_deviation.text)
+        
 
     def iteration_callback(self, filter):
         print('\r{0:.2f}'.format(filter.GetMetricValue()), end='')

@@ -12,25 +12,9 @@ import Utilities as util
 def rigid_registration(fixed_image, moving_image, parameters):
     metrics_name = parameters["metrics"]
     interpolator_name = parameters["interpolator"]
-    optimizer_name = parameters["optimizer"]
     bin_count = parameters["histogram_bin_count"]
     sampling_strat = parameters["sampling_strategy"]
     sampling_perc = parameters["sampling_percentage"]
-
-    # parameters for gradient optimizer
-    learning_rate = parameters["learning_rate"]
-    nb_iteration = parameters["iterations"]
-    convergence_min_val = parameters["convergence_min_val"]
-    convergence_win_size = parameters["convergence_win_size"]
-    # parameters for exhaustive optimizer
-    nb_of_steps = parameters["nb_of_steps"]
-    step_length = parameters["step_length"]
-    optimizer_scale = parameters["optimizer_scale"]
-    # parameters for lbfgs2 optimizer
-    gradient_conv_tol = parameters["gradient_conv_tol"]
-    nb_iter_lbfgs2 = parameters["nb_iter_lbfgs2"]
-    max_nb_correction = parameters["max_nb_correction"]
-    max_func_eval = parameters["max_func_eval"]
 
     initial_transform = sitk.CenteredTransformInitializer(
         fixed_image,
@@ -44,21 +28,7 @@ def rigid_registration(fixed_image, moving_image, parameters):
     R.SetMetricSamplingPercentage(sampling_perc, seed=10)
     util.select_metrics(R, bin_count, metrics_name)
     util.select_interpolator(R, interpolator_name)
-    util.select_optimizer_and_setup(
-        R,
-        optimizer_name,
-        learning_rate,
-        nb_iteration,
-        convergence_min_val,
-        convergence_win_size,
-        nb_of_steps,
-        step_length,
-        optimizer_scale,
-        gradient_conv_tol,
-        nb_iter_lbfgs2,
-        max_nb_correction,
-        max_func_eval
-    )
+    util.select_optimizer_and_setup(R, parameters)
     R.SetOptimizerScalesFromPhysicalShift()
     R.SetInitialTransform(initial_transform, inPlace=False)
 
