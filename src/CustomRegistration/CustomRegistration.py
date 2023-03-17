@@ -940,6 +940,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             ctkComboBox, "ComboBoxSitk"
         )
         self.sitk_combo_box.addItems(["Rigid (6DOF)",
+        "Affine",
         "Non Rigid Bspline (>27DOF)",
         "Demons",
         "Diffeomorphic Demons",
@@ -1086,6 +1087,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.volume_name_edit.text = ""
         self.bspline_group_box.setEnabled(False)
         self.demons_group_box.setEnabled(False)
+        self.scale_factor.text = "1, 2, 4"
 
         self.update_optimizer_parameters_group_box()
 
@@ -1100,6 +1102,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.exhaustive_box.collapsed = 1
         self.lbfgs2_box.setEnabled(False)
         self.lbfgs2_box.collapsed = 1
+        self.scale_factor.setEnabled(True)
 
         if self.optimizers_combo_box.currentText == "Gradient Descent":
             self.gradients_box.setEnabled(True)
@@ -1110,8 +1113,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         elif self.optimizers_combo_box.currentText == "LBFGSB":
             self.lbfgs2_box.setEnabled(True)
             self.lbfgs2_box.collapsed = 0
+            self.scale_factor.text = "1, 1, 1"
+            self.scale_factor.setEnabled(False)
 
-    # :TODO: lock scale factor if lbfgsb optimizer is selected
     def update_registration_combo_box(self, is_sitk: bool, index: int) -> None:
         self.metrics_combo_box.setEnabled(False)
         self.interpolator_combo_box.setEnabled(False)
@@ -1119,22 +1123,28 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.settings_registration.setEnabled(False)
         self.bspline_group_box.setEnabled(False)
         self.demons_group_box.setEnabled(False)
+        self.histogram_bin_count_spin_box.setEnabled(False)
+        self.sampling_strat_combo_box.setEnabled(False)
+        self.sampling_perc_spin_box.setEnabled(False)
         if is_sitk:
             self.settings_registration.setEnabled(True)
             self.elastix_combo_box.setCurrentIndex(-1)
-            # if rigid or bspline, those settings can be changed, thus are enabled
-            if index == 0 or index == 1:
+            # if rigid, affine or bspline, those settings can be changed, thus are enabled
+            if 0 <= index <= 2:
                 self.metrics_combo_box.setEnabled(True)
                 self.interpolator_combo_box.setEnabled(True)
                 self.optimizers_combo_box.setEnabled(True)
+                self.histogram_bin_count_spin_box.setEnabled(True)
+                self.sampling_strat_combo_box.setEnabled(True)
+                self.sampling_perc_spin_box.setEnabled(True)
             # if bspline, set visible psbline parameters
-            if index == 1:
+            if index == 2:
                 self.bspline_group_box.setEnabled(True)
-            if index >= 2:
+            if index >= 3:
                 self.demons_group_box.setEnabled(True)
-            if index == 0:
+            if index == 0 or index == 1:
                 self.scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
-            if index >= 1:
+            if index > 1:
                 self.scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
         # else elastix presets, scriptPath is None to verify later which function to use (custom_script_registration or elastix_registration)
         else:
@@ -1153,7 +1163,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if not self.target_volume:
             self.display_error_message("No target volume selected.")
             return
-        if self.elastix_combo_box.currentIndex == -1:
+        # :COMMENT: only allow metrics, interpolator and optimizer for rigid and bspline sitk
+        if self.elastix_combo_box.currentIndex == -1 and self.sitk_combo_box.currentIndex < 3:
             if self.metrics_combo_box.currentIndex == -1:
                 self.display_error_message("No metrics selected.")
                 return
@@ -1181,7 +1192,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["algorithm"] = self.sitk_combo_box.currentText.replace(" ", "")
         input["volume_name"] = volume_name
         self.data_to_dictionary(input)
-
+        print(self.scriptPath)
         # PARALLEL PROCESSING EXTENSION
         if self.scriptPath:
             self.custom_script_registration(self.scriptPath, fixed_image, moving_image, input)
@@ -1209,8 +1220,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: settings for gradients only
         data_dictionary["learning_rate"] = self.learning_rate_spin_box.value
         data_dictionary["nb_iteration"] = self.nb_of_iter_spin_box.value
-        data_dictionary["convergence_min_val"] = self.conv_min_val_edit.text
-        data_dictionary["convergence_win_size"] = self.conv_win_size_spin_box.value
+        data_dictionary["convergence_min_val"] = float(self.conv_min_val_edit.text)
+        data_dictionary["convergence_win_size"] = int(self.conv_win_size_spin_box.value)
 
         # :COMMENT: settings for exhaustive only
         nb_of_steps = self.nb_steps_edit.text
@@ -1225,7 +1236,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         data_dictionary["optimizer_scale"] = [int(scale) for scale in optimizer_scale.split(",")]
 
         # :COMMENT: settings for LBFGSB
-        data_dictionary["gradient_conv_tol"] = self.gradient_conv_tol_edit.text
+        data_dictionary["gradient_conv_tol"] = float(self.gradient_conv_tol_edit.text)
         data_dictionary["nb_iter_lbfgsb"] = self.nb_iter_lbfgs2.value
         data_dictionary["max_nb_correction"] = self.max_nb_correction_spin_box.value
         data_dictionary["max_func_eval"] = self.max_nb_func_eval_spin_box.value
@@ -1238,8 +1249,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def iteration_callback(self, filter):
         print('\r{0:.2f}'.format(filter.GetMetricValue()), end='')
 
-    # :TODO: add tests
     # :TODO: clean code (delete print, organize everything)
+    # :TODO: merge all
+    # :TODO: Add other metrics (demons, correlation...)
+    # :TODO: add tests for demons
     def custom_script_registration(self, scriptPath, fixed_image, moving_image, input):
         self.elastix_logic = None
         self.process_logic = ProcessesLogic(completedCallback=lambda: self.on_registration_completed())
@@ -1259,7 +1272,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.activate_timer_and_progress_bar()
         preset = self.elastix_combo_box.currentIndex
         parameterFilenames = self.elastix_logic.getRegistrationPresets()[preset][Elastix.RegistrationPresets_ParameterFilenames]
-        print(parameterFilenames)
         new_volume = mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
         try:
             self.elastix_logic.registerVolumes(self.target_volume, self.input_volume, parameterFilenames = parameterFilenames, outputVolumeNode = new_volume)
@@ -1278,7 +1290,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_registration.setEnabled(True)
         self.button_cancel.setEnabled(False)
         # :COMMENT: Log the registration.
-        if not self.registration_cancelled:
+        if not self.registration_cancelled and self.regProcess.registration_completed:
             assert self.input_volume
             print(
                 f'"{self.input_volume.GetName()}" has been registered as "{self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems() - 1).GetName()}".'
@@ -1419,14 +1431,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             scale_factor = [int(factor) for factor in self.scale_factor.text.split(",")]
             if len(scale_factor) != 3:
                 self.display_error_message("must have 3 values.")
-                self.scale_factor.text = "1, 2, 5"
+                self.scale_factor.text = "1, 2, 4"
                 return
             if any(factor <0 for factor in scale_factor):
                 self.display_error_message("must have positive values.")
-                self.scale_factor.text = "1, 2, 5"
+                self.scale_factor.text = "1, 2, 4"
         except ValueError:
             self.display_error_message("not values.")
-            self.scale_factor.text = "1, 2, 5"
+            self.scale_factor.text = "1, 2, 4"
 
     def verify_shrink_factor(self, QLineEdit):
         try:
@@ -1911,6 +1923,9 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
         Runs all the tests in the Custom Registration module.
         """
         print("Please run test_registration.py outside of Slicer for unittesting.")
+        print("use the command : python3 test_registration.py")
+        print("Located in Resources/Registration/Scripts")
+        print("Warning : do know it takes time to process all the tests")
 
 class RegistrationProcess(Process):
     """
@@ -1955,5 +1970,7 @@ class RegistrationProcess(Process):
             image_resampled = output["image_resampled"]
             volume_name = output["volume_name"]
             if image_resampled == None:
+                print(output["error"])
+                self.registration_completed = False
                 return
             su.PushVolumeToSlicer(image_resampled, name=volume_name)

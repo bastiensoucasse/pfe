@@ -15,13 +15,21 @@ def rigid_registration(fixed_image, moving_image, parameters):
     bin_count = parameters["histogram_bin_count"]
     sampling_strat = parameters["sampling_strategy"]
     sampling_perc = parameters["sampling_percentage"]
+    algorithm = parameters["algorithm"]
 
-    initial_transform = sitk.CenteredTransformInitializer(
-        fixed_image,
-        moving_image,
-        sitk.Euler3DTransform(),
-        sitk.CenteredTransformInitializerFilter.GEOMETRY,
-    )
+    if algorithm == "Affine":
+        initial_transform = sitk.CenteredTransformInitializer(
+            fixed_image, 
+            moving_image, 
+            sitk.AffineTransform(3),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY)
+    else:
+        initial_transform = sitk.CenteredTransformInitializer(
+            fixed_image,
+            moving_image,
+            sitk.Euler3DTransform(),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
 
     R = sitk.ImageRegistrationMethod()
     R.SetMetricSamplingStrategy(sampling_strat)

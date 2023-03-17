@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>401</width>
-    <height>2513</height>
+    <height>2563</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -958,7 +958,7 @@ For example, a shrink factor of 2 means that the image will be reduced by half i
               <item row="1" column="1">
                <widget class="QLineEdit" name="lineEditScaleFactor">
                 <property name="text">
-                 <string>1, 2, 5</string>
+                 <string>1, 2, 4</string>
                 </property>
                </widget>
               </item>
@@ -990,7 +990,7 @@ The larger the mesh size, the more parameters the BSpline has and the more compl
               <item row="3" column="1">
                <widget class="QLineEdit" name="lineEditSmoothingFactor">
                 <property name="text">
-                 <string>4, 2, 1</string>
+                 <string>2, 1, 0</string>
                 </property>
                </widget>
               </item>
@@ -1232,7 +1232,7 @@ It is a positive scalar value that specify the standard deviation for each dimen
               <item row="2" column="1">
                <widget class="QLineEdit" name="lineEditScale">
                 <property name="text">
-                 <string>1,1,1,1,1,1</string>
+                 <string>1, 1, 1, 1, 1, 1</string>
                 </property>
                </widget>
               </item>

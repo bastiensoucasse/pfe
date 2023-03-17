@@ -92,8 +92,6 @@ class TestRigidMethods(unittest.TestCase):
         for x, y in zip(final_transform.GetFixedParameters(), expected_transform.GetFixedParameters()):
             self.assertAlmostEqual(x, y, delta=0.01)
 
-    # :TODO: -finir les test non rigid
-    # :TODO: -faire les tests pour utilities.py
     # :TODO: -nettoyer le code, voir le kanban
     # :TODO: corriger lbfgsb avec bspline : pas de scale factor, ou scale factor = [1, 1, 1]
     # :TODO: -pull le code de main, merge

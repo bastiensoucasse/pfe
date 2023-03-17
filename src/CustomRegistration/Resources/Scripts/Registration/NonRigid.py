@@ -9,6 +9,8 @@ sys.path.append(os.path.dirname(os.path.realpath (__file__)))
 import SimpleITK as sitk
 import Utilities as util
 
+error = []
+
 def non_rigid_registration(fixed_image, moving_image, parameters):
     algorithm = parameters["algorithm"]
     metrics_name = parameters["metrics"]
@@ -26,9 +28,23 @@ def non_rigid_registration(fixed_image, moving_image, parameters):
         demons = util.get_demons_algorithm(algorithm)
         demons.SetNumberOfIterations(NumberOfIterations=parameters["demons_nb_iter"])
         demons.SetStandardDeviations(parameters["demons_std_dev"])
-        moving_image.SetOrigin(fixed_image.GetOrigin())
-        displacementField = demons.Execute(fixed_image, moving_image)
-        outTx = sitk.DisplacementFieldTransform(displacementField)
+        toDisplacementFilter = sitk.TransformToDisplacementFieldFilter()
+        toDisplacementFilter.SetReferenceImage(fixed_image)
+        initialTransform = sitk.CenteredTransformInitializer(fixed_image, 
+                                                      moving_image, 
+                                                      sitk.AffineTransform(3), 
+                                                      sitk.CenteredTransformInitializerFilter.GEOMETRY)
+        displacementField = toDisplacementFilter.Execute(initialTransform)
+        try:
+            displacementField = demons.Execute(fixed_image, moving_image, displacementField)
+            outTx = sitk.DisplacementFieldTransform(displacementField)
+        except RuntimeError as rt:
+            error.append(str(rt))
+            error.append("Try resampling or registration using affine before using any demons algorithm")
+            outTx = None
+        finally:
+            return outTx
+
     else:
         transformDomainMeshSize = [transform_domain_mesh_size] * fixed_image.GetDimension()
         tx = sitk.BSplineTransformInitializer(fixed_image, transformDomainMeshSize)
@@ -57,17 +73,19 @@ if __name__ == "__main__":
     # user inputs
     parameters = input["parameters"]
     final_transform = non_rigid_registration(fixed_image, moving_image, parameters)
-
-    resampled = sitk.Resample(
-        moving_image,
-        fixed_image,
-        final_transform,
-        sitk.sitkLinear,
-        0.0,
-        moving_image.GetPixelID(),
-    )
+    resampled = None
+    if final_transform != None:
+        resampled = sitk.Resample(
+            moving_image,
+            fixed_image,
+            final_transform,
+            sitk.sitkLinear,
+            0.0,
+            moving_image.GetPixelID(),
+        )
 
     output = {}
     output["image_resampled"] = resampled
     output["volume_name"] = parameters["volume_name"]
+    output["error"] = "\n".join(error)
     sys.stdout.buffer.write(pickle.dumps(output))

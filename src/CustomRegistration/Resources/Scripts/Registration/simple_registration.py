@@ -1,6 +1,6 @@
 import SimpleITK as sitk
 import sys
-import os
+import time
 
 
 def command_iteration(method):
@@ -45,7 +45,7 @@ def rigid_reg(moving, fixed):
 
 
 def non_rigid_reg(moving, fixed):
-    transformDomainMeshSize=[1]*fixed.GetDimension()
+    transformDomainMeshSize=[2]*fixed.GetDimension()
     tx = sitk.BSplineTransformInitializer(fixed, transformDomainMeshSize)
 
     R = sitk.ImageRegistrationMethod()
@@ -53,7 +53,7 @@ def non_rigid_reg(moving, fixed):
     R.SetMetricSamplingPercentage(0.01, seed=10)
     R.SetMetricSamplingStrategy(R.RANDOM)
 
-    R.SetOptimizerAsGradientDescent(1, 100, 1e-5, 10)
+    R.SetOptimizerAsGradientDescent(0.01, 100, 1e-5, 10)
     
     shrink_factor = [4, 2, 1]
     smoothing_sigmas = [2, 1, 0]
@@ -61,7 +61,11 @@ def non_rigid_reg(moving, fixed):
     R.SetInterpolator(sitk.sitkLinear)
     R.SetShrinkFactorsPerLevel(shrink_factor)
     R.SetSmoothingSigmasPerLevel(smoothing_sigmas)
+    R.SetOptimizerScalesFromPhysicalShift()
+    start = time.process_time()
     outTx = R.Execute(fixed, moving)
+    stop = time.process_time()
+    print(stop-start)
 
     print("-------")
     print(outTx)
@@ -85,6 +89,6 @@ def main(args):
 
     outTx = non_rigid_reg(moving, fixed)
 
-    sitk.WriteTransform(outTx, "expected_transform_5.tfm")
+    sitk.WriteTransform(outTx, "expected_transform_6.tfm")
 
 main(sys.argv)
