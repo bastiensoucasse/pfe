@@ -41,7 +41,7 @@ def select_interpolator(R, interpolator_name) -> None:
     R.SetInterpolator(interpolator_enum[interpolator_name])
 
 
-def select_gradient_descent_optimizer(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size) -> None
+def select_gradient_descent_optimizer(R, learning_rate, nb_iteration, convergence_min_val, convergence_win_size) -> None:
     """
     Selects the gradient descent optimizer
 
@@ -111,7 +111,7 @@ def select_optimizer_and_setup(R, parameters_dict) -> None:
     else:
         raise ValueError("incorrect optimizer")
 
-def get_demons_algorithm(name) -> sitk.ImageFilter_1:
+def get_demons_algorithm(name) -> sitk.DemonsRegistrationFilter:
     """
     Gets and the associated demons algorithm with the name parameter.
 
