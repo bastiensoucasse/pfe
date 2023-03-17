@@ -11,7 +11,17 @@ import Utilities as util
 
 error = []
 
-def non_rigid_registration(fixed_image, moving_image, parameters):
+def non_rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transform:
+    """
+    Performs a non rigid registration : BSpline or Demons
+
+    Parameters:
+        fixed_image: the reference image.
+        moving_image: the image to registrate.
+        paramters: a dictionary taht contains all sorts of user parameters (metrics chosed, registration algorithm...)
+
+    Return : the result of the registration, a transform
+    """
     algorithm = parameters["algorithm"]
     metrics_name = parameters["metrics"]
     interpolator_name = parameters["interpolator"]
@@ -59,6 +69,7 @@ def non_rigid_registration(fixed_image, moving_image, parameters):
             R.SetInitialTransformAsBSpline(tx, inPlace=True, scaleFactors=scale_factor)
         else:
             R.SetInitialTransformAsBSpline(tx, inPlace=True)
+            
         R.SetShrinkFactorsPerLevel(shrink_factor)
         R.SetSmoothingSigmasPerLevel(smoothing_sigmas)
         R.SetOptimizerScalesFromPhysicalShift()

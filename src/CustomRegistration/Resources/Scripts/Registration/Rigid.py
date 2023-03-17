@@ -9,7 +9,19 @@ sys.path.append(os.path.dirname(os.path.realpath (__file__)))
 import SimpleITK as sitk
 import Utilities as util
 
-def rigid_registration(fixed_image, moving_image, parameters):
+error = []
+
+def rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transform:
+    """
+    Perfoms a rigid or affine registration.
+
+    Parameters:
+        fixed_image: the reference image.
+        moving_image: the image to registrate.
+        parameters: a dictionary taht contains all sorts of user parameters (metrics chosed, registration algorithm...)
+
+    Return : the result of the registration, a transform
+    """
     metrics_name = parameters["metrics"]
     interpolator_name = parameters["interpolator"]
     bin_count = parameters["histogram_bin_count"]
@@ -69,4 +81,5 @@ if __name__ == "__main__":
     output = {}
     output["image_resampled"] = resampled
     output["volume_name"] = parameters["volume_name"]
+    output["error"] = "\n".join(error)
     sys.stdout.buffer.write(pickle.dumps(output))

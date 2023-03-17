@@ -1117,6 +1117,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.scale_factor.setEnabled(False)
 
     def update_registration_combo_box(self, is_sitk: bool, index: int) -> None:
+        """
+        update the UI according to the registration algorithm selected by the user.
+
+        Parameters:
+            is_sitk: boolean that indicates if the registration algorithm is from sitk
+            index: the current index of the combo box
+        """
+        #disable a bunch of parameters, enabled later in this function
         self.metrics_combo_box.setEnabled(False)
         self.interpolator_combo_box.setEnabled(False)
         self.optimizers_combo_box.setEnabled(False)
@@ -1126,6 +1134,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.histogram_bin_count_spin_box.setEnabled(False)
         self.sampling_strat_combo_box.setEnabled(False)
         self.sampling_perc_spin_box.setEnabled(False)
+        self.exhaustive_box.setEnabled(False)
+        self.gradients_box.setEnabled(False)
+        self.lbfgs2_box.setEnabled(False)
         if is_sitk:
             self.settings_registration.setEnabled(True)
             self.elastix_combo_box.setCurrentIndex(-1)
@@ -1137,11 +1148,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.histogram_bin_count_spin_box.setEnabled(True)
                 self.sampling_strat_combo_box.setEnabled(True)
                 self.sampling_perc_spin_box.setEnabled(True)
+                self.exhaustive_box.setEnabled(True)
+                self.gradients_box.setEnabled(True)
+                self.lbfgs2_box.setEnabled(True)
             # if bspline, set visible psbline parameters
             if index == 2:
                 self.bspline_group_box.setEnabled(True)
+            #demons algorithms starts at 3
             if index >= 3:
                 self.demons_group_box.setEnabled(True)
+            #rigid registration are 0 and 1
             if index == 0 or index == 1:
                 self.scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
             if index > 1:
@@ -1151,7 +1167,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.scriptPath=None
             self.sitk_combo_box.setCurrentIndex(-1)
 
-    def register(self):
+    def register(self) -> None:
         """
         Launches the registration process.
         """
@@ -1164,7 +1180,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("No target volume selected.")
             return
         # :COMMENT: only allow metrics, interpolator and optimizer for rigid and bspline sitk
-        if self.elastix_combo_box.currentIndex == -1 and self.sitk_combo_box.currentIndex < 3:
+        if self.elastix_combo_box.currentIndex == -1 and self.sitk_combo_box.currentIndex == -1:
+            self.display_error_message("No registration algorithm selected.")
+            return
+        # Demons registration do not need metrics, interpolator and optimizer.
+        if self.elastix_combo_box.currentIndex == -1 and 0 <= self.sitk_combo_box.currentIndex < 3:
             if self.metrics_combo_box.currentIndex == -1:
                 self.display_error_message("No metrics selected.")
                 return
@@ -1192,15 +1212,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["algorithm"] = self.sitk_combo_box.currentText.replace(" ", "")
         input["volume_name"] = volume_name
         self.data_to_dictionary(input)
-        print(self.scriptPath)
-        # PARALLEL PROCESSING EXTENSION
         if self.scriptPath:
             self.custom_script_registration(self.scriptPath, fixed_image, moving_image, input)
         else:
             self.elastix_registration()
 
-    def data_to_dictionary(self, data_dictionary):
+    def data_to_dictionary(self, data_dictionary) -> None:
+        """
+        Fills the data_dictionary parameters with user prompts, dictionary used for registration
 
+        Parameters:
+            data_dictionary: the dictionary to fill.
+        """
         # :COMMENT:---- User settings retrieve -----
         data_dictionary["histogram_bin_count"] = self.histogram_bin_count_spin_box.value
         # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
@@ -1244,16 +1267,20 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: settings for demons
         data_dictionary["demons_nb_iter"] = int(self.demons_nb_iter.text)
         data_dictionary["demons_std_dev"] = float(self.demons_std_deviation.text)
-        
 
-    def iteration_callback(self, filter):
-        print('\r{0:.2f}'.format(filter.GetMetricValue()), end='')
-
-    # :TODO: clean code (delete print, organize everything)
     # :TODO: merge all
     # :TODO: Add other metrics (demons, correlation...)
     # :TODO: add tests for demons
-    def custom_script_registration(self, scriptPath, fixed_image, moving_image, input):
+    def custom_script_registration(self, scriptPath, fixed_image, moving_image, input) -> None:
+        """
+        Calls parallelProcessing extesion and execute a registration script as a background task.
+
+        Parameters:
+            scriptPath: the path to the script.
+            fixed_image: the reference image.
+            moving_image: the image to registrate.
+            input: the dictionary that contains user parameters.
+        """
         self.elastix_logic = None
         self.process_logic = ProcessesLogic(completedCallback=lambda: self.on_registration_completed())
         self.regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
@@ -1264,7 +1291,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.process_logic.run()
 
 
-    def elastix_registration(self):
+    def elastix_registration(self) -> None:
+        """
+        Calls SlicerElastix registration with the selected preset by the user.
+        Adds a registrated volume if registration is complete.
+        """
         self.regProcess = None
         self.elastix_logic = Elastix.ElastixLogic()
         self.button_registration.setEnabled(False)
@@ -1280,9 +1311,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         finally:
             self.on_registration_completed()
 
-    def on_registration_completed(self):
+    def on_registration_completed(self) -> None:
         """
         Handles the completion callback.
+        Stops the ProgressBar and timer.
         """
         self.progressBar.setMaximum(100)
         self.progressBar.setValue(100)
@@ -1290,16 +1322,20 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_registration.setEnabled(True)
         self.button_cancel.setEnabled(False)
         # :COMMENT: Log the registration.
-        if not self.registration_cancelled and self.regProcess.registration_completed:
-            assert self.input_volume
-            print(
-                f'"{self.input_volume.GetName()}" has been registered as "{self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems() - 1).GetName()}".'
-            )
+        if not self.registration_cancelled:
+            if self.regProcess is None or self.regProcess.registration_completed:
+                assert self.input_volume
+                print(
+                    f'"{self.input_volume.GetName()}" has been registered as "{self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems() - 1).GetName()}".'
+                )
 
             # :COMMENT: Select the new volume to display it.
             self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
 
-    def activate_timer_and_progress_bar(self):
+    def activate_timer_and_progress_bar(self) -> None:
+        """
+        Starts the progressBar activation and a timer to displays elapsed time.
+        """
         self.progressBar.setVisible(True)
         self.label_status.setVisible(True)
         self.progressBar.setMinimum(0)
@@ -1311,10 +1347,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.timer.start(1000)
         self.elapsed_time.start()
 
-    def update_status(self):
+    def update_status(self) -> None:
+        """
+        displays elapsed time
+        """
         self.label_status.setText(f"status: {self.elapsed_time.elapsed()//1000}s")
 
-    def cancel_registration_process(self):
+    def cancel_registration_process(self) -> None:
+        """
+        Stops progressBar, timer and kills the registration process.
+        """
         self.timer.stop()
         self.progressBar.setMaximum(100)
         self.progressBar.setValue(0)
@@ -1326,13 +1368,19 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if self.elastix_logic:
             self.elastix_logic.abortRequested = True
 
-    def terminate_process_logic(self):
+    def terminate_process_logic(self) -> None:
+        """
+        kills the slicerParallelProcessing registration processus.
+        """
         import signal
         import os
         os.kill(self.regProcess.processId()+10, signal.SIGKILL)
         self.regProcess.kill()
 
-    def verify_convergence_min_val(self):
+    def verify_convergence_min_val(self) -> None:
+        """
+        Assert that the content of the convergence minimum value is correct.
+        """
         value = self.conv_min_val_edit.text
         try:
             float(value)
@@ -1343,7 +1391,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("not a value.")
             self.conv_min_val_edit.text = "1e-6"
         
-    def verify_nb_steps(self):
+    def verify_nb_steps(self) -> None:
+        """
+        Assert that the content of the number of steps value is correct.
+        """
         nb_of_steps = self.nb_steps_edit.text
         try:
             nb_of_steps = [int(step) for step in nb_of_steps.split(",")]
@@ -1358,7 +1409,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("not values.")
             self.nb_steps_edit.text = "1, 1, 1, 0, 0, 0"
     
-    def verify_step_length(self):
+    def verify_step_length(self) -> None:
+        """
+        Assert that the content of the step length value is correct.
+        """
         step_length = self.step_length_edit.text
         if step_length == "pi":
             return
@@ -1368,7 +1422,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("not a value.")
             self.step_length_edit.text = "pi"
     
-    def verify_opti_scale_edit(self):
+    def verify_opti_scale_edit(self) -> None:
+        """
+        Assert that the content of the optimizer scale value is correct.
+        """
         optimizer_scale = self.opti_scale_edit.text
         try:
             optimizer_scale = [int(scale) for scale in optimizer_scale.split(",")]
@@ -1383,7 +1440,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("not values")
             self.opti_scale_edit.text = "1,1,1,1,1,1"
 
-    def verify_gradient_conv_tol(self):
+    def verify_gradient_conv_tol(self) -> None:
+        """
+        Assert that the content of the gradient convergence tolerance value is correct.
+        """
         value = self.gradient_conv_tol_edit.text
         try:
             float(value)
@@ -1394,18 +1454,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("not a value.")
             self.gradient_conv_tol_edit.text = "1e-5"
 
-    def verify_delta_conv_tol(self):
-        value = self.max_nb_correction_spin_box.text
-        try:
-            float(value)
-            if float(value) <= 0:
-                self.display_error_message("must be a positive value.")
-                self.max_nb_correction_spin_box.text = "0.01"
-        except ValueError:
-            self.display_error_message("not a value.")
-            self.max_nb_correction_spin_box.text = "0.01"
-
-    def verify_demons_std_deviation(self):
+    def verify_demons_std_deviation(self) -> None:
+        """
+        Assert that the content of the standard deviation value is correct.
+        """
         value = self.demons_std_deviation.text
         try:
             float(value)
@@ -1416,7 +1468,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("not a value.")
             self.demons_std_deviation.text = "1.0"
 
-    def verify_transform_domain_ms(self):
+    def verify_transform_domain_ms(self) -> None:
+        """
+        Assert that the content of the transform domain mesh size value is correct.
+        """
         value = self.transform_domain_mesh_size.text
         try:
             if int(value) <= 0:
@@ -1426,7 +1481,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("not a value or float entered.")
             self.transform_domain_mesh_size.text = "2"
 
-    def verify_scale_factor(self):
+    def verify_scale_factor(self) -> None:
+        """
+        Assert that the content of the scale factor vector is correct.
+        """
         try:
             scale_factor = [int(factor) for factor in self.scale_factor.text.split(",")]
             if len(scale_factor) != 3:
@@ -1440,7 +1498,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("not values.")
             self.scale_factor.text = "1, 2, 4"
 
-    def verify_shrink_factor(self, QLineEdit):
+    def verify_shrink_factor(self, QLineEdit) -> None:
+        """
+        Assert that the content of the shrink factor vector is correct.
+        """
         try:
             factor = [int(factor) for factor in QLineEdit.text.split(",")]
             if len(factor) != 3:
@@ -1947,7 +2008,7 @@ class RegistrationProcess(Process):
         self.input_parameters = input_parameters
         self.registration_completed = True
 
-    def prepareProcessInput(self):
+    def prepareProcessInput(self) -> None:
         """
         Helper function to send input parameters to a script
         """
@@ -1958,9 +2019,10 @@ class RegistrationProcess(Process):
         input["parameters"] = self.input_parameters
         return pickle.dumps(input)
 
-    def useProcessOutput(self, processOutput):
+    def useProcessOutput(self, processOutput) -> None:
         """
         Helper function to received output parameters from the script
+        Write to slicer the registrated volume if no error occured.
 
         Parameters:
             processOutput: a dictionary that contains the results of the script (a registration, a transform...)
