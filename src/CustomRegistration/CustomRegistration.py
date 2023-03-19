@@ -227,6 +227,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             )
         )
         self.transfer_volume_metadata(input_volume, resampled_volume)
+        resampled_volume.SetSpacing(target_volume.GetSpacing())
         return resampled_volume
 
     #
