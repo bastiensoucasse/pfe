@@ -169,6 +169,16 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         # cropped_image = crop_filter.Execute(image)
         # return cropped_image
 
+        # :COMMENT: Handles the autocropping offset too large.
+        dims = volume.GetImageData().GetDimensions()
+        axis = ["x", "y", "z"]
+        for i in range(len(axis)):
+            if start[i] < 0 or end[i] > dims[i]:
+                raise AutocroppingValueError(
+                    f"Offset {axis[i]} too large.",
+                    axis[i],
+                )
+
         # :COMMENT: Convert the volume to a SimpleITK image.
         image = self.vtk_to_sitk(volume)
 
@@ -340,7 +350,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup(self) -> None:
         """
-        Sets up the widget for the module by adding a welcome message to the layout.
+        Sets up the widget for the module.
         """
 
         # :COMMENT: Initialize the widget.
@@ -1095,14 +1105,20 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # :COMMENT: Get the automatic crop button widget.
-        self.automatic_cropping_button = self.get_ui(QPushButton, "AutomaticCroppingButton")
+        self.automatic_cropping_button = self.get_ui(
+            QPushButton, "AutomaticCroppingButton"
+        )
         self.automatic_cropping_button.clicked.connect(self.automatic_crop)
 
         # :COMMENT: Get the coordinates spinbox widgets.
-        self.automatic_cropping_length = []
+        self.automatic_cropping_margins = []
         axis = ["x", "y", "z"]
         for i in range(len(axis)):
-            self.automatic_cropping_length.append(self.get_ui(QSpinBox, axis[i] + "Length"))
+            self.automatic_cropping_margins.append(
+                self.get_ui(QSpinBox, axis[i] + "Margin")
+            )
+            # :DIRTY: Magic number.
+            self.get_ui(QSpinBox, axis[i] + "Margin").setMaximum(2000)
 
     def reset_automatic_cropping(self) -> None:
         """
@@ -1112,7 +1128,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         return
 
     def automatic_crop(self) -> None:
-
         # :COMMENT: Ensure that a volume is selected.
         if not self.input_volume:
             self.display_error_message("Please select a volume to automatically crop.")
@@ -1125,25 +1140,22 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if name not in self.volume_roi_map:
             self.display_error_message("Please select a ROI.")
             return
-        roi = self.volume_roi_map[name] # type: ignore
-
-        # :COMMENT: Retrieve coordinates input.
-        length = []
-        for i in range(3):
-            length.append(self.automatic_cropping_length[i].value)
+        roi = self.volume_roi_map[name]  # type: ignore
 
         # :COMMENT: Get the pixel data array and dimensions of the image data.
         roi_image_data = roi.GetImageData()
         dims = roi_image_data.GetDimensions()
 
         # :COMMENT: Convert the pixel data array into a numpy array.
-        pixel_data_array = vtk.util.numpy_support.vtk_to_numpy(roi_image_data.GetPointData().GetScalars())
-        pixel_data_array = pixel_data_array.reshape(dims, order='F')
+        pixel_data_array = vtk.util.numpy_support.vtk_to_numpy(
+            roi_image_data.GetPointData().GetScalars()
+        )
+        pixel_data_array = pixel_data_array.reshape(dims, order="F")
 
         # :COMMENT: Get the bounds of the ROI.
         mins = [pixel_data_array.shape[i] - 1 for i in range(3)]
         maxs = [0, 0, 0]
-        it = np.nditer(pixel_data_array, flags=['multi_index'], order='F')
+        it = np.nditer(pixel_data_array, flags=["multi_index"], order="F")
         while not it.finished:
             if it[0]:
                 idx = it.multi_index
@@ -1151,62 +1163,85 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     mins[i] = min(mins[i], idx[i])
                     maxs[i] = max(maxs[i], idx[i])
             it.iternext()
-        print(mins)
-        print(maxs)
 
-        # # :COMMENT: Create a new cropping box.
-        # self.automatic_cropping_box = mrmlScene.AddNewNodeByClass(
-        #     "vtkMRMLMarkupsROINode", "Automatic Cropping Preview"
-        # )
-        # self.automatic_cropping_box.SetLocked(True)
+        # :COMMENT: Crop the volume around the ROI (bounding box).
+        margins = []
+        for i in range(3):
+            margins.append(self.automatic_cropping_margins[i].value)
 
-        # # :COMMENT: Display cropping box only in red view.
-        # self.automatic_cropping_box.GetDisplayNode().SetViewNodeIDs(["vtkMRMLSliceNodeRed"])
+        for i in range(3):
+            mins[i] -= margins[i]
+            maxs[i] += margins[i]
 
-        # # :COMMENT: Get the size of ROI.
-        # start_val = mins
-        # end_val = maxs
-        # size = [end_val[i] - start_val[i] for i in range(3)]
+        try:
+            self.cropped_volume = self.logic.crop(self.input_volume, mins, maxs)
+        except AutocroppingValueError as e:
+            # :BUG:Bastien: Reset to the maximum value available (not working, so only displaying an error message).
+            # axis_map = {"x": 0, "y": 1, "z": 2}
+            # spin_box = self.automatic_cropping_margins[axis_map[e.axis]]
+            # spin_box.setValue(spin_box.value - 1)
+            self.display_error_message(str(e))
+            return
 
-        # # :COMMENT: Calculate the center and radius of the ROI.
-        # bounds = [mins[i] for i in range(3)] + [maxs[i] for i in range(3)]
-        # center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
-        # radius = [size[i] / 2 for i in range(3)]
+        og_bounds = [0, 0, 0, 0, 0, 0]
+        self.input_volume.GetBounds(og_bounds)
 
-        # # :COMMENT: Transform the center and radius according to the volume's orientation and spacing.
-        # matrix = vtk.vtkMatrix4x4()
-        # roi.GetIJKToRASDirectionMatrix(matrix)
-        # transform_matrix = np.array(
-        #     [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
-        # )
-        # transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
-        # transformed_radius = np.matmul(
-        #     transform_matrix,
-        #     np.array(roi.GetSpacing()) * np.array(radius),
-        # )
+        bounds = [0, 0, 0, 0, 0, 0]
+        self.cropped_volume.GetBounds(bounds)
 
-        # # :COMMENT: Set the center and radius of the cropping box to the transformed center and radius.
-        # self.automatic_cropping_box.SetXYZ(transformed_center)
-        # self.automatic_cropping_box.SetRadiusXYZ(transformed_radius)
+        # :COMMENT: Create a new cropping box.
+        self.automatic_cropping_box = mrmlScene.AddNewNodeByClass(
+            "vtkMRMLMarkupsROINode", "Automatic Cropping Preview"
+        )
+        self.automatic_cropping_box.SetLocked(True)
 
-        # # :COMMENT: Show the automatic cropping preview.
-        # self.automatic_cropping_box.GetDisplayNode().SetVisibility(True)
+        # :COMMENT: Display cropping box only in red view.
+        self.automatic_cropping_box.GetDisplayNode().SetViewNodeIDs(
+            ["vtkMRMLSliceNodeRed"]
+        )
 
-        # print("[DEBUG] Done")
+        # :COMMENT: Get the size of ROI.
+        start_val = mins
+        end_val = maxs
+        size = [end_val[i] - start_val[i] for i in range(3)]
 
-        # # :COMMENT: Check that coordinates are valid.
-        # if any(end_val[i] <= start_val[i] for i in range(3)):
-        #     self.display_error_message("End values must be greater than start values.")
-        #     return
+        # :COMMENT: Calculate the center and radius of the ROI.
+        center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
+        radius = [size[i] / 2 for i in range(3)]
+
+        # :COMMENT: Transform the center and radius according to the volume's orientation and spacing.
+        matrix = vtk.vtkMatrix4x4()
+        self.input_volume.GetIJKToRASDirectionMatrix(matrix)
+        transform_matrix = np.array(
+            [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
+        )
+        transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
+        transformed_radius = np.matmul(
+            transform_matrix,
+            np.array(self.input_volume.GetSpacing()) * np.array(radius),
+        )
+
+        # :COMMENT: Set the center and radius of the cropping box to the transformed center and radius.
+        self.automatic_cropping_box.SetXYZ(transformed_center)
+        self.automatic_cropping_box.SetRadiusXYZ(transformed_radius)
+
+        # :COMMENT: Show the automatic cropping preview.
+        self.automatic_cropping_box.GetDisplayNode().SetVisibility(True)
+
+        # :COMMENT: Add the VTK volume to the scene.
+        self.add_new_volume(self.cropped_volume, "cropped")
 
         # :COMMENT: Log the automatic cropping.
-        # new_size = self.cropped_volume.GetImageData().GetDimensions()
-        # print(
-        #     f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{self.cropped_volume.GetName()}".'
-        # )
+        new_size = self.cropped_volume.GetImageData().GetDimensions()
+        print(
+            f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{self.cropped_volume.GetName()}".'
+        )
 
-        # :COMMENT: Reset the ROI selection data.
-        self.reset_roi_selection()
+        # :COMMENT: Select the cropped volume.
+        self.choose_input_volume(len(self.volumes) - 1)
+
+        # :COMMENT: Delete the temporary cropped volume.
+        self.cropped_volume = None
 
     #
     # RESAMPLING
@@ -2238,3 +2273,10 @@ class RegistrationProcess(Process):
         caster.SetOutputPixelType(pixelID)
         image = caster.Execute(image_resampled)
         su.PushVolumeToSlicer(image)
+
+
+class AutocroppingValueError(ValueError):
+    def __init__(self, message, axis):
+        assert axis in ["x", "y", "z"]
+        super().__init__(message)
+        self.axis = axis

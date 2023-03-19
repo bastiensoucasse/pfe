@@ -462,7 +462,7 @@
          <item>
           <widget class="QLabel" name="AutomaticCroppingInstructionLabel">
            <property name="text">
-            <string>Crop a volume according to ROI selection and length in each axis.</string>
+            <string>Crop a volume according to ROI selection and margin in each axis.</string>
            </property>
           </widget>
          </item>
@@ -502,13 +502,13 @@
             </widget>
            </item>
            <item row="0" column="1" colspan="2">
-            <widget class="QSpinBox" name="xLength"/>
+            <widget class="QSpinBox" name="xMargin"/>
            </item>
            <item row="1" column="1" colspan="2">
-            <widget class="QSpinBox" name="yLength"/>
+            <widget class="QSpinBox" name="yMargin"/>
            </item>
            <item row="2" column="1" colspan="2">
-            <widget class="QSpinBox" name="zLength"/>
+            <widget class="QSpinBox" name="zMargin"/>
            </item>
           </layout>
          </item>
