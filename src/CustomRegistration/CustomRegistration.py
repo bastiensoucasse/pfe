@@ -1664,7 +1664,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # :COMMENT: Link settings UI and code
-        self.volume_name_edit = self.get_ui.get_ui(QLineEdit, "lineEditNewVolumeName")
+        self.volume_name_edit = self.get_ui(QLineEdit, "lineEditNewVolumeName")
         self.metrics_combo_box = self.get_ui(ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.get_ui(ctkComboBox, "comboBoxInterpolator")
         self.optimizers_combo_box = self.get_ui(ctkComboBox, "ComboOptimizers")
@@ -1732,10 +1732,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             QLineEdit, "lineEditDemonsStdDeviation"
         )
         self.demons_std_deviation.editingFinished.connect(self.verify_demons_std_deviation)
-        self.non_rigid_r_button = self.get_ui(QRadioButton, "radioButtonNonRigid")
-        self.rigid_r_button = self.get_ui(QRadioButton, "radioButtonRigid")
-        self.elastix_r_button = self.get_ui(QRadioButton, "radioButtonElastix")
-        self.rigid_r_button.toggle()
 
         # :COMMENT: Gradients parameters
         self.gradients_box = self.get_ui(
@@ -1775,14 +1771,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.nb_steps_edit = self.get_ui(QLineEdit, "lineEditSteps")
         self.opti_scale_edit = self.get_ui(QLineEdit, "lineEditScale")
 
-        # :COMMENT: LBFGS2 parameters
-        self.lbfgs2_box = self.get_ui(
-            ctkCollapsibleGroupBox, "CollapsibleGroupBoxLBFGS2"
-        )
-        self.solution_accuracy_edit = self.get_ui(QLineEdit, "lineEditSolutionAccuracy")
-        self.nb_iter_lbfgs2 = self.get_ui(QSpinBox, "spinBoxNbIterLBFGS2")
-        self.delta_conv_tol_edit = self.get_ui(QLineEdit, "lineEditDeltaConv")
-
         # :COMMENT: Fill them combo boxes.
         self.metrics_combo_box.addItems(["Mean Squares", "Mattes Mutual Information"])
         self.optimizers_combo_box.addItems(["Gradient Descent", "Exhaustive", "LBFGSB"])
@@ -1811,9 +1799,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.label_status = self.get_ui(QLabel, "label_status")
         self.label_status.hide()
 
-        self.optimizers_combo_box.currentIndexChanged.connect(
-            self.update_optimizer_parameters_group_box
-        )
+        self.optimizers_combo_box.currentIndexChanged.connect(self.update_registration)
 
         self.sitk_combo_box.activated.connect(
             lambda: self.update_registration_combo_box(True, self.sitk_combo_box.currentIndex)
@@ -1821,7 +1807,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.elastix_combo_box.activated.connect(
             lambda: self.update_registration_combo_box(False, self.elastix_combo_box.currentIndex)
         )
-
         # :COMMENT: Initialize the registration.
         self.reset_registration()
 
@@ -2317,11 +2302,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # :COMMENT: Select the volume at specified index otherwise.
             self.choose_input_volume(index)
 
-        def on_preprocessing_input_volume_combo_box_changed(index: int) -> None:
-            on_input_volume_combo_box_changed(
-                index, self.preprocessing_input_volume_combo_box
-            )
-
         def on_registration_input_volume_combo_box_changed(index: int) -> None:
             on_input_volume_combo_box_changed(
                 index, self.registration_input_volume_combo_box
@@ -2330,15 +2310,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Initialize the input volume.
         self.input_volume = None
         self.input_volume_index = None
-
-        # :COMMENT: Get and connection the preprocessing input volume combo box.
-        self.preprocessing_input_volume_combo_box = self.get_ui(
-            ctkComboBox, "PreprocessingInputVolumeComboBox"
-        )
-        assert self.preprocessing_input_volume_combo_box
-        self.preprocessing_input_volume_combo_box.activated.connect(
-            on_preprocessing_input_volume_combo_box_changed
-        )
 
         # :COMMENT: Get and connection the registration input volume combo box.
         self.registration_input_volume_combo_box = self.get_ui(
