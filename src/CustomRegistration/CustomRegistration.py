@@ -338,7 +338,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.layout.addWidget(self.panel)
 
         # :COMMENT: Collapse all the collapsible buttons.
-        collapsible_buttons = self.panel.get_uiren(ctkCollapsibleButton)
+        collapsible_buttons = self.panel.findChildren(ctkCollapsibleButton)
         for collapsible_widget in collapsible_buttons:
             collapsible_widget.collapsed = True
 
@@ -1527,7 +1527,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
         # :COMMENT: registration types
-        self.sitk_combo_box = self.panel.get_ui(
+        self.sitk_combo_box = self.get_ui(
             ctkComboBox, "ComboBoxSitk"
         )
         self.sitk_combo_box.addItems(["Rigid (6DOF)",
@@ -1538,7 +1538,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         "Fast Symmetric Forces Demons",
         "SymmetricForcesDemons"])
 
-        self.elastix_combo_box = self.panel.get_ui(
+        self.elastix_combo_box = self.get_ui(
             ctkComboBox, "ComboBoxElastix"
         )
         self.elastix_logic = Elastix.ElastixLogic()
@@ -1546,39 +1546,39 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.elastix_combo_box.addItem("{0} ({1})".format(
             preset[Elastix.RegistrationPresets_Modality], preset[Elastix.RegistrationPresets_Content]))
 
-        self.settings_registration = self.panel.get_ui(
+        self.settings_registration = self.get_ui(
             ctkCollapsibleButton, "RegistrationSettingsCollapsibleButton"
         )
 
         # :COMMENT: Bspline only
-        self.bspline_group_box = self.panel.get_ui(
+        self.bspline_group_box = self.get_ui(
             QGroupBox, "groupBoxNonRigidBspline"
         )
-        self.transform_domain_mesh_size = self.panel.get_ui(
+        self.transform_domain_mesh_size = self.get_ui(
             QLineEdit, "lineEditTransformDomainMeshSize"
         )
         self.transform_domain_mesh_size.editingFinished.connect(self.verify_transform_domain_ms)
-        self.scale_factor = self.panel.get_ui(
+        self.scale_factor = self.get_ui(
             QLineEdit, "lineEditScaleFactor"
         )
         self.scale_factor.editingFinished.connect(self.verify_scale_factor)
-        self.shrink_factor = self.panel.get_ui(
+        self.shrink_factor = self.get_ui(
             QLineEdit, "lineEditShrinkFactor"
         )
         self.shrink_factor.editingFinished.connect(lambda: self.verify_shrink_factor(self.shrink_factor))
-        self.smoothing_sigmas = self.panel.get_ui(
+        self.smoothing_sigmas = self.get_ui(
             QLineEdit, "lineEditSmoothingFactor"
         )
         self.smoothing_sigmas.editingFinished.connect(lambda: self.verify_shrink_factor(self.smoothing_sigmas))
 
         # :COMMENT: Demons only
-        self.demons_group_box = self.panel.get_ui(
+        self.demons_group_box = self.get_ui(
             QGroupBox, "groupBoxDemons"
         )
-        self.demons_nb_iter = self.panel.get_ui(
+        self.demons_nb_iter = self.get_ui(
             QLineEdit, "lineEditDemonsNbIter"
         )
-        self.demons_std_deviation = self.panel.get_ui(
+        self.demons_std_deviation = self.get_ui(
             QLineEdit, "lineEditDemonsStdDeviation"
         )
         self.demons_std_deviation.editingFinished.connect(self.verify_demons_std_deviation)
@@ -1603,24 +1603,24 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.exhaustive_box = self.get_ui(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxExhaustive"
         )
-        self.step_length_edit = self.panel.get_ui(QLineEdit, "lineEditLength")
+        self.step_length_edit = self.get_ui(QLineEdit, "lineEditLength")
         self.step_length_edit.editingFinished.connect(self.verify_step_length)
-        self.nb_steps_edit = self.panel.get_ui(QLineEdit, "lineEditSteps")
+        self.nb_steps_edit = self.get_ui(QLineEdit, "lineEditSteps")
         self.nb_steps_edit.editingFinished.connect(self.verify_nb_steps)
-        self.opti_scale_edit = self.panel.get_ui(QLineEdit, "lineEditScale")
+        self.opti_scale_edit = self.get_ui(QLineEdit, "lineEditScale")
         self.opti_scale_edit.editingFinished.connect(self.verify_opti_scale_edit)
 
         # :COMMENT: LBFGSB parameters
-        self.lbfgs2_box = self.panel.get_ui(
+        self.lbfgs2_box = self.get_ui(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxLBFGS2"
         )
-        self.gradient_conv_tol_edit = self.panel.get_ui(
+        self.gradient_conv_tol_edit = self.get_ui(
             QLineEdit, "lineEditGradientConvTol"
         )
         self.gradient_conv_tol_edit.editingFinished.connect(self.verify_gradient_conv_tol)
-        self.nb_iter_lbfgs2 = self.panel.get_ui(QSpinBox, "spinBoxNbIterLBFGS2")
-        self.max_nb_correction_spin_box = self.panel.get_ui(QSpinBox, "spinBoxMaxNbCorrection")
-        self.max_nb_func_eval_spin_box = self.panel.get_ui(QSpinBox, "spinBoxMaxNbFuncEval")
+        self.nb_iter_lbfgs2 = self.get_ui(QSpinBox, "spinBoxNbIterLBFGS2")
+        self.max_nb_correction_spin_box = self.get_ui(QSpinBox, "spinBoxMaxNbCorrection")
+        self.max_nb_func_eval_spin_box = self.get_ui(QSpinBox, "spinBoxMaxNbFuncEval")
         self.step_length_edit = self.get_ui(QLineEdit, "lineEditLength")
         self.nb_steps_edit = self.get_ui(QLineEdit, "lineEditSteps")
         self.opti_scale_edit = self.get_ui(QLineEdit, "lineEditScale")
@@ -1652,13 +1652,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_registration = self.get_ui(QPushButton, "PushButtonRegistration")
         self.button_registration.clicked.connect(self.register)
 
-        self.button_cancel = self.panel.get_ui(QPushButton, "pushButtonCancel")
+        self.button_cancel = self.get_ui(QPushButton, "pushButtonCancel")
         self.button_cancel.clicked.connect(self.cancel_registration_process)
         self.button_cancel.setEnabled(False)
 
-        self.progressBar = self.panel.get_ui(QProgressBar, "progressBar")
+        self.progressBar = self.get_ui(QProgressBar, "progressBar")
         self.progressBar.hide()
-        self.label_status = self.panel.get_ui(QLabel, "label_status")
+        self.label_status = self.get_ui(QLabel, "label_status")
         self.label_status.hide()
 
         self.optimizers_combo_box.currentIndexChanged.connect(
@@ -2191,7 +2191,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
         # :COMMENT: Get and connection the registration input volume combo box.
-        self.registration_input_volume_combo_box = self.panel.get_ui(
+        self.registration_input_volume_combo_box = self.get_ui(
             ctkComboBox, "RegistrationInputVolumeComboBox"
         )
         assert self.registration_input_volume_combo_box
@@ -2262,7 +2262,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
         else:
             scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
-        regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
+        regProcess = RegistrationProcess(scriptPath, self.fixed_image, self.moving_image, input)
         logic.addProcess(regProcess)
         logic.run()
 
@@ -2567,7 +2567,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             name: The name of the UI to retrieve.
         """
 
-        ui = self.panel.get_ui(type, name)
+        ui = self.panel.findChild(type, name)
         if not ui:
             raise AssertionError(f'No {type} with name "{name}" found.')
         return ui
