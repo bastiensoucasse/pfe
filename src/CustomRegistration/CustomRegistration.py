@@ -3,6 +3,7 @@ The Custom Registration module for Slicer provides the features for 3D images re
 """
 
 import datetime
+import os
 import pickle
 from math import pi
 import numpy as np
@@ -15,6 +16,8 @@ from qt import (
     QCheckBox,
     QDialog,
     QDoubleSpinBox,
+    QFileDialog,
+    QHBoxLayout,
     QInputDialog,
     QLabel,
     QLineEdit,
@@ -26,9 +29,18 @@ from qt import (
     QTimer,
     QElapsedTimer,
     QProgressBar,
-    QGroupBox
+    QGroupBox,
+    QVBoxLayout,
 )
-from slicer import app, mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
+from slicer import (
+    app,
+    modules,
+    mrmlScene,
+    util,
+    vtkMRMLScalarVolumeDisplayNode,
+    vtkMRMLScalarVolumeNode,
+    vtkMRMLScene,
+)
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -47,14 +59,6 @@ class CustomRegistration(ScriptedLoadableModule):
 
     def __init__(self, parent) -> None:
         ScriptedLoadableModule.__init__(self, parent)
-
-        # :COMMENT: Set the module metadata.
-        self.set_metadata()
-
-    def set_metadata(self) -> None:
-        """
-        Sets the metadata for the module, i.e., the title, categories, contributors, help text, and acknowledgement text.
-        """
 
         self.parent.title = "CustomRegistration"
         self.parent.categories = ["PFE"]
@@ -77,88 +81,225 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
     def __init__(self) -> None:
         ScriptedLoadableModuleLogic.__init__(self)
 
-    def select_roi(self, image: sitk.Image, threshold: int) -> sitk.Image:
+    #
+    # ROI SELECTION
+    #
+
+    def create_mask(
+        self, volume: vtkMRMLScalarVolumeNode, threshold: int
+    ) -> vtkMRMLScalarVolumeNode:
+        """
+        Creates a binary mask that selects the voxel of the image that are greater than the threshold.
+
+        Parameters:
+            volume: The VTK volume.
+            threshold: The threshold value.
+
+        Returns:
+            The ROI binary mask as a VTK volume.
+        """
+
+        mask = self.sitk_to_vtk(
+            sitk.BinaryThreshold(
+                self.vtk_to_sitk(volume),
+                lowerThreshold=threshold,
+                upperThreshold=1000000,
+            )
+        )
+        self.transfer_volume_metadata(volume, mask)
+        return mask
+
+    def select_roi(
+        self, volume: vtkMRMLScalarVolumeNode, mask: vtkMRMLScalarVolumeNode
+    ) -> vtkMRMLScalarVolumeNode:
         """
         Selects as ROI the largest connected component after a threshold.
 
         Parameters:
-            image: The SimpleITK image.
+            volume: The VTK volume to select the ROI from.
+            mask_volume: The ROI binary mask as a SimpleITK image.
             threshold: The threshold value.
 
         Returns:
-            The ROI SimpleITK image.
+            The VTK volume representing the ROI of the input volume.
         """
 
-        # :COMMENT: Apply threshold filter.
-        binary_image = sitk.BinaryThreshold(
-            image, lowerThreshold=threshold, upperThreshold=1000000
-        )
-
         # :COMMENT: Apply connected component filter.
-        label_map = sitk.ConnectedComponent(binary_image)
+        label_map = sitk.ConnectedComponent(self.vtk_to_sitk(mask))
 
         # :COMMENT: Find largest connected component.
         label_shape_stats = sitk.LabelShapeStatisticsImageFilter()
         label_shape_stats.Execute(label_map)
-
+        max_size = 0
         largest_label = 1
-        max_volume = 0
         for label in range(1, label_shape_stats.GetNumberOfLabels() + 1):
-            volume = label_shape_stats.GetPhysicalSize(label)
-            if volume > max_volume:
-                max_volume = volume
+            size = label_shape_stats.GetPhysicalSize(label)
+            if size > max_size:
+                max_size = size
                 largest_label = label
 
         # :COMMENT: Use binary image of largest connected component as ROI.
-        roi_binary = sitk.BinaryThreshold(
+        binary = sitk.BinaryThreshold(
             label_map, lowerThreshold=largest_label, upperThreshold=largest_label
         )
-        roi = sitk.Mask(image, roi_binary)
+
+        roi = self.sitk_to_vtk(sitk.Mask(self.vtk_to_sitk(volume), binary))
+        self.transfer_volume_metadata(volume, roi)
         return roi
 
-    def crop(self, image: sitk.Image, index, size) -> sitk.Image:
+    #
+    # CROPPING
+    #
+
+    def crop(
+        self, volume: vtkMRMLScalarVolumeNode, start, end
+    ) -> vtkMRMLScalarVolumeNode:
         """
         Crops a volume using the selected algorithm.
 
         Parameters:
-            image: The SimpleITK image to be cropped.
-            start_val: The start index of the cropping region.
-            size: The size of the cropping region.
+            volume: The VTK volume to be cropped.
+            start: The start point of the cropping region.
+            end: The end point of the cropping region.
 
         Returns:
-            The cropped SimpleITK image.
+            The cropped VTK volume.
         """
 
-        crop_filter = sitk.ExtractImageFilter()
-        crop_filter.SetIndex(index)
-        crop_filter.SetSize(size)
+        # :TODO:Iantsa: Delete former implementation when done with report.
+        # crop_filter = sitk.ExtractImageFilter()
+        # crop_filter.SetIndex(index)
+        # crop_filter.SetSize(size)
+        # cropped_image = crop_filter.Execute(image)
+        # return cropped_image
+
+        # :COMMENT: Convert the volume to a SimpleITK image.
+        image = self.vtk_to_sitk(volume)
+
+        # :COMMENT: Get the size of the original image.
+        size = image.GetSize()
+
+        # :COMMENT: Create a cropping filter.
+        crop_filter = sitk.CropImageFilter()
+
+        # :COMMENT: Set the lower and upper cropping indices
+        crop_filter.SetLowerBoundaryCropSize(start)
+        crop_filter.SetUpperBoundaryCropSize([size[i] - end[i] for i in range(3)])
+
+        # :COMMENT: Crop the image.
         cropped_image = crop_filter.Execute(image)
-        return cropped_image
 
-    def run(self, script_file: str, function_name: str, *args, **kwargs):
+        # :COMMENT: Convert the cropped SimpleITK image back to a VTK volume.
+        cropped_volume = self.sitk_to_vtk(cropped_image)
+
+        # :COMMENT: Transfer the initial volume metadata.
+        self.transfer_volume_metadata(volume, cropped_volume)
+
+        return cropped_volume
+
+    #
+    # RESAMPLING
+    #
+
+    def resample(
+        self,
+        input_volume: vtkMRMLScalarVolumeNode,
+        target_volume: vtkMRMLScalarVolumeNode,
+    ) -> vtkMRMLScalarVolumeNode:
         """
-        Loads and runs a script file.
+        Resamples a volume selected as input to march a volume selected as target (dimensions, pixel size).
 
         Parameters:
-            script_file: The script file.
-            function_name: The name of the function to run.
-            args: Positional arguments to pass.
-            kwargs: Keyword arguments to pass.
+            input_volume: The VTK volume selected as input volume.
+            target_volume: The VTK volume selected as target volume.
 
         Returns:
-            The result returned.
+            The resampled version of the input volume, matchin the target volume.
         """
 
-        # :COMMENT: Load the script file.
-        with open(script_file, "r") as f:
-            code = f.read()
-            exec(code, globals())
+        # :COMMENT: Use the default transform.
+        transform = sitk.Transform()
 
-        # :COMMENT: Retrieve the function.
-        function = globals()[function_name]
+        # :COMMENT: Use the default interpolation.
+        interpolator = sitk.sitkLinear
 
-        # :COMMENT: Run the function.
-        return function(*args, **kwargs)
+        # :COMMENT: Resample the input image to match the reference image's size, spacing, and origin.
+        resampled_volume = self.sitk_to_vtk(
+            sitk.Resample(
+                self.vtk_to_sitk(input_volume),
+                self.vtk_to_sitk(target_volume),
+                transform,
+                interpolator,
+            )
+        )
+        self.transfer_volume_metadata(input_volume, resampled_volume)
+        return resampled_volume
+
+    #
+    # UTILITIES
+    #
+
+    def vtk_to_sitk(self, volume: vtkMRMLScalarVolumeNode) -> sitk.Image:
+        """
+        Converts a VTK volume into a SimpleITK image.
+
+        Parameters:
+            volume: The VTK volume to convert.
+
+        Returns:
+            The SimpleITK image.
+        """
+
+        volume_image_data = volume.GetImageData()
+        np_array = vtk.util.numpy_support.vtk_to_numpy(volume_image_data.GetPointData().GetScalars())  # type: ignore
+        np_array = np.reshape(np_array, volume_image_data.GetDimensions()[::-1])
+        image = sitk.GetImageFromArray(np_array)
+        return image
+
+    def sitk_to_vtk(self, image: sitk.Image) -> vtkMRMLScalarVolumeNode:
+        """
+        Converts a SimpleITK image to a VTK volume.
+
+        Parameters:
+            image: The SimpleITK image to convert.
+
+        Returns:
+            The VTK volume.
+        """
+
+        np_array = sitk.GetArrayFromImage(image)
+        volume_image_data = vtk.vtkImageData()
+        volume_image_data.SetDimensions(np_array.shape[::-1])
+        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())  # type: ignore
+        volume_image_data.GetPointData().SetScalars(vtk_array)
+        volume = vtkMRMLScalarVolumeNode()
+        volume.SetAndObserveImageData(volume_image_data)
+        return volume
+
+    def transfer_volume_metadata(
+        self,
+        source_volume: vtkMRMLScalarVolumeNode,
+        target_volume: vtkMRMLScalarVolumeNode,
+    ) -> None:
+        """
+        Copies the metadata from the source volume to the target volume.
+
+        Parameters:
+            source_volume: The VTK volume to copy the metadata from.
+            target_volume: The VTK volume to copy the metadata to.
+        """
+
+        # :COMMENT: Retrieve the metadata from the source volume.
+        spacing = source_volume.GetSpacing()
+        origin = source_volume.GetOrigin()
+        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
+        source_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+
+        # :COMMENT: Apply the metadata to the target volume.
+        target_volume.SetSpacing(spacing)
+        target_volume.SetOrigin(origin)
+        target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
 
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
@@ -181,294 +322,479 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.logic = CustomRegistrationLogic()
         assert self.logic
 
-        # :COMMENT: Initialize the volume list.
-        self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
-
-        # :COMMENT: Load the panel UI.
-        # :GLITCH:Iantsa: 3D view reappearing when layout changed.
-        self.panel = util.loadUI(self.resourcePath("UI/Panel.ui"))
-        assert self.panel
-
         # :COMMENT: Hide the useless widgets.
         util.setApplicationLogoVisible(False)
         util.setModulePanelTitleVisible(False)
         util.setModuleHelpSectionVisible(False)
-        util.setDataProbeVisible(False)
+
+        # :COMMENT: Load the panel UI.
+        self.panel = util.loadUI(self.resourcePath("UI/Panel.ui"))
+        assert self.panel
 
         # :COMMENT: Apply the color palette to the panel.
-        main_window_palette = util.mainWindow().palette
-        self.panel.setPalette(main_window_palette)
+        self.panel.setPalette(util.mainWindow().palette)
 
         # :COMMENT: Insert the panel UI into the layout.
         self.layout.addWidget(self.panel)
 
         # :COMMENT: Collapse all the collapsible buttons.
-        collapsible_buttons = self.panel.findChildren(ctkCollapsibleButton)
+        collapsible_buttons = self.panel.get_uiren(ctkCollapsibleButton)
         for collapsible_widget in collapsible_buttons:
             collapsible_widget.collapsed = True
 
-        # :COMMENT: Set up the Pascal Mode Only.
-        self.setup_pascal_only_mode()
+        # :COMMENT: Initialize the volume list.
+        self.volumes = []
 
-        # :COMMENT: Set up the view interface.
+        # :COMMENT: Set up the input/target volume architecture.
+        self.setup_input_volume()
+        self.setup_target_volume()
+
+        # :COMMENT: Set up the module regions.
         self.setup_view()
-
-        # :COMMENT: Set up the preprocessing.
+        self.setup_pascal_only_mode()
         self.setup_roi_selection()
         self.setup_cropping()
         self.setup_resampling()
-
-        #:COMMENT: Set up the registration.
         self.setup_registration()
+        self.setup_plugin_loading()
 
-        # :COMMENT: Set up the selected/target volume architecture.
-        self.setup_input_volume()
-        self.setup_target_volume()
         # :COMMENT: Add observer to update combobox when new volume is added to MRML Scene.
         self.scene_observers = [
-            mrmlScene.AddObserver(vtkMRMLScene.NodeAddedEvent, self.update_volume_list),
-            mrmlScene.AddObserver(
-                vtkMRMLScene.NodeRemovedEvent, self.update_volume_list
-            ),
+            mrmlScene.AddObserver(vtkMRMLScene.NodeAddedEvent, self.update),
+            mrmlScene.AddObserver(vtkMRMLScene.NodeRemovedEvent, self.update),
             # :TODO:Bastien: Add observer for volume modified event.
         ]
 
         # :COMMENT: Launch the first volume list update.
-        self.update_volume_list()
+        self.update_allowed = True
+        self.update()
+
+    def cleanup(self) -> None:
+        """
+        Cleans up the module from any observer.
+        """
+
+        for observer in self.scene_observers:
+            mrmlScene.RemoveObserver(observer)
+
+        self.reset()
 
     def reset(self) -> None:
         """
         Resets all parameters to their default values.
         """
 
+        # Reset the input/target volume architecture.
         self.reset_input_volume()
         self.reset_target_volume()
 
-        self.reset_pascal_only_mode()
+        # Reset the module regions.
         self.reset_view()
+        self.reset_pascal_only_mode()
         self.reset_roi_selection()
         self.reset_cropping()
         self.reset_resampling()
         self.reset_registration()
+        self.reset_plugin_loading()
 
-    def cleanup(self) -> None:
+    def update(self, caller=None, event=None) -> None:
         """
-        Cleans up the module from any observer.
-
-        Called when reloading the module.
-        """
-
-        self.reset()
-
-        for observer in self.scene_observers:
-            mrmlScene.RemoveObserver(observer)
-
-    #
-    # PASCAL ONLY MODE
-    #
-
-    def setup_pascal_only_mode(self) -> None:
-        """
-        Sets up the Pascal Mode Only checkbox.
-        """
-
-        self.threeD_widget = app.layoutManager().threeDWidget(0)
-        assert self.threeD_widget
-
-        self.pascal_mode_checkbox = self.panel.findChild(
-            QCheckBox, "PascalOnlyModeCheckBox"
-        )
-        assert self.pascal_mode_checkbox
-
-        self.pascal_mode_checkbox.clicked.connect(self.manage_pascal_only_mode)
-
-        # :COMMENT: Set the Pascal Only Mode to disabled by default.
-        self.reset_pascal_only_mode()
-
-    def reset_pascal_only_mode(self) -> None:
-        """
-        Resets the Pascal Only Mode to its default state: disabled by default.
-        """
-
-        self.pascal_mode_checkbox.setChecked(False)
-        self.threeD_widget.setVisible(False)
-
-    def manage_pascal_only_mode(self) -> None:
-        """
-        Displays or hides adequatly the 3D view depending on the Pascal Mode checkbox.
-        """
-
-        if self.pascal_mode_checkbox.isChecked():
-            self.threeD_widget.setVisible(True)
-        else:
-            self.threeD_widget.setVisible(False)
-
-    #
-    # VOLUMES MANAGING
-    #
-
-    def update_volume_list(self, caller=None, event=None) -> None:
-        """
-        Updates the list of volumes in the volume combobox when a change is detected in the MRML Scene.
+        Updates the list of volumes, the view, and the panel, as well as the different module regions accordingly.
 
         Parameters:
             caller: The widget calling this method.
             event: The event that triggered this method.
         """
 
-        # :COMMENT: Retrieve the volumes in the scene.
-        self.volumes = mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
-
-        # :COMMENT: Update the volume combo boxes and information.
-        self.update_volume_combo_boxes_and_information_labels("all")
-
-        # :COMMENT: Reset the view.
-        # :GLITCH:Bastien: Flash when loading volume.
-        self.reset_view()
-
-    def update_volume_combo_boxes_and_information_labels(
-        self, variation: str = "all"
-    ) -> None:
-        """
-        Updates the volume combo boxes and information labels (dimensions, spacing…).
-
-        Parameters:
-            variation: Either "input", "target", or "all".
-        """
-
-        # :TODO:Bastien: Factorize, if possible.
-
-        # :COMMENT: Handle the "all" variation.
-        if variation == "all":
-            self.update_volume_combo_boxes_and_information_labels("input")
-            self.update_volume_combo_boxes_and_information_labels("target")
+        if not self.update_allowed:
             return
 
-        # :COMMENT: Ensure the variation is valid.
-        assert variation in ["input", "target"]
-
-        # :COMMENT: Define the combo boxes.
-        if variation == "input":
-            volume_combo_boxes = [
-                self.panel.findChild(ctkComboBox, "PreprocessingInputVolumeComboBox"),
-                self.panel.findChild(ctkComboBox, "RegistrationInputVolumeComboBox"),
-            ]
-            volume_dimensions_labels = [
-                self.panel.findChild(
-                    QLabel, "PreprocessingInputVolumeDimensionsValueLabel"
-                ),
-                self.panel.findChild(
-                    QLabel, "RegistrationInputVolumeDimensionsValueLabel"
-                ),
-            ]
-            volume_spacing_labels = [
-                self.panel.findChild(
-                    QLabel, "PreprocessingInputVolumeSpacingValueLabel"
-                ),
-                self.panel.findChild(
-                    QLabel, "RegistrationInputVolumeSpacingValueLabel"
-                ),
-            ]
-        else:
-            volume_combo_boxes = [
-                self.panel.findChild(ctkComboBox, "PreprocessingTargetVolumeComboBox"),
-                self.panel.findChild(ctkComboBox, "RegistrationTargetVolumeComboBox"),
-            ]
-            volume_dimensions_labels = [
-                self.panel.findChild(
-                    QLabel, "PreprocessingTargetVolumeDimensionsValueLabel"
-                ),
-                self.panel.findChild(
-                    QLabel, "RegistrationTargetVolumeDimensionsValueLabel"
-                ),
-            ]
-            volume_spacing_labels = [
-                self.panel.findChild(
-                    QLabel, "PreprocessingTargetVolumeSpacingValueLabel"
-                ),
-                self.panel.findChild(
-                    QLabel, "RegistrationTargetVolumeSpacingValueLabel"
-                ),
-            ]
-
-        # :COMMENT: Define the combo box filling.
-        def fill_volume_combo_box(volume_combo_box) -> None:
+        def update_volume_list() -> None:
             """
-            Fills the volume combo box with the available volumes and utility options.
+            Updates the list of volumes by retrieving the volumes that are not ROI masks in the scene.
+            """
+
+            self.volumes = [
+                volume
+                for volume in mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
+                if not volume.GetName().endswith("ROI Mask")
+            ]
+
+        def update_panel(variation: str = "all") -> None:
+            """
+            Updates the elements from the panel such as the volume combo boxes and their information labels (dimensions and spacing).
 
             Parameters:
-                volume_combo_box: The volume combo box to fill as an object.
+                variation: Either "input", "target", or "all".
             """
+
+            # :COMMENT: Ensure the variation is valid.
+            assert variation in ["input", "target", "all"]
+
+            # :COMMENT: Handle the "all" variation.
+            if variation == "all":
+                update_panel("input")
+                update_panel("target")
+                return
+
+            # :COMMENT: Define the combo boxes.
+            volume_combo_box = self.get_ui(
+                ctkComboBox, f"{variation.capitalize()}VolumeComboBox"
+            )
+            volume_dimensions_value_label = self.get_ui(
+                QLabel, f"{variation.capitalize()}VolumeDimensionsValueLabel"
+            )
+            volume_spacing_value_label = self.get_ui(
+                QLabel, f"{variation.capitalize()}VolumeSpacingValueLabel"
+            )
 
             # :COMMENT: Reset the volume combo box.
             volume_combo_box.clear()
 
             # :COMMENT: Add the available volumes to the combo box.
-            for i in range(self.volumes.GetNumberOfItems()):
-                volume = self.volumes.GetItemAsObject(i)
+            for i in range(len(self.volumes)):
+                volume = self.volumes[i]
                 volume_combo_box.addItem(volume.GetName())
 
             # :COMMENT: Add the utility options to the combo box.
             volume_combo_box.addItem("Rename current volume…")
             volume_combo_box.addItem("Delete current volume…")
 
-        for i in range(len(volume_combo_boxes)):
-            # :COMMENT: Retrieve the UI items.
-            volume_combo_box = volume_combo_boxes[i]
-            volume_dimensions_label = volume_dimensions_labels[i]
-            volume_spacing_label = volume_spacing_labels[i]
+            # :COMMENT: Retrieve the volume and its index.
+            if variation == "input":
+                volume = self.input_volume
+                volume_index = self.input_volume_index
+            else:
+                volume = self.target_volume
+                volume_index = self.target_volume_index
 
-            # :COMMENT: Reset the volume combo box.
-            fill_volume_combo_box(volume_combo_box)
+            # :COMMENT: Reset the combo box if volume is None.
+            if not volume:
+                volume_combo_box.setCurrentIndex(-1)
+                volume_dimensions_value_label.setText("…")
+                return
 
             # :COMMENT: Set the combo box position.
-            if variation == "input" and self.input_volume:
-                volume_combo_box.setCurrentIndex(self.input_volume_index)
-                volume_image_data = self.input_volume.GetImageData()
+            volume_combo_box.setCurrentIndex(volume_index)
 
-                volume_dimensions = volume_image_data.GetDimensions()
-                volume_dimensions_label.setText(
-                    "{} x {} x {}".format(
-                        volume_dimensions[0],
-                        volume_dimensions[1],
-                        volume_dimensions[2],
-                    )
+            # :COMMENT: Display the dimensions.
+            volume_dimensions = volume.GetImageData().GetDimensions()
+            volume_dimensions_value_label.setText(
+                "{} x {} x {}".format(
+                    volume_dimensions[0],
+                    volume_dimensions[1],
+                    volume_dimensions[2],
+                )
+            )
+
+            # :COMMENT: Display the spacing.
+            volume_spacing = volume.GetSpacing()
+            volume_spacing_value_label.setText(
+                "{:.1f} x {:.1f} x {:.1f}".format(
+                    volume_spacing[0],
+                    volume_spacing[1],
+                    volume_spacing[2],
+                )
+            )
+
+        # :COMMENT: Update the in-memory volume list and the associated panel elements.
+        update_volume_list()
+        update_panel()
+
+        # :COMMENT: Update the module regions.
+        self.update_view()
+        self.update_pascal_only_mode()
+        self.update_roi_selection()
+        self.update_cropping()
+        self.update_resampling()
+        self.update_registration()
+        self.update_plugin_loading()
+
+    #
+    # INPUT VOLUME
+    #
+
+    def setup_input_volume(self) -> None:
+        """
+        Sets up the input volume architecture by initializing the data and retrieving the UI widgets.
+        """
+
+        # :COMMENT: Retreive the input volume combo box.
+        self.input_volume_combo_box = self.get_ui(ctkComboBox, "InputVolumeComboBox")
+
+        # :COMMENT: Initialize the input volume.
+        self.input_volume = None
+        self.input_volume_index = None
+
+        def on_input_volume_combo_box_changed(index: int) -> None:
+            """
+            Handles change of input volume with options.
+
+            Called when an item in an input volume combobox is selected.
+
+            Parameters:
+                index: The input volume index.
+            """
+
+            OPTIONS = ["Delete current volume…", "Rename current volume…"]
+
+            # :COMMENT: Retrieve the selection text.
+            name = self.input_volume_combo_box.currentText
+
+            # :COMMENT: Handle the different options.
+            if name in OPTIONS:
+                # :COMMENT: Ensure that there is at least one volume imported.
+                if len(self.volumes) < 1:
+                    self.update()
+                    self.display_error_message("No volumes imported.")
+                    return
+
+                # :COMMENT: Ensure that a volume is selected as input.
+                if not self.input_volume:
+                    self.update()
+                    self.display_error_message("Please select a volume first.")
+                    return
+
+                if name == "Rename current volume…":
+                    self.rename_input_volume()
+                    return
+
+                if name == "Delete current volume…":
+                    self.delete_input_volume()
+                    return
+
+            # :COMMENT: Select the volume at specified index otherwise.
+            self.choose_input_volume(index)
+
+        # :COMMENT: Connect the input volume combo box.
+        self.input_volume_combo_box.activated.connect(on_input_volume_combo_box_changed)
+
+    def reset_input_volume(self) -> None:
+        """
+        Resets the input volume to None.
+        """
+
+        # :COMMENT: Reset the input volume.
+        self.choose_input_volume()
+
+    def choose_input_volume(self, index: int = -1) -> None:
+        """
+        Selects an input volume.
+        """
+
+        if index < 0:
+            self.input_volume = None
+            self.input_volume_index = None
+            assert not self.input_volume
+        else:
+            self.input_volume = self.volumes[index]
+            self.input_volume_index = index
+            assert self.input_volume
+        self.update()
+
+    def rename_input_volume(self) -> None:
+        """
+        Loads the renaming feature with a minimal window.
+        """
+
+        # :COMMENT: Define the handler.
+        def rename_volume_handler(result) -> None:
+            """
+            Applies the renaming of the input volume.
+
+            Parameters:
+                result: The result of the input dialog.
+            """
+
+            if result == QDialog.Accepted:
+                # :COMMENT: Ensure that a volume is input.
+                assert self.input_volume
+
+                # :COMMENT: Retrieve the new name and apply it.
+                new_name = self.renaming_input_dialog.textValue()
+                self.input_volume.SetName(new_name)
+
+                # :COMMENT: Log the renaming.
+                print(
+                    f'"{self.renaming_old_name}" has been renamed to "{self.input_volume.GetName()}".'
                 )
 
-                volume_spacing = self.input_volume.GetSpacing()
-                volume_spacing_label.setText(
-                    "{:.1f} x {:.1f} x {:.1f}".format(
-                        volume_spacing[0],
-                        volume_spacing[1],
-                        volume_spacing[2],
-                    )
+            # :DIRTY:Bastien: Find a way to add modified node event observer in the setup.
+            self.update()
+
+        # :COMMENT: Ensure that a volume is selected as input.
+        assert self.input_volume
+
+        # :COMMENT: Save the old name for logging.
+        self.renaming_old_name = self.input_volume.GetName()
+
+        # :COMMENT: Open an input dialog for the new name.
+        self.renaming_input_dialog = QInputDialog(None)
+        self.renaming_input_dialog.setWindowTitle("Rename Volume")
+        self.renaming_input_dialog.setLabelText("Enter the new name:")
+        self.renaming_input_dialog.setModal(True)
+        self.renaming_input_dialog.setTextValue(self.input_volume.GetName())
+        self.renaming_input_dialog.finished.connect(rename_volume_handler)
+        self.renaming_input_dialog.show()
+
+    def delete_input_volume(self) -> None:
+        """
+        Deletes the current input volume.
+        """
+
+        assert self.input_volume
+        volume = self.input_volume
+        if self.input_volume_index == self.target_volume_index:
+            self.reset_target_volume()
+        self.reset_input_volume()
+        self.update_allowed = False
+        mrmlScene.RemoveNode(volume)
+        self.update_allowed = True
+        print(f'"{volume.GetName()}" has been deleted.')
+
+    #
+    # TARGET VOLUME
+    #
+
+    def setup_target_volume(self) -> None:
+        """
+        Sets up the target volume architecture by initializing the data and retrieving the UI widgets.
+        """
+
+        # :COMMENT: Retreive the target volume combo box.
+        self.target_volume_combo_box = self.get_ui(ctkComboBox, "TargetVolumeComboBox")
+
+        # :COMMENT: Initialize the target volume.
+        self.target_volume = None
+        self.target_volume_index = None
+
+        def on_target_volume_combo_box_changed(index: int) -> None:
+            """
+            Handles change of target volume with options.
+
+            Called when an item in a target volume combobox is selected.
+
+            Parameters:
+                index: The target volume index.
+            """
+
+            OPTIONS = ["Delete current volume…", "Rename current volume…"]
+
+            # :COMMENT: Retrieve the selection text.
+            name = self.target_volume_combo_box.currentText
+
+            # :COMMENT: Handle the different options.
+            if name in OPTIONS:
+                # :COMMENT: Ensure that there is at least one volume imported.
+                if len(self.volumes) < 1:
+                    self.update()
+                    self.display_error_message("No volumes imported.")
+                    return
+
+                # :COMMENT: Ensure that a volume is selected as target.
+                if not self.target_volume:
+                    self.update()
+                    self.display_error_message("Please select a volume first.")
+                    return
+
+                if name == "Rename current volume…":
+                    self.rename_target_volume()
+                    return
+
+                if name == "Delete current volume…":
+                    self.delete_target_volume()
+                    return
+
+            # :COMMENT: Select the volume at specified index otherwise.
+            self.choose_target_volume(index)
+
+        # :COMMENT: Connect the target volume combo box.
+        self.target_volume_combo_box.activated.connect(
+            on_target_volume_combo_box_changed
+        )
+
+    def reset_target_volume(self) -> None:
+        """
+        Resets the target volume to None.
+        """
+
+        # :COMMENT: Clear the view (top visualization).
+        self.choose_target_volume()
+
+    def choose_target_volume(self, index: int = -1) -> None:
+        """
+        Selects an target volume.
+        """
+
+        if index < 0:
+            self.target_volume = None
+            self.target_volume_index = None
+            assert not self.target_volume
+        else:
+            self.target_volume = self.volumes[index]
+            self.target_volume_index = index
+            assert self.target_volume
+        self.update()
+
+    def rename_target_volume(self) -> None:
+        """
+        Loads the renaming feature with a minimal window.
+        """
+
+        # :COMMENT: Define the handler.
+        def rename_volume_handler(result) -> None:
+            """
+            Applies the renaming of the target volume.
+
+            Parameters:
+                result: The result of the target dialog.
+            """
+
+            if result == QDialog.Accepted:
+                # :COMMENT: Ensure that a volume is target.
+                assert self.target_volume
+
+                # :COMMENT: Retrieve the new name and apply it.
+                new_name = self.renaming_target_dialog.textValue()
+                self.target_volume.SetName(new_name)
+
+                # :COMMENT: Log the renaming.
+                print(
+                    f'"{self.renaming_old_name}" has been renamed to "{self.target_volume.GetName()}".'
                 )
 
-            elif variation == "target" and self.target_volume:
-                volume_combo_box.setCurrentIndex(self.target_volume_index)
-                volume_image_data = self.target_volume.GetImageData()
+            # :DIRTY:Bastien: Find a way to add modified node event observer in the setup.
+            self.update()
 
-                volume_dimensions = volume_image_data.GetDimensions()
-                volume_dimensions_label.setText(
-                    "{} x {} x {}".format(
-                        volume_dimensions[0],
-                        volume_dimensions[1],
-                        volume_dimensions[2],
-                    )
-                )
+        # :COMMENT: Ensure that a volume is selected as target.
+        assert self.target_volume
 
-                volume_spacing = [self.target_volume.GetSpacing()[i] for i in range(3)]
-                volume_spacing_label.setText(
-                    "{:.1f} x {:.1f} x {:.1f}".format(
-                        volume_spacing[0],
-                        volume_spacing[1],
-                        volume_spacing[2],
-                    )
-                )
+        # :COMMENT: Save the old name for logging.
+        self.renaming_old_name = self.target_volume.GetName()
 
-            else:
-                volume_combo_box.setCurrentIndex(-1)
-                volume_dimensions_label.setText("…")
+        # :COMMENT: Open an target dialog for the new name.
+        self.renaming_target_dialog = QInputDialog(None)
+        self.renaming_target_dialog.setWindowTitle("Rename Volume")
+        self.renaming_target_dialog.setLabelText("Enter the new name:")
+        self.renaming_target_dialog.setModal(True)
+        self.renaming_target_dialog.setTextValue(self.target_volume.GetName())
+        self.renaming_target_dialog.finished.connect(rename_volume_handler)
+        self.renaming_target_dialog.show()
+
+    def delete_target_volume(self) -> None:
+        """
+        Deletes the current target volume.
+        """
+
+        assert self.target_volume
+        volume = self.target_volume
+        if self.target_volume_index == self.input_volume_index:
+            self.reset_input_volume()
+        self.reset_target_volume()
+        self.update_allowed = False
+        mrmlScene.RemoveNode(volume)
+        self.update_allowed = True
+        print(f'"{volume.GetName()}" has been deleted.')
 
     #
     # VIEW INTERFACE
@@ -476,7 +802,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_view(self) -> None:
         """
-        Sets up the viewer interface by retrieving the 2D views widgets and clearing the 2D views.
+        Sets up the view by retrieving the 2D views.
         """
 
         VIEWS = ["Red", "Green", "Yellow"]
@@ -490,7 +816,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Retrieve the objects for each view.
         for i in range(len(VIEWS)):
             self.slice_composite_nodes.append(
-                mrmlScene.GetNodeByID("vtkMRMLSliceCompositeNode" + VIEWS[i])
+                mrmlScene.GetNodeByID(f"vtkMRMLSliceCompositeNode{VIEWS[i]}")
             )
             assert self.slice_composite_nodes[i]
 
@@ -499,73 +825,157 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
             assert self.slice_logic[i]
 
-            # :COMMENT: Clear the 2D view.
-            self.slice_composite_nodes[i].SetBackgroundVolumeID("")
+        # :COMMENT: Initialize the view.
+        self.reset_view()
 
-            # :COMMENT: Initialize the view orientation to "Axial".
+    def reset_view(self) -> None:
+        """
+        Resets the view by clearing the 2D views.
+        """
+
+        # :COMMENT: Clear each of the slice composite nodes.
+        for i in range(len(self.slice_composite_nodes)):
             slice_node = self.slice_logic[i].GetSliceNode()
             slice_node.SetOrientationToAxial()
 
-    def update_view(
-        self, volume: vtkMRMLScalarVolumeNode, view_id: int, orientation: str = ""
+        # :COMMENT: Update the slice composite nodes.
+        self.update_view()
+
+    def update_view(self) -> None:
+        """
+        Updates the view by setting all the 2D views to their volume, or to blank if there is no volume assigned.
+        """
+
+        # :COMMENT: Update the input view.
+        if self.input_volume:
+            self.update_specific_view(
+                0,
+                self.input_volume,
+                mask=self.input_mask,
+            )
+        else:
+            self.update_specific_view(0, None)
+
+        # :COMMENT: Update the target view.
+        if self.target_volume:
+            self.update_specific_view(
+                1,
+                self.target_volume,
+                mask=self.target_mask,
+            )
+        else:
+            self.update_specific_view(1, None)
+
+        # :COMMENT: Update the difference map view.
+        # :TODO:Bastien: Add support for the difference map (during merge).
+        self.update_specific_view(2, None)
+
+    def update_specific_view(
+        self,
+        view_id: int,
+        volume: vtkMRMLScalarVolumeNode,
+        mask: vtkMRMLScalarVolumeNode = None,
     ) -> None:
         """
-        Updates a given 2D view with the selected volume.
+        Updates a given 2D view with the given volume and mask if needed.
 
         Parameters:
-            volume: The selected volume.
             view_id: The 2D view ID.
-            orientation: The orientation of the 2D view ("Axial", "Coronal", or "Sagittal").
+            volume: The given volume.
+            mask: The given mask.
         """
 
         # :COMMENT: Set to blank if no volume.
         if not volume:
             self.slice_composite_nodes[view_id].SetBackgroundVolumeID("")
+            self.slice_composite_nodes[view_id].SetForegroundVolumeID("")
             return
-
-        # :COMMENT: Ensure the orientation is valid.
-        assert orientation in ["Axial", "Coronal", "Sagittal"]
 
         # :COMMENT: Display the selected volume.
         self.slice_composite_nodes[view_id].SetBackgroundVolumeID(volume.GetID())
-
-        # :COMMENT: Update the slice view.
-        slice_node = self.slice_logic[view_id].GetSliceNode()
-        if orientation == "Axial":
-            slice_node.SetOrientationToAxial()
-        if orientation == "Coronal":
-            slice_node.SetOrientationToCoronal()
-        if orientation == "Sagittal":
-            slice_node.SetOrientationToSagittal()
+        if mask:
+            self.slice_composite_nodes[view_id].SetForegroundVolumeID(mask.GetID())
+            self.slice_composite_nodes[view_id].SetForegroundOpacity(0.5)
 
         # :COMMENT: Scale the view to the volumes.
         self.slice_logic[view_id].FitSliceToAll()
 
-    def reset_view(self) -> None:
+    #
+    # PASCAL-ONLY MODE
+    #
+
+    def setup_pascal_only_mode(self) -> None:
         """
-        Sets all the view to their volume, or to blank if there is no volume assigned.
+        …
         """
 
+        # :COMMENT: Retrieve the Pascal-only mode checkbox.
+        self.pascal_only_mode_checkbox = self.get_ui(
+            QCheckBox, "PascalOnlyModeCheckBox"
+        )
+        self.pascal_only_mode_checkbox.clicked.connect(self.update_pascal_only_mode)
+
+        # :COMMENT: Retrieve the 3D widget.
+        self.three_dimension_widget = app.layoutManager().threeDWidget(0)
+        assert self.three_dimension_widget
+
+        # :COMMENT: Retrieve the rendering logic.
+        self.rendering_logic = modules.volumerendering.logic()
+        assert self.rendering_logic
+
+        # :COMMENT: Initialize the rendering dispplay node.
+        self.rendering_display_node = None
+
+        # :COMMENT: Initialize the Pascal-only mode.
+        self.reset_pascal_only_mode()
+
+    def reset_pascal_only_mode(self) -> None:
+        """
+        …
+        """
+
+        # :COMMENT: Uncheck the Pascal-only mode checkbox and update the Pascal-only mode.
+        self.pascal_only_mode_checkbox.setChecked(False)
+        self.update_pascal_only_mode()
+
+    def update_pascal_only_mode(self) -> None:
+        """
+        …
+        """
+
+        # :COMMENT: Remove any volume from the 3D view.
+        if self.rendering_display_node:
+            self.update_allowed = False
+            mrmlScene.RemoveNode(self.rendering_display_node)
+            self.rendering_display_node = None
+            self.update_allowed = True
+
+        # :COMMENT: If Pascal-only mode is disabled, hide the 3D widget and return.
+        if not self.pascal_only_mode_checkbox.isChecked():
+            self.three_dimension_widget.setVisible(False)
+            return
+
+        # :COMMENT: Display the 3D widget.
+        self.three_dimension_widget.setVisible(True)
+
+        # :COMMENT: Display the input volume into the 3D view.
         if self.input_volume:
-            self.update_view(
-                self.input_volume,
-                0,
-                self.slice_logic[0].GetSliceNode().GetOrientation(),
+            self.update_allowed = False
+            self.rendering_display_node = (
+                self.rendering_logic.CreateVolumeRenderingDisplayNode()
             )
-        else:
-            self.update_view(None, 0)
-
-        if self.target_volume:
-            self.update_view(
-                self.target_volume,
-                1,
-                self.slice_logic[1].GetSliceNode().GetOrientation(),
+            self.rendering_display_node.UnRegister(self.rendering_logic)
+            self.rendering_display_node.SetName(
+                "CustomRegistrationRenderingDisplayNode"
             )
-        else:
-            self.update_view(None, 1)
-
-        # :MERGE:Bastien: Add support for the difference map.
-        self.update_view(None, 2)
+            mrmlScene.AddNode(self.rendering_display_node)
+            self.input_volume.AddAndObserveDisplayNodeID(
+                self.rendering_display_node.GetID()
+            )
+            self.rendering_logic.UpdateDisplayNodeFromVolumeNode(
+                self.rendering_display_node, self.input_volume
+            )
+            self.update_allowed = True
 
     #
     # ROI SELECTION
@@ -573,92 +983,260 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_roi_selection(self) -> None:
         """
-        Sets up the ROI selection widget.
+        …
         """
 
-        def on_roi_selection_threshold_slider_value_changed():
-            """
-            Updates the ROI selection threshold value to match the slider.
+        # :COMMENT: Create a color table node that assigns the ROI selection to red.
+        self.color_table_node = mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode")
+        self.color_table_node.SetTypeToUser()
+        self.color_table_node.SetNumberOfColors(2)
+        self.color_table_node.SetColor(0, 0.0, 0.0, 0.0, 0.0)
+        self.color_table_node.SetColor(1, 1.0, 0.0, 0.0, 1.0)
 
-            Called when the ROI selection threshold slider value is changed.
-            """
-
-            # :COMMENT: Retrieve the threshold value.
-            threshold = self.roi_selection_threshold_slider.value
-
-            # :COMMENT: Update the label accordingly.
-            self.roi_selection_threshold_value_label.setText(str(threshold))
-
-        # :COMMENT: Get the ROI selection threshold slider.
-        self.roi_selection_threshold_slider = self.panel.findChild(
-            QSlider, "ROISelectionThresholdSlider"
+        # :COMMENT: Get the collapsible button.
+        self.roi_selection_collapsible_button = self.get_ui(
+            ctkCollapsibleButton, "ROISelectionCollapsibleWidget"
         )
-        assert self.roi_selection_threshold_slider
-
-        # :COMMENT: Get the ROI selection threshold value label.
-        self.roi_selection_threshold_value_label = self.panel.findChild(
-            QLabel, "ROISelectionThresholdValueLabel"
+        self.roi_selection_collapsible_button.clicked.connect(
+            lambda: self.update_roi_selection()
         )
-        assert self.roi_selection_threshold_value_label
 
-        # :COMMENT: Connect the ROI selection threshold slider to its "on changed" function.
-        self.roi_selection_threshold_slider.valueChanged.connect(
-            on_roi_selection_threshold_slider_value_changed
+        # :COMMENT: Connect the input ROI selection threshold slider.
+        self.input_roi_selection_threshold_slider = self.get_ui(
+            QSlider, "InputROISelectionThresholdSlider"
+        )
+        self.input_roi_selection_threshold_slider.valueChanged.connect(
+            lambda: self.update_roi_selection("input")
+        )
+        self.input_roi_selection_threshold_value_label = self.get_ui(
+            QLabel, "InputROISelectionThresholdValueLabel"
+        )
+
+        # :COMMENT: Connect the target ROI selection threshold slider.
+        self.target_roi_selection_threshold_slider = self.get_ui(
+            QSlider, "TargetROISelectionThresholdSlider"
+        )
+        self.target_roi_selection_threshold_slider.valueChanged.connect(
+            lambda: self.update_roi_selection("target")
+        )
+        self.target_roi_selection_threshold_value_label = self.get_ui(
+            QLabel, "TargetROISelectionThresholdValueLabel"
         )
 
         # :COMMENT: Get the ROI selection button.
-        self.roi_selection_button = self.panel.findChild(
-            QPushButton, "ROISelectionButton"
-        )
-        assert self.roi_selection_button
-
-        # :COMMENT: Connect the ROI selection button to the algorithm.
+        self.roi_selection_button = self.get_ui(QPushButton, "ROISelectionButton")
         self.roi_selection_button.clicked.connect(self.select_roi)
 
-        # :COMMENT: Initialize the ROI.
+        # :COMMENT: Create an empty dictionary in which each ROI mask will be store for a specific volume.
+        self.volume_roi_map = {}
+
+        # :COMMENT: Initialize the ROI selection.
+        self.input_mask = None
+        self.target_mask = None
+        self.roi_selection_preview_allowed = True
         self.reset_roi_selection()
 
     def reset_roi_selection(self) -> None:
         """
-        Resets the ROI selection.
+        …
         """
 
-        # :COMMENT: Reset the ROI selection.
-        self.remove_roi()
+        # :COMMENT: Reset the ROI selection threshold values.
+        self.roi_selection_preview_allowed = False
+        self.input_roi_selection_threshold_slider.setValue(0)
+        self.target_roi_selection_threshold_slider.setValue(0)
+        self.cropping_preview_allowed = True
 
-        # :COMMENT: Update the label accordingly.
-        self.roi_selection_threshold_slider.setValue(0)
-        self.roi_selection_threshold_value_label.setText("0")
+        # :COMMENT: Update the ROI selection.
+        self.update_roi_selection()
 
-    def remove_roi(self) -> None:
+    def update_roi_selection(self, variation: str = "all") -> None:
         """
-        Removes the in-memory ROI.
+        …
         """
 
-        self.input_volume_roi = None
+        assert variation in ["input", "target", "all"]
+
+        if variation == "all":
+            self.update_roi_selection("input")
+            self.update_roi_selection("target")
+
+        # :COMMENT: Initialize the threshold value.
+        threshold = 0
+
+        # :COMMENT: Update the input threshold value.
+        if variation == "input":
+            self.slice_composite_nodes[0].SetForegroundVolumeID("")
+
+            if self.input_volume:
+                range = self.input_volume.GetImageData().GetScalarRange()
+            else:
+                range = (0, 255)
+            self.roi_selection_preview_allowed = False
+            self.input_roi_selection_threshold_slider.setMinimum(range[0])
+            self.input_roi_selection_threshold_slider.setMaximum(range[1])
+            self.roi_selection_preview_allowed = True
+
+            threshold = self.input_roi_selection_threshold_slider.value
+            self.input_roi_selection_threshold_value_label.setText(int(threshold))
+
+        # :COMMENT: Update the target threshold value.
+        if variation == "target":
+            self.slice_composite_nodes[1].SetForegroundVolumeID("")
+
+            if self.target_volume:
+                range = self.target_volume.GetImageData().GetScalarRange()
+            else:
+                range = (0, 255)
+            self.roi_selection_preview_allowed = False
+            self.target_roi_selection_threshold_slider.setMinimum(range[0])
+            self.target_roi_selection_threshold_slider.setMaximum(range[1])
+            self.roi_selection_preview_allowed = True
+
+            threshold = self.target_roi_selection_threshold_slider.value
+            self.target_roi_selection_threshold_value_label.setText(int(threshold))
+
+        if (
+            self.roi_selection_collapsible_button.isChecked()
+            and self.roi_selection_preview_allowed
+        ):
+            self.preview_roi_selection(variation)
+
+    def preview_roi_selection(self, variation: str = "all") -> None:
+        """
+        …
+        """
+
+        assert variation in ["input", "target", "all"]
+
+        if variation == "all":
+            self.preview_roi_selection("input")
+            self.preview_roi_selection("target")
+
+        # :COMMENT: Set the update rule to blocked.
+        self.update_allowed = False
+
+        if variation == "input":
+            # :COMMENT: Remove the previous input mask if needed.
+            if self.input_mask:
+                mrmlScene.RemoveNode(self.input_mask)
+
+            # :COMMENT: Ensure the input volume is not None.
+            if not self.input_volume:
+                self.update_allowed = True
+                return
+
+            # :COMMENT: Retrieve the threshold value.
+            threshold = self.input_roi_selection_threshold_slider.value
+
+            # :COMMENT: Call the ROI selection algorithm.
+            self.input_mask = self.logic.create_mask(self.input_volume, threshold)
+
+            # :COMMENT: Get or create the mask display node.
+            mask_display_node = self.input_mask.GetDisplayNode()
+            if not mask_display_node:
+                mask_display_node = vtkMRMLScalarVolumeDisplayNode()
+                mrmlScene.AddNode(mask_display_node)
+                self.input_mask.SetAndObserveDisplayNodeID(mask_display_node.GetID())
+
+            # :COMMENT: Assign the color map to the mask display.
+            mask_display_node.SetAndObserveColorNodeID(self.color_table_node.GetID())
+
+            # :COMMENT: Add the mask to the scene to visualize it.
+            self.input_mask.SetName(f"{self.input_volume.GetName()} ROI Mask")
+            mrmlScene.AddNode(self.input_mask)
+
+            # :COMMENT: Set the update rule to allowed.
+            self.update_specific_view(0, self.input_volume, self.input_mask)
+
+        if variation == "target":
+            # :COMMENT: Remove the previous target mask if needed.
+            if self.target_mask:
+                mrmlScene.RemoveNode(self.target_mask)
+
+            # :COMMENT: Ensure the input volume is not None.
+            if not self.target_volume:
+                self.update_allowed = True
+                return
+
+            # :COMMENT: Retrieve the threshold value.
+            threshold = self.target_roi_selection_threshold_slider.value
+
+            # :COMMENT: Call the ROI selection algorithm.
+            self.target_mask = self.logic.create_mask(self.target_volume, threshold)
+
+            # :COMMENT: Get or create the mask display node.
+            mask_display_node = self.target_mask.GetDisplayNode()
+            if not mask_display_node:
+                mask_display_node = vtkMRMLScalarVolumeDisplayNode()
+                mrmlScene.AddNode(mask_display_node)
+                self.target_mask.SetAndObserveDisplayNodeID(mask_display_node.GetID())
+
+            # :COMMENT: Assign the color map to the mask display.
+            mask_display_node.SetAndObserveColorNodeID(self.color_table_node.GetID())
+
+            # :COMMENT: Add the mask to the scene to visualize it.
+            self.target_mask.SetName(f"{self.target_volume.GetName()} ROI Mask")
+            mrmlScene.AddNode(self.target_mask)
+
+            # :COMMENT: Set the update rule to allowed.
+            self.update_specific_view(1, self.target_volume, self.target_mask)
+
+        # :COMMENT: Set the update rule to allowed.
+        self.update_allowed = True
 
     def select_roi(self) -> None:
         """
-        Selects the ROI.
+        …
         """
 
         # :COMMENT: Ensure that a volume is selected.
-        if not self.input_volume:
-            self.display_error_message("Please select a volume to select a ROI from.")
+        if not self.input_volume and not self.target_volume:
+            self.display_error_message(
+                "Please select a volume (input, target, or both) to select a ROI from."
+            )
             return
 
-        # :COMMENT: Retrieve the threshold value.
-        threshold = self.roi_selection_threshold_slider.value
+        if self.input_volume:
+            # :COMMENT: Retrieve the name of the selected input volume.
+            name = self.input_volume.GetName()
 
-        # :COMMENT: Call the ROI selection algorithm.
-        self.input_volume_roi = self.logic.select_roi(
-            self.vtk_to_sitk(self.input_volume), threshold
-        )
+            # :COMMENT: Compute missing mask if needed.
+            if not self.input_mask:
+                self.input_mask = self.logic.create_mask(
+                    self.input_volume, self.input_roi_selection_threshold_slider.value
+                )
 
-        # :COMMENT: Log the ROI selection.
-        print(
-            f'ROI has been selected with a threshold value of {threshold} in "{self.input_volume.GetName()}".'
-        )
+            # :COMMENT: Compute and save the ROI using the mask.
+            roi = self.logic.select_roi(self.input_volume, self.input_mask)
+            self.volume_roi_map[name] = roi
+
+            # :COMMENT: Log the ROI selection.
+            print(
+                f'ROI has been selected with a threshold value of {self.input_roi_selection_threshold_slider.value} in "{name}".'
+            )
+
+        if self.target_volume:
+            # :COMMENT: Retrieve the name of the selected target volume.
+            name = self.target_volume.GetName()
+
+            # :COMMENT: Compute missing mask if needed.
+            if not self.target_mask:
+                self.target_mask = self.logic.create_mask(
+                    self.target_volume, self.target_roi_selection_threshold_slider.value
+                )
+
+            # :COMMENT: Compute and save the ROI using the mask.
+            roi = self.logic.select_roi(self.target_volume, self.target_mask)
+            self.volume_roi_map[name] = roi
+
+            # :COMMENT: Log the ROI selection.
+            print(
+                f'ROI has been selected with a threshold value of {self.target_roi_selection_threshold_slider.value} in "{name}".'
+            )
+
+        # :COMMENT: Reset the ROI selection data.
+        self.reset_roi_selection()
 
     #
     # CROPPING
@@ -666,52 +1244,94 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_cropping(self) -> None:
         """
-        Sets up the cropping widget by retrieving the crop button and coordinates input widgets.
+        …
         """
 
-        # :COMMENT: Get the crop button widget.
-        self.cropping_button = self.panel.findChild(QPushButton, "crop_button")
-        assert self.cropping_button
-        self.cropping_button.clicked.connect(self.crop)
+        # :COMMENT: Get the collapsible button.
+        self.cropping_collapsible_button = self.get_ui(
+            ctkCollapsibleButton, "CroppingCollapsibleWidget"
+        )
+        self.cropping_collapsible_button.clicked.connect(self.update_cropping)
 
         # :COMMENT: Get the coordinates spinbox widgets.
         self.cropping_start = []
         self.cropping_end = []
         axis = ["x", "y", "z"]
         for i in range(len(axis)):
-            self.cropping_start.append(self.panel.findChild(QSpinBox, "s" + axis[i]))
-            self.cropping_end.append(self.panel.findChild(QSpinBox, "e" + axis[i]))
+            self.cropping_start.append(self.get_ui(QSpinBox, "s" + axis[i]))
+            self.cropping_end.append(self.get_ui(QSpinBox, "e" + axis[i]))
 
             # :COMMENT: Connect the spinbox widgets to their "on changed" function that displays the cropping preview.
-            self.cropping_start[i].valueChanged.connect(self.preview_cropping)
-            self.cropping_end[i].valueChanged.connect(self.preview_cropping)
+            self.cropping_start[i].valueChanged.connect(self.update_cropping)
+            self.cropping_end[i].valueChanged.connect(self.update_cropping)
 
-        # :COMMENT: Initialize the cropping.
+        # :COMMENT: Get the crop button widget.
+        self.cropping_button = self.get_ui(QPushButton, "crop_button")
+        self.cropping_button.clicked.connect(self.crop)
+
+        # :COMMENT: Initialize the cropping preview.
+        self.cropped_volume = None
+        self.cropping_box = None
+        self.cropping_preview_allowed = True
         self.reset_cropping()
 
     def reset_cropping(self) -> None:
         """
-        Reset the cropping parameters.
+        …
         """
 
-        # :COMMENT: Set all values to 0.
+        # :COMMENT: Reset the cropping values.
+        self.cropping_preview_allowed = False
         for i in range(3):
             self.cropping_start[i].value = 0
             self.cropping_end[i].value = 0
+        self.cropping_preview_allowed = True
 
-        # :COMMENT: Reset the cropping preview.
-        self.cropped_volume = None
-        self.cropping_box = None
+        # :COMMENT: Update the cropping.
+        self.update_cropping()
+
+    def update_cropping(self) -> None:
+        """
+        …
+        """
+
+        # :COMMENT: Hide the cropping box by default.
+        if self.cropping_box and self.cropping_box.GetDisplayNode():
+            self.cropping_box.GetDisplayNode().SetVisibility(False)
+
+        # :COMMENT: Reset the cropping value ranges.
+        if self.input_volume:
+            input_volume_image_data = self.input_volume.GetImageData()
+            input_volume_dimensions = input_volume_image_data.GetDimensions()
+            self.cropping_preview_allowed = False
+            for i in range(3):
+                self.cropping_start[i].setMaximum(input_volume_dimensions[i])
+                self.cropping_end[i].setMaximum(input_volume_dimensions[i])
+            self.cropping_preview_allowed = True
+
+        if (
+            self.cropping_collapsible_button.isChecked()
+            and self.cropping_preview_allowed
+        ):
+            self.preview_cropping()
 
     def preview_cropping(self) -> None:
         """
-        Generates a bounding box to preview the cropping.
+        …
         """
 
         # :DIRTY/TRICKY:Iantsa: Volume cropped each time a parameter is changed by user, even if the volume is not cropped in the end.
 
-        # :COMMENT: Ensure that a volume is selected.
+        # :COMMENT: Set the update rule to blocked.
+        self.update_allowed = False
+
+        # :COMMENT: Remove the previous cropping box if needed.
+        if self.cropping_box:
+            mrmlScene.RemoveNode(self.cropping_box)
+
+        # :COMMENT: Ensure that the input volume is not None.
         if not self.input_volume:
+            self.update_allowed = True
             return
 
         # :COMMENT: Retrieve coordinates input.
@@ -721,83 +1341,56 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             start_val.append(self.cropping_start[i].value)
             end_val.append(self.cropping_end[i].value)
 
-        # :COMMENT: Clear and pass if the coordinates are invalid (computation impossible).
-        if any(end_val[i] < start_val[i] for i in range(3)):
-            if self.cropping_box:
-                mrmlScene.RemoveNode(self.cropping_box)
-                self.cropping_box = None
+        # :COMMENT: Check that coordinates are valid.
+        if any(end_val[i] <= start_val[i] for i in range(3)):
+            self.update_allowed = True
             return
 
-        # :COMMENT: Save selected volume's data.
-        data_backup = [
-            self.input_volume.GetSpacing(),
-            self.input_volume.GetOrigin(),
-            vtk.vtkMatrix4x4(),
-        ]
-        self.input_volume.GetIJKToRASDirectionMatrix(data_backup[2])
-
-        # :COMMENT: Convert the volume to a SimpleITK image.
-        sitk_image = self.vtk_to_sitk(self.input_volume)
-
-        # :COMMENT: Get the size of the crop region.
-        size = [end_val[i] - start_val[i] + 1 for i in range(3)]
-
-        # :COMMENT: Crop the image.
-        cropped_image = self.logic.crop(sitk_image, start_val, size)
-
-        # :COMMENT: Convert the cropped SimpleITK image back to a VTK Volume Node.
-        vtk_image = self.sitk_to_vtk(cropped_image)
-
-        # :COMMENT: Set the new volume's data with the original volume's data.
-        vtk_image.SetSpacing(data_backup[0])
-        vtk_image.SetOrigin(data_backup[1])
-        vtk_image.SetIJKToRASDirectionMatrix(data_backup[2])
-
         # :COMMENT: Save the temporary cropped volume.
-        self.cropped_volume = vtk_image
-
-        # :COMMENT: Delete the previous cropping box from the scene if exists.
-        if self.cropping_box:
-            mrmlScene.RemoveNode(self.cropping_box)
-            self.cropping_box = None
+        self.cropped_volume = self.logic.crop(self.input_volume, start_val, end_val)
 
         # :COMMENT: Create a new cropping box.
-        # :DIRTY/GLITCH:Iantsa: Even if user never crops, the cropping box is still displayed.
-        # :TODO:Iantsa: Create a checkbox to enable/disable displaying of the cropping box.
         self.cropping_box = mrmlScene.AddNewNodeByClass(
             "vtkMRMLMarkupsROINode", "Cropping Preview"
         )
+        self.cropping_box.SetLocked(True)
 
         # :COMMENT: Display cropping box only in red view.
         self.cropping_box.GetDisplayNode().SetViewNodeIDs(["vtkMRMLSliceNodeRed"])
 
         # :COMMENT: Get the bounds of the volume.
         bounds = [0, 0, 0, 0, 0, 0]
-        vtk_image.GetBounds(bounds)
+        self.cropped_volume.GetBounds(bounds)
+
+        # :COMMENT: Get the size of the crop region.
+        size = [end_val[i] - start_val[i] for i in range(3)]
 
         # :COMMENT: Calculate the center and radius of the volume.
-        # :BUG:Iantsa: If the starting value is changed, the center is not updated properly.
         center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
         radius = [size[i] / 2 for i in range(3)]
 
         # :COMMENT: Transform the center and radius according to the volume's orientation and spacing.
+        matrix = vtk.vtkMatrix4x4()
+        self.input_volume.GetIJKToRASDirectionMatrix(matrix)
         transform_matrix = np.array(
-            [[data_backup[2].GetElement(i, j) for j in range(3)] for i in range(3)]
+            [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
         )
-
         transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
         transformed_radius = np.matmul(
-            transform_matrix, np.array(data_backup[0]) * np.array(radius)
+            transform_matrix,
+            np.array(self.cropped_volume.GetSpacing()) * np.array(radius),
         )
 
         # :COMMENT: Set the center and radius of the cropping box to the transformed center and radius.
         self.cropping_box.SetXYZ(transformed_center)
         self.cropping_box.SetRadiusXYZ(transformed_radius)
-        # :END_DIRTY/TRICKY:
+
+        # :COMMENT: Set the update rule to allowed.
+        self.update_allowed = True
 
     def crop(self) -> None:
         """
-        Crops a volume using the selected algorithm.
+        …
         """
 
         # :COMMENT: Ensure that a volume is selected.
@@ -805,6 +1398,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("Please select a volume to crop.")
             return
 
+        # :BUG:Iantsa: Not handled yet (can be non existent if crop button clicked without changing the default parameters)
+        if not self.cropped_volume:  # and not self.cropping_box:
+            return
+
         # :COMMENT: Retrieve coordinates input.
         start_val = []
         end_val = []
@@ -812,18 +1409,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             start_val.append(self.cropping_start[i].value)
             end_val.append(self.cropping_end[i].value)
 
-        # :COMMENT: Pass if the coordinates are invalid.
-        if any(end_val[i] < start_val[i] for i in range(3)):
-            self.display_error_message(
-                "End values must be greater than or equal to start values."
-            )
+        # :COMMENT: Check that coordinates are valid.
+        if any(end_val[i] <= start_val[i] for i in range(3)):
+            self.display_error_message("End values must be greater than start values.")
             return
 
-        # :BUG:Iantsa: Not handled yet (can be non existent if crop button clicked without changing the default parameters)
-        if not self.cropped_volume:  # and not self.cropping_box:
-            return
+        # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
+        self.update_allowed = False
+        mrmlScene.RemoveNode(self.cropping_box)
+        self.cropping_box = None
+        self.update_allowed = True
 
-        # :COMMENT: Add the VTK Volume Node to the scene.
+        # :COMMENT: Add the cropped volume to the scene.
         self.add_new_volume(self.cropped_volume, "cropped")
 
         # :COMMENT: Log the cropping.
@@ -832,15 +1429,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{self.cropped_volume.GetName()}".'
         )
 
-        # :COMMENT: Select the cropped volume.
-        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
-
-        # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
-        mrmlScene.RemoveNode(self.cropping_box)
-        self.cropping_box = None
-
-        # :COMMENT: Reset the cropping parameters.
+        # :COMMENT: Reset the cropping.
         self.reset_cropping()
+
+        # :COMMENT: Select the cropped volume.
+        self.choose_input_volume(len(self.volumes) - 1)
+
+        # :COMMENT: Delete the temporary cropped volume.
+        self.cropped_volume = None
+        self.cropping_box = None
 
     #
     # RESAMPLING
@@ -848,12 +1445,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_resampling(self) -> None:
         """
-        Sets up the resampling widget by linking the UI to the scene and algorithm.
+        …
         """
 
         # :COMMENT: Get the resampling button.
-        self.resampling_button = self.panel.findChild(QPushButton, "ResamplingButton")
-        assert self.resampling_button
+        self.resampling_button = self.get_ui(QPushButton, "ResamplingButton")
 
         # :COMMENT: Connect the resampling button to the algorithm.
         self.resampling_button.clicked.connect(self.resample)
@@ -863,17 +1459,27 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_resampling(self) -> None:
         """
-        Updates the list of available resampling targets in the resampling target volume combo box.
+        …
         """
 
-        # :COMMENT: Nothing to do here.
+        # :COMMENT: Nothing to reset.
+
+        # :COMMENT: Update the resampling.
+        self.update_resampling()
+
+    def update_resampling(self) -> None:
+        """
+        …
+        """
+
+        # :COMMENT: Nothing to update.
 
     def resample(self) -> None:
         """
-        Retrieves the selected and target volumes and runs the resampling algorithm.
+        …
         """
 
-        # :COMMENT: Ensure that a volume is selected as well as a target volume.
+        # :COMMENT: Ensure that the input and target volumes are selected.
         if not self.input_volume:
             self.display_error_message("Please select a volume to resample.")
             return
@@ -882,20 +1488,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             return
 
         # :COMMENT: Call the resampling algorithm.
-        resampled_volume = self.sitk_to_vtk(
-            self.logic.run(
-                self.resourcePath("Scripts/Resampling.py"),
-                "resample",
-                self.vtk_to_sitk(self.input_volume),
-                self.vtk_to_sitk(self.target_volume),
-            )
-        )
-
-        # :COMMENT: Keep the original volume metadata.
-        self.transfer_volume_metadata(self.input_volume, resampled_volume)
-
-        # :COMMENT: Transfer the spacing.
-        self.target_volume.SetSpacing(self.input_volume.GetSpacing())
+        resampled_volume = self.logic.resample(self.input_volume, self.target_volume)
 
         # :COMMENT: Save the resampled volume.
         self.add_new_volume(resampled_volume, "resampled")
@@ -905,8 +1498,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             f'"{self.input_volume.GetName()}" has been resampled to match "{self.target_volume.GetName()}" as "{resampled_volume.GetName()}".'
         )
 
+        # :COMMENT: Reset the resampling.
+        self.reset_resampling()
+
         # :COMMENT: Select the resampled volume.
-        self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
+        self.choose_input_volume(len(self.volumes) - 1)
 
     #
     # REGISTRATION
@@ -914,29 +1510,24 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_registration(self) -> None:
         """
-        Sets up the preprocessing widget by retrieving the volume selection widget and initializing it.
+        …
         """
 
-        self.volume_name_edit = self.panel.findChild(QLineEdit, "lineEditNewVolumeName")
-
-        # :COMMENT: Settings collapsible button
-        self.metrics_combo_box = self.panel.findChild(ctkComboBox, "ComboMetrics")
-        self.interpolator_combo_box = self.panel.findChild(
-            ctkComboBox, "comboBoxInterpolator"
-        )
-        self.optimizers_combo_box = self.panel.findChild(ctkComboBox, "ComboOptimizers")
-        self.histogram_bin_count_spin_box = self.panel.findChild(
-            QSpinBox, "spinBoxBinCount"
-        )
-        self.sampling_strat_combo_box = self.panel.findChild(
+        # :COMMENT: Link settings UI and code
+        self.volume_name_edit = self.get_ui.get_ui(QLineEdit, "lineEditNewVolumeName")
+        self.metrics_combo_box = self.get_ui(ctkComboBox, "ComboMetrics")
+        self.interpolator_combo_box = self.get_ui(ctkComboBox, "comboBoxInterpolator")
+        self.optimizers_combo_box = self.get_ui(ctkComboBox, "ComboOptimizers")
+        self.histogram_bin_count_spin_box = self.get_ui(QSpinBox, "spinBoxBinCount")
+        self.sampling_strat_combo_box = self.get_ui(
             ctkComboBox, "comboBoxSamplingStrat"
         )
-        self.sampling_perc_spin_box = self.panel.findChild(
+        self.sampling_perc_spin_box = self.get_ui(
             QDoubleSpinBox, "doubleSpinBoxSamplingPerc"
         )
 
         # :COMMENT: registration types
-        self.sitk_combo_box = self.panel.findChild(
+        self.sitk_combo_box = self.panel.get_ui(
             ctkComboBox, "ComboBoxSitk"
         )
         self.sitk_combo_box.addItems(["Rigid (6DOF)",
@@ -947,7 +1538,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         "Fast Symmetric Forces Demons",
         "SymmetricForcesDemons"])
 
-        self.elastix_combo_box = self.panel.findChild(
+        self.elastix_combo_box = self.panel.get_ui(
             ctkComboBox, "ComboBoxElastix"
         )
         self.elastix_logic = Elastix.ElastixLogic()
@@ -955,79 +1546,92 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.elastix_combo_box.addItem("{0} ({1})".format(
             preset[Elastix.RegistrationPresets_Modality], preset[Elastix.RegistrationPresets_Content]))
 
-        self.settings_registration = self.panel.findChild(
+        self.settings_registration = self.panel.get_ui(
             ctkCollapsibleButton, "RegistrationSettingsCollapsibleButton"
         )
 
         # :COMMENT: Bspline only
-        self.bspline_group_box = self.panel.findChild(
+        self.bspline_group_box = self.panel.get_ui(
             QGroupBox, "groupBoxNonRigidBspline"
         )
-        self.transform_domain_mesh_size = self.panel.findChild(
+        self.transform_domain_mesh_size = self.panel.get_ui(
             QLineEdit, "lineEditTransformDomainMeshSize"
         )
         self.transform_domain_mesh_size.editingFinished.connect(self.verify_transform_domain_ms)
-        self.scale_factor = self.panel.findChild(
+        self.scale_factor = self.panel.get_ui(
             QLineEdit, "lineEditScaleFactor"
         )
         self.scale_factor.editingFinished.connect(self.verify_scale_factor)
-        self.shrink_factor = self.panel.findChild(
+        self.shrink_factor = self.panel.get_ui(
             QLineEdit, "lineEditShrinkFactor"
         )
         self.shrink_factor.editingFinished.connect(lambda: self.verify_shrink_factor(self.shrink_factor))
-        self.smoothing_sigmas = self.panel.findChild(
+        self.smoothing_sigmas = self.panel.get_ui(
             QLineEdit, "lineEditSmoothingFactor"
         )
         self.smoothing_sigmas.editingFinished.connect(lambda: self.verify_shrink_factor(self.smoothing_sigmas))
 
         # :COMMENT: Demons only
-        self.demons_group_box = self.panel.findChild(
+        self.demons_group_box = self.panel.get_ui(
             QGroupBox, "groupBoxDemons"
         )
-        self.demons_nb_iter = self.panel.findChild(
+        self.demons_nb_iter = self.panel.get_ui(
             QLineEdit, "lineEditDemonsNbIter"
         )
-        self.demons_std_deviation = self.panel.findChild(
+        self.demons_std_deviation = self.panel.get_ui(
             QLineEdit, "lineEditDemonsStdDeviation"
         )
         self.demons_std_deviation.editingFinished.connect(self.verify_demons_std_deviation)
+        self.non_rigid_r_button = self.get_ui(QRadioButton, "radioButtonNonRigid")
+        self.rigid_r_button = self.get_ui(QRadioButton, "radioButtonRigid")
+        self.elastix_r_button = self.get_ui(QRadioButton, "radioButtonElastix")
+        self.rigid_r_button.toggle()
 
         # :COMMENT: Gradients parameters
-        self.gradients_box = self.panel.findChild(
+        self.gradients_box = self.get_ui(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxGradient"
         )
-        self.learning_rate_spin_box = self.panel.findChild(
+        self.learning_rate_spin_box = self.get_ui(
             QDoubleSpinBox, "doubleSpinBoxLearningR"
         )
-        self.nb_of_iter_spin_box = self.panel.findChild(QSpinBox, "spinBoxNbIter")
-        self.conv_min_val_edit = self.panel.findChild(QLineEdit, "lineEditConvMinVal")
+        self.nb_of_iter_spin_box = self.get_ui(QSpinBox, "spinBoxNbIter")
+        self.conv_min_val_edit = self.get_ui(QLineEdit, "lineEditConvMinVal")
+        self.conv_win_size_spin_box = self.get_ui(QSpinBox, "spinBoxConvWinSize")
         self.conv_min_val_edit.editingFinished.connect(self.verify_convergence_min_val)
-        self.conv_win_size_spin_box = self.panel.findChild(
-            QSpinBox, "spinBoxConvWinSize"
-        )
 
         # :COMMENT: exhaustive parameters
-        self.exhaustive_box = self.panel.findChild(
+        self.exhaustive_box = self.get_ui(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxExhaustive"
         )
-        self.step_length_edit = self.panel.findChild(QLineEdit, "lineEditLength")
+        self.step_length_edit = self.panel.get_ui(QLineEdit, "lineEditLength")
         self.step_length_edit.editingFinished.connect(self.verify_step_length)
-        self.nb_steps_edit = self.panel.findChild(QLineEdit, "lineEditSteps")
+        self.nb_steps_edit = self.panel.get_ui(QLineEdit, "lineEditSteps")
         self.nb_steps_edit.editingFinished.connect(self.verify_nb_steps)
-        self.opti_scale_edit = self.panel.findChild(QLineEdit, "lineEditScale")
+        self.opti_scale_edit = self.panel.get_ui(QLineEdit, "lineEditScale")
         self.opti_scale_edit.editingFinished.connect(self.verify_opti_scale_edit)
 
         # :COMMENT: LBFGSB parameters
-        self.lbfgs2_box = self.panel.findChild(
+        self.lbfgs2_box = self.panel.get_ui(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxLBFGS2"
         )
-        self.gradient_conv_tol_edit = self.panel.findChild(
+        self.gradient_conv_tol_edit = self.panel.get_ui(
             QLineEdit, "lineEditGradientConvTol"
         )
         self.gradient_conv_tol_edit.editingFinished.connect(self.verify_gradient_conv_tol)
-        self.nb_iter_lbfgs2 = self.panel.findChild(QSpinBox, "spinBoxNbIterLBFGS2")
-        self.max_nb_correction_spin_box = self.panel.findChild(QSpinBox, "spinBoxMaxNbCorrection")
-        self.max_nb_func_eval_spin_box = self.panel.findChild(QSpinBox, "spinBoxMaxNbFuncEval")
+        self.nb_iter_lbfgs2 = self.panel.get_ui(QSpinBox, "spinBoxNbIterLBFGS2")
+        self.max_nb_correction_spin_box = self.panel.get_ui(QSpinBox, "spinBoxMaxNbCorrection")
+        self.max_nb_func_eval_spin_box = self.panel.get_ui(QSpinBox, "spinBoxMaxNbFuncEval")
+        self.step_length_edit = self.get_ui(QLineEdit, "lineEditLength")
+        self.nb_steps_edit = self.get_ui(QLineEdit, "lineEditSteps")
+        self.opti_scale_edit = self.get_ui(QLineEdit, "lineEditScale")
+
+        # :COMMENT: LBFGS2 parameters
+        self.lbfgs2_box = self.get_ui(
+            ctkCollapsibleGroupBox, "CollapsibleGroupBoxLBFGS2"
+        )
+        self.solution_accuracy_edit = self.get_ui(QLineEdit, "lineEditSolutionAccuracy")
+        self.nb_iter_lbfgs2 = self.get_ui(QSpinBox, "spinBoxNbIterLBFGS2")
+        self.delta_conv_tol_edit = self.get_ui(QLineEdit, "lineEditDeltaConv")
 
         # :COMMENT: Fill them combo boxes.
         self.metrics_combo_box.addItems(["Mean Squares", "Mattes Mutual Information"])
@@ -1045,18 +1649,16 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.sampling_strat_combo_box.addItems(["None", "Regular", "Random"])
 
         # :COMMENT: handle button
-        self.button_registration = self.panel.findChild(
-            QPushButton, "PushButtonRegistration"
-        )
+        self.button_registration = self.get_ui(QPushButton, "PushButtonRegistration")
         self.button_registration.clicked.connect(self.register)
 
-        self.button_cancel = self.panel.findChild(QPushButton, "pushButtonCancel")
+        self.button_cancel = self.panel.get_ui(QPushButton, "pushButtonCancel")
         self.button_cancel.clicked.connect(self.cancel_registration_process)
         self.button_cancel.setEnabled(False)
 
-        self.progressBar = self.panel.findChild(QProgressBar, "progressBar")
+        self.progressBar = self.panel.get_ui(QProgressBar, "progressBar")
         self.progressBar.hide()
-        self.label_status = self.panel.findChild(QLabel, "label_status")
+        self.label_status = self.panel.get_ui(QLabel, "label_status")
         self.label_status.hide()
 
         self.optimizers_combo_box.currentIndexChanged.connect(
@@ -1075,7 +1677,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_registration(self) -> None:
         """
-        Resets all the registration parameters to their default values.
+        …
         """
 
         self.metrics_combo_box.setCurrentIndex(-1)
@@ -1089,11 +1691,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.demons_group_box.setEnabled(False)
         self.scale_factor.text = "1, 2, 4"
 
-        self.update_optimizer_parameters_group_box()
+        self.update_registration()
 
-    def update_optimizer_parameters_group_box(self) -> None:
+    def update_registration(self) -> None:
         """
-        Updates the optimizer parameters group box based on the chosen optimizer algorithm.
+        …
         """
 
         self.gradients_box.setEnabled(False)
@@ -1169,7 +1771,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def register(self) -> None:
         """
-        Launches the registration process.
+        …
         """
 
         # :COMMENT: Ensure the parameters are set.
@@ -1580,7 +2182,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.input_volume_index = None
 
         # :COMMENT: Get and connection the preprocessing input volume combo box.
-        self.preprocessing_input_volume_combo_box = self.panel.findChild(
+        self.preprocessing_input_volume_combo_box = self.get_ui(
             ctkComboBox, "PreprocessingInputVolumeComboBox"
         )
         assert self.preprocessing_input_volume_combo_box
@@ -1589,7 +2191,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
         # :COMMENT: Get and connection the registration input volume combo box.
-        self.registration_input_volume_combo_box = self.panel.findChild(
+        self.registration_input_volume_combo_box = self.panel.get_ui(
             ctkComboBox, "RegistrationInputVolumeComboBox"
         )
         assert self.registration_input_volume_combo_box
@@ -1635,222 +2237,269 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Loads the renaming feature with a minimal window.
         """
 
-        # :COMMENT: Define the handler.
-        def rename_volume_handler(result) -> None:
+        def on_registration_completed():
             """
-            Applies the renaming of the input volume.
-
-            Parameters:
-                result: The result of the input dialog.
+            Handles the completion callback.
             """
 
-            if result == QDialog.Accepted:
-                # :COMMENT: Ensure that a volume is input.
-                assert self.input_volume
+            # :DIRTY:Tony: For debug only (to be removed).
+            # print(logic.state())
 
-                # :COMMENT: Retrieve the new name and apply it.
-                new_name = self.renaming_input_dialog.textValue()
-                self.input_volume.SetName(new_name)
-
-                # :COMMENT: Log the renaming.
-                print(
-                    f'"{self.renaming_old_name}" has been renamed to "{self.input_volume.GetName()}".'
-                )
-
-            # :DIRTY:Bastien: Find a way to add modified node event observer in the setup.
-            self.update_volume_list()
-
-        # :COMMENT: Ensure that a volume is selected as input.
-        assert self.input_volume
-
-        # :COMMENT: Save the old name for logging.
-        self.renaming_old_name = self.input_volume.GetName()
-
-        # :COMMENT: Open an input dialog for the new name.
-        self.renaming_input_dialog = QInputDialog(None)
-        self.renaming_input_dialog.setWindowTitle("Rename Volume")
-        self.renaming_input_dialog.setLabelText("Enter the new name:")
-        self.renaming_input_dialog.setModal(True)
-        self.renaming_input_dialog.setTextValue(self.input_volume.GetName())
-        self.renaming_input_dialog.finished.connect(rename_volume_handler)
-        self.renaming_input_dialog.show()
-
-    def delete_input_volume(self) -> None:
-        """
-        Deletes the current input volume.
-        """
-
-        assert self.input_volume
-        volume = self.input_volume
-        if self.input_volume_index == self.target_volume_index:
-            self.reset_target_volume()
-        self.reset_input_volume()
-        mrmlScene.RemoveNode(volume)
-        print(f'"{volume.GetName()}" has been deleted.')
-
-    #
-    # TARGET VOLUME
-    #
-
-    def setup_target_volume(self) -> None:
-        """
-        Sets up the target volume architecture by initializing the data and retrieving the UI widgets.
-        """
-
-        def on_target_volume_combo_box_changed(
-            index: int, combo_box: ctkComboBox
-        ) -> None:
-            """
-            Handles change of target volume with options.
-
-            Called when an item in an target volume combobox is selected.
-
-            Parameters:
-                index: The target volume index.
-            """
-
-            OPTIONS = ["Delete current volume…", "Rename current volume…"]
-
-            # :COMMENT: Retrieve the selection text.
-            name = combo_box.currentText
-
-            # :COMMENT: Handle the different options.
-            if name in OPTIONS:
-                # :COMMENT: Ensure that there is at least one volume imported.
-                if self.volumes.GetNumberOfItems() < 1:
-                    self.update_volume_list()
-                    self.display_error_message("No volumes imported.")
-                    return
-
-                # :COMMENT: Ensure that a volume is selected as target.
-                if not self.target_volume:
-                    self.update_volume_list()
-                    self.display_error_message("Please select a volume first.")
-                    return
-
-                if name == "Rename current volume…":
-                    self.rename_target_volume()
-                    return
-
-                if name == "Delete current volume…":
-                    self.delete_target_volume()
-                    return
-
-            # :COMMENT: Select the volume at specified index otherwise.
-            self.choose_target_volume(index)
-
-        def on_preprocessing_target_volume_combo_box_changed(index: int) -> None:
-            on_target_volume_combo_box_changed(
-                index, self.preprocessing_target_volume_combo_box
+            # :COMMENT: Log the registration.
+            assert self.input_volume
+            print(
+                f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
             )
 
-        def on_registration_target_volume_combo_box_changed(index: int) -> None:
-            on_target_volume_combo_box_changed(
-                index, self.registration_target_volume_combo_box
-            )
+            # :COMMENT: Reset the registration.
+            self.reset_registration()
 
-        # :COMMENT: Initialize the target volume.
-        self.target_volume = None
-        self.target_volume_index = None
+            # :COMMENT: Select the new volume to display it.
+            self.choose_input_volume(len(self.volumes) - 1)
 
-        # :COMMENT: Get and connection the preprocessing target volume combo box.
-        self.preprocessing_target_volume_combo_box = self.panel.findChild(
-            ctkComboBox, "PreprocessingTargetVolumeComboBox"
-        )
-        assert self.preprocessing_target_volume_combo_box
-        self.preprocessing_target_volume_combo_box.activated.connect(
-            on_preprocessing_target_volume_combo_box_changed
-        )
+        logic = ProcessesLogic(completedCallback=lambda: on_registration_completed())
+        if self.rigid_r_button.isChecked():
+            scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
+        else:
+            scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
+        regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
+        logic.addProcess(regProcess)
+        logic.run()
 
-        # :COMMENT: Get and connection the registration target volume combo box.
-        self.registration_target_volume_combo_box = self.panel.findChild(
-            ctkComboBox, "RegistrationTargetVolumeComboBox"
-        )
-        assert self.registration_target_volume_combo_box
-        self.registration_target_volume_combo_box.activated.connect(
-            on_registration_target_volume_combo_box_changed
-        )
+    #
+    # PLUGIN LOADING
+    #
 
-    def reset_target_volume(self) -> None:
+    def setup_plugin_loading(self) -> None:
         """
-        Resets the target volume to None.
+        …
         """
 
-        # :COMMENT: Reset the target volume.
-        self.target_volume = None
-        self.target_volume_index = None
+        # :COMMENT: Initialize the plugin script list.
+        self.plugins = {}
 
-        # :COMMENT: Clear the view (top visualization).
-        self.slice_composite_nodes[1].SetBackgroundVolumeID("")
-
-    def choose_target_volume(self, index: int) -> None:
-        """
-        Selects an target volume.
-        """
-
-        # :COMMENT: Set the volume as target.
-        self.target_volume_index = index
-        self.target_volume = self.volumes.GetItemAsObject(index)
-        assert self.target_volume
-        self.update_volume_list()
-
-    def rename_target_volume(self) -> None:
-        """
-        Loads the renaming feature with a minimal window.
-        """
+        # :COMMENT: Retrieve the plugin loading button.
+        self.plugin_loading_button = self.get_ui(QPushButton, "PluginLoadingPushButton")
 
         # :COMMENT: Define the handler.
-        def rename_volume_handler(result) -> None:
+        def on_plugin_loading_button_clicked() -> None:
             """
-            Applies the renaming of the target volume.
-
-            Parameters:
-                result: The result of the target dialog.
+            Opens a loading window with a label for the name of the plugin, and two horizontal layouts, one for the UI file and one for the Python file, each with a label for the name of the file and a button to load the file.
             """
 
-            if result == QDialog.Accepted:
-                # :COMMENT: Ensure that a volume is target.
-                assert self.target_volume
+            # :COMMENT: Create an empty dialog.
+            dialog = QDialog(self.parent)
+            dialog.setWindowTitle("Plugin Loading")
 
-                # :COMMENT: Retrieve the new name and apply it.
-                new_name = self.renaming_target_dialog.textValue()
-                self.target_volume.SetName(new_name)
+            # :COMMENT: Create a base vertical layout.
+            base_layout = QVBoxLayout()
+            base_layout.setContentsMargins(12, 12, 12, 12)
+            base_layout.setSpacing(12)
+            dialog.setLayout(base_layout)
 
-                # :COMMENT: Log the renaming.
-                print(
-                    f'"{self.renaming_old_name}" has been renamed to "{self.target_volume.GetName()}".'
-                )
+            # :COMMENT: Create an horizontal layout with a label for the description and a line edit for the name of the plugin (My Plugin by default).
+            name_label = QLabel("Plugin Name:")
+            name_line_edit = QLineEdit()
+            name_line_edit.setText("My Plugin")
+            name_layout = QHBoxLayout()
+            name_layout.setSpacing(12)
+            name_layout.addWidget(name_label)
+            name_layout.addWidget(name_line_edit)
+            base_layout.addLayout(name_layout)
 
-            # :DIRTY:Bastien: Find a way to add modified node event observer in the setup.
-            self.update_volume_list()
+            # :COMMENT: Create an horizontal layout for the UI file loading with a label for the name of the file and a button to load this file.
+            self.plugin_loading_ui_file = None
+            ui_file_label = QLabel("No UI file selected.")
+            ui_file_button = QPushButton()
+            ui_file_button.setText("Choose an UI file…")
+            ui_file_layout = QHBoxLayout()
+            ui_file_layout.setSpacing(12)
+            ui_file_layout.addWidget(ui_file_label)
+            ui_file_layout.addWidget(ui_file_button)
+            base_layout.addLayout(ui_file_layout)
 
-        # :COMMENT: Ensure that a volume is selected as target.
-        assert self.target_volume
+            # :COMMENT: Create an horizontal layout for the Python file loading with a label for the name of the file and a button to load this file.
+            self.plugin_loading_python_file = None
+            python_file_label = QLabel("No Python file selected.")
+            python_file_button = QPushButton()
+            python_file_button.setText("Choose a Python file…")
+            python_file_layout = QHBoxLayout()
+            python_file_layout.setSpacing(12)
+            python_file_layout.addWidget(python_file_label)
+            python_file_layout.addWidget(python_file_button)
+            base_layout.addLayout(python_file_layout)
 
-        # :COMMENT: Save the old name for logging.
-        self.renaming_old_name = self.target_volume.GetName()
+            def on_ui_file_button_clicked() -> None:
+                """
+                Opens a file opening dialog for a UI file.
+                """
 
-        # :COMMENT: Open an target dialog for the new name.
-        self.renaming_target_dialog = QInputDialog(None)
-        self.renaming_target_dialog.setWindowTitle("Rename Volume")
-        self.renaming_target_dialog.setLabelText("Enter the new name:")
-        self.renaming_target_dialog.setModal(True)
-        self.renaming_target_dialog.setTextValue(self.target_volume.GetName())
-        self.renaming_target_dialog.finished.connect(rename_volume_handler)
-        self.renaming_target_dialog.show()
+                def on_ui_file_dialog_finished(result) -> None:
+                    """
+                    Loads the UI file.
 
-    def delete_target_volume(self) -> None:
+                    Parameters:
+                        result: The result of the file dialog.
+                    """
+
+                    if result == QDialog.Accepted:
+                        path = ui_file_dialog.selectedFiles()[0]
+                        ui_file_label.setText(os.path.basename(path))
+                        self.plugin_loading_ui_file = path
+
+                    dialog.raise_()
+
+                # :COMMENT: Create a file dialog for the UI file.
+                ui_file_dialog = QFileDialog(self.parent)
+                ui_file_dialog.setFileMode(QFileDialog.ExistingFile)
+                ui_file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
+                ui_file_dialog.setNameFilter("*.ui")
+                ui_file_dialog.finished.connect(on_ui_file_dialog_finished)
+                ui_file_dialog.show()
+
+            def on_python_file_button_clicked() -> None:
+                """
+                Opens a file opening dialog for a Python file.
+                """
+
+                def on_python_file_dialog_finished(result) -> None:
+                    """
+                    Loads the Python file.
+
+                    Parameters:
+                        result: The result of the file dialog.
+                    """
+
+                    if result == QDialog.Accepted:
+                        path = python_file_dialog.selectedFiles()[0]
+                        python_file_label.setText(os.path.basename(path))
+                        self.plugin_loading_python_file = path
+
+                    dialog.raise_()
+
+                # :COMMENT: Create a file dialog for the Python file.
+                python_file_dialog = QFileDialog(self.parent)
+                python_file_dialog.setFileMode(QFileDialog.ExistingFile)
+                python_file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
+                python_file_dialog.setNameFilter("*.py")
+                python_file_dialog.finished.connect(on_python_file_dialog_finished)
+                python_file_dialog.show()
+
+            # :COMMENT: Connect the buttons.
+            ui_file_button.clicked.connect(on_ui_file_button_clicked)
+            python_file_button.clicked.connect(on_python_file_button_clicked)
+
+            def on_load_button_clicked() -> None:
+                """
+                Loads the new plugin.
+                """
+
+                # :COMMENT: Retrieve the plugin name.
+                plugin_name = name_line_edit.text
+
+                # :COMMENT: Check if the plugin name is valid.
+                if plugin_name in self.plugins.keys():
+                    self.display_error_message(
+                        f'A plugin named "{plugin_name}" already exists.'
+                    )
+                    return
+
+                # :COMMENT: Check if the UI file is valid.
+                if not self.plugin_loading_ui_file:
+                    self.display_error_message("No UI file selected.")
+                    return
+
+                # :COMMENT: Check if the Python file is valid.
+                if not self.plugin_loading_python_file:
+                    self.display_error_message("No Python file selected.")
+                    return
+
+                # :COMMENT: Retrieve the plugins layout.
+                self.plugins_layout = self.get_ui(QVBoxLayout, "PluginsVerticalLayout")
+
+                # :COMMENT: Add a collapsible button.
+                plugin_collapsible_button = ctkCollapsibleButton()
+                plugin_collapsible_button.text = plugin_name
+                plugin_collapsible_button.collapsed = True
+                plugin_layout = QVBoxLayout()
+                plugin_layout.setContentsMargins(12, 12, 0, 12)
+                plugin_layout.setSpacing(12)
+                plugin_collapsible_button.setLayout(plugin_layout)
+                self.plugins_layout.addWidget(plugin_collapsible_button)
+
+                # :COMMENT: Add the UI of the file inside the collapsible widget.
+                plugin_ui = util.loadUI(self.plugin_loading_ui_file)
+                assert plugin_ui
+                plugin_ui.setPalette(util.mainWindow().palette)
+                plugin_layout.addWidget(plugin_ui)
+
+                def on_run_button_clicked() -> None:
+                    """
+                    Runs the plugin.
+                    """
+
+                    plugin_folder = os.path.dirname(self.plugins[plugin_name])
+                    plugin_file = os.path.basename(
+                        os.path.splitext(self.plugins[plugin_name])[0]
+                    )
+
+                    import sys
+
+                    sys.path.append(plugin_folder)
+
+                    import importlib
+
+                    plugin_script = importlib.import_module(plugin_file)
+
+                    plugin_script.run(
+                        ui=plugin_ui,
+                        scene=mrmlScene,
+                        input_volume=self.input_volume,
+                        target_volume=self.target_volume,
+                    )
+
+                # :COMMENT: Add the run button to launch the plugin script.
+                plugin_run_button = QPushButton()
+                plugin_run_button.setText(f"Run {plugin_name}")
+                plugin_layout.addWidget(plugin_run_button)
+                plugin_run_button.clicked.connect(on_run_button_clicked)
+
+                # :COMMENT: Add the plugin path to the plugin list.
+                self.plugins[plugin_name] = self.plugin_loading_python_file
+
+                # :COMMENT: Reset the temporary variables and close the dialog.
+                self.plugin_loading_ui_file = None
+                self.plugin_loading_python_file = None
+                dialog.accept()
+
+            # :COMMENT: Add a load button and connect it to a dedicated handler.
+            load_button = QPushButton()
+            load_button.setText("Load")
+            base_layout.addWidget(load_button)
+            load_button.clicked.connect(on_load_button_clicked)
+
+            # :COMMENT: Show the dialog.
+            dialog.show()
+
+        # :COMMENT: Connect the handler.
+        self.plugin_loading_button.clicked.connect(on_plugin_loading_button_clicked)
+
+    def reset_plugin_loading(self) -> None:
         """
-        Deletes the current target volume.
+        …
         """
 
-        assert self.target_volume
-        volume = self.target_volume
-        if self.target_volume_index == self.input_volume_index:
-            self.reset_input_volume()
-        self.reset_target_volume()
-        mrmlScene.RemoveNode(volume)
-        print(f'"{volume.GetName()}" has been deleted.')
+        # :COMMENT: Nothing to reset.
+
+        # :COMMENt: Update the plugin loading.
+        self.update_plugin_loading()
+
+    def update_plugin_loading(self) -> None:
+        """
+        …
+        """
+
+        # :COMMENT: Nothing to update.
 
     #
     # UTILITIES
@@ -1881,44 +2530,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # :COMMENT: Search for the volume by its name.
-        for i in range(self.volumes.GetNumberOfItems()):
-            volume = self.volumes.GetItemAsObject(i)
+        for i in range(len(self.volumes)):
+            volume = self.volumes[i]
             if volume.GetName() == name:
                 return volume
 
         # :COMMENT: Return None if the volume was not found.
         return None
 
-    def transfer_volume_metadata(
-        self,
-        source_volume: vtkMRMLScalarVolumeNode,
-        target_volume: vtkMRMLScalarVolumeNode,
-    ) -> None:
-        """
-        Copies the metadata from the source volume to the target volume.
-
-        Parameters:
-            source_volume: The volume to copy the metadata from.
-            target_volume: The volume to copy the metadata to.
-        """
-
-        # :COMMENT: Retrieve the metadata from the source volume.
-        spacing = source_volume.GetSpacing()
-        origin = source_volume.GetOrigin()
-        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
-        source_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
-
-        # :COMMENT: Apply the metadata to the target volume.
-        target_volume.SetSpacing(spacing)
-        target_volume.SetOrigin(origin)
-        target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
-
-    def add_new_volume(self, volume, name: str) -> None:
+    def add_new_volume(self, volume: vtkMRMLScalarVolumeNode, name: str) -> None:
         """
         Adds a new volume to the scene.
 
         Parameters:
-            volume: VTK Volume Node to be added.
+            volume: VTK volume to be added.
+            name: Type of processing.
         """
 
         # :COMMENT: Ensure that a volume is selected.
@@ -1932,43 +2558,19 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Update the MRML scene.
         mrmlScene.AddNode(volume)
 
-    def vtk_to_sitk(self, volume: vtkMRMLScalarVolumeNode) -> sitk.Image:
+    def get_ui(self, type, name: str):
         """
-        Converts a VTK volume into a SimpleITK image.
+        Retrieves a UI object from the panel.
 
         Parameters:
-            volume: The VTK volume to convert.
-
-        Returns:
-            The SimpleITK image.
+            type: The type of the UI to retrieve.
+            name: The name of the UI to retrieve.
         """
 
-        volume_image_data = volume.GetImageData()
-        np_array = vtk.util.numpy_support.vtk_to_numpy(volume_image_data.GetPointData().GetScalars())  # type: ignore
-        np_array = np.reshape(np_array, volume_image_data.GetDimensions()[::-1])
-        image = sitk.GetImageFromArray(np_array)
-        return image
-
-    def sitk_to_vtk(self, image: sitk.Image) -> vtkMRMLScalarVolumeNode:
-        """
-        Converts a SimpleITK image to a VTK volume.
-
-        Parameters:
-            image: The SimpleITK image to convert.
-
-        Returns:
-            The VTK volume.
-        """
-
-        np_array = sitk.GetArrayFromImage(image)
-        volume_image_data = vtk.vtkImageData()
-        volume_image_data.SetDimensions(np_array.shape[::-1])
-        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
-        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())  # type: ignore
-        volume_image_data.GetPointData().SetScalars(vtk_array)
-        volume = vtkMRMLScalarVolumeNode()
-        volume.SetAndObserveImageData(volume_image_data)
-        return volume
+        ui = self.panel.get_ui(type, name)
+        if not ui:
+            raise AssertionError(f'No {type} with name "{name}" found.')
+        return ui
 
 
 class CustomRegistrationTest(ScriptedLoadableModuleTest):
@@ -1979,6 +2581,20 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
     def __init__(self):
         ScriptedLoadableModuleTest().__init__()
 
+    def resourcePath(self, path: str) -> str:
+        """
+        Returns the absolute path to the resource with the given name.
+
+        Parameters:
+            path: The name of the resource.
+
+        Returns:
+            The absolute path to the resource.
+        """
+
+        module_path = os.path.dirname(modules.customregistration.path)
+        return os.path.join(module_path, "Resources", path)
+
     def runTest(self):
         """
         Runs all the tests in the Custom Registration module.
@@ -1987,6 +2603,90 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
         print("use the command : python3 test_registration.py")
         print("Located in Resources/Registration/Scripts")
         print("Warning : do know it takes time to process all the tests")
+
+        self.logic = CustomRegistrationLogic()
+
+        self.test_dummy()
+        self.test_cropping()
+
+    def test_dummy(self):
+        """
+        Dummy test to check if the module works as expected.
+        """
+
+        print("Dummy test passed.")
+
+    def test_cropping(self):
+        # :COMMENT: Load a volume as test data.
+        volume = util.loadVolume(self.resourcePath("TestData/MR-head.nrrd"))
+
+        # :COMMENT: Define the crop parameters.
+        start = [50, 50, 50]
+        end = [200, 200, 100]
+
+        # :COMMENT: Check that invalid parameters are rejected.
+        with self.assertRaises(TypeError):
+            self.logic.crop(volume, start, [end[i] + 1000 for i in range(3)])
+
+        with self.assertRaises(TypeError):
+            self.logic.crop(volume, [start[i] - 1000 for i in range(3)], end)
+
+        # :COMMENT: Call our function on valid parameters.
+        cropped_volume = vtkMRMLScalarVolumeNode()
+        try:
+            cropped_volume = self.logic.crop(volume, start, end)
+        except RuntimeError:
+            print("[ERROR] Cropping test failed.")
+            return
+
+        # :COMMENT: Check that the resulting cropped image has the expected dimensions.
+        self.assertSequenceEqual(
+            cropped_volume.GetImageData().GetDimensions(), [150, 150, 50]
+        )
+
+        # :COMMENT: Check that the resulting cropped image has the expected spacing.
+        self.assertSequenceEqual(cropped_volume.GetSpacing(), volume.GetSpacing())
+
+        # :COMMENT: Check that the resulting cropped image has the expected origin.
+        self.assertSequenceEqual(cropped_volume.GetOrigin(), volume.GetOrigin())
+
+        # :COMMENT: Check that the resulting cropped image has the expected direction.
+        cropped_volume_direction = vtk.vtkMatrix4x4()
+        volume_direction = vtk.vtkMatrix4x4()
+
+        cropped_volume.GetIJKToRASDirectionMatrix(cropped_volume_direction)
+        volume.GetIJKToRASDirectionMatrix(volume_direction)
+
+        cropped_volume_direction_array = [
+            [int(cropped_volume_direction.GetElement(i, j)) for j in range(4)]
+            for i in range(4)
+        ]
+        volume_direction_array = [
+            [int(volume_direction.GetElement(i, j)) for j in range(4)] for i in range(4)
+        ]
+
+        self.assertSequenceEqual(cropped_volume_direction_array, volume_direction_array)
+
+        # :COMMENT: Check that the resulting cropped image has the expected content.
+        volume_array = vtk.util.numpy_support.vtk_to_numpy(volume.GetImageData().GetPointData().GetScalars())  # type: ignore
+        volume_array = np.reshape(
+            volume_array, volume.GetImageData().GetDimensions()[::-1]
+        )
+
+        cropped_array = vtk.util.numpy_support.vtk_to_numpy(cropped_volume.GetImageData().GetPointData().GetScalars())  # type: ignore
+        cropped_array = np.reshape(
+            cropped_array, cropped_volume.GetImageData().GetDimensions()[::-1]
+        )
+
+        expected_array = volume_array[
+            start[2] : end[2], start[1] : end[1], start[0] : end[0]
+        ]
+        self.assertTrue(np.array_equal(cropped_array, expected_array))
+
+        mrmlScene.RemoveNode(volume)
+
+        print("Cropping test passed.")
+
 
 class RegistrationProcess(Process):
     """
