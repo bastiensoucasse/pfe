@@ -233,6 +233,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             )
         )
         self.transfer_volume_metadata(input_volume, resampled_volume)
+        resampled_volume.SetSpacing(target_volume.GetSpacing())
         return resampled_volume
 
     #
@@ -418,6 +419,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 volume
                 for volume in mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
                 if not volume.GetName().endswith("ROI Mask")
+                and not volume.GetName().endswith("ROI Volume")
             ]
 
         def update_panel(variation: str = "all") -> None:
@@ -651,6 +653,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         mrmlScene.RemoveNode(volume)
         self.update_allowed = True
         print(f'"{volume.GetName()}" has been deleted.')
+        volume = None
 
     #
     # TARGET VOLUME
@@ -795,6 +798,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         mrmlScene.RemoveNode(volume)
         self.update_allowed = True
         print(f'"{volume.GetName()}" has been deleted.')
+        volume = None
 
     #
     # VIEW INTERFACE
@@ -851,7 +855,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.update_specific_view(
                 0,
                 self.input_volume,
-                mask=self.input_mask,
+                mask=self.input_foreground_volume,
             )
         else:
             self.update_specific_view(0, None)
@@ -861,7 +865,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.update_specific_view(
                 1,
                 self.target_volume,
-                mask=self.target_mask,
+                mask=self.target_foreground_volume,
             )
         else:
             self.update_specific_view(1, None)
@@ -986,12 +990,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         …
         """
 
-        # :COMMENT: Create a color table node that assigns the ROI selection to red.
-        self.color_table_node = mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode")
-        self.color_table_node.SetTypeToUser()
-        self.color_table_node.SetNumberOfColors(2)
-        self.color_table_node.SetColor(0, 0.0, 0.0, 0.0, 0.0)
-        self.color_table_node.SetColor(1, 1.0, 0.0, 0.0, 1.0)
+        # :COMMENT: Create a color table node that assigns the ROI mask to red.
+        self.red_color_table_node = mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode")
+        self.red_color_table_node.SetTypeToUser()
+        self.red_color_table_node.SetNumberOfColors(2)
+        self.red_color_table_node.SetColor(0, 0.0, 0.0, 0.0, 0.0)
+        self.red_color_table_node.SetColor(1, 1.0, 0.0, 0.0, 1.0)
+
+        # :COMMENT: Create a color table node that assigns the ROI volume to green.
+        self.green_color_table_node = mrmlScene.AddNewNodeByClass(
+            "vtkMRMLColorTableNode"
+        )
+        self.green_color_table_node.SetTypeToUser()
+        self.green_color_table_node.SetNumberOfColors(2)
+        self.green_color_table_node.SetColor(0, 0.0, 0.0, 0.0, 0.0)
+        self.green_color_table_node.SetColor(1, 0.0, 1.0, 0.0, 1.0)
 
         # :COMMENT: Get the collapsible button.
         self.roi_selection_collapsible_button = self.get_ui(
@@ -1002,24 +1015,24 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
         # :COMMENT: Connect the input ROI selection threshold slider.
-        self.input_roi_selection_threshold_slider = self.get_ui(
+        self.input_mask_selection_threshold_slider = self.get_ui(
             QSlider, "InputROISelectionThresholdSlider"
         )
-        self.input_roi_selection_threshold_slider.valueChanged.connect(
+        self.input_mask_selection_threshold_slider.valueChanged.connect(
             lambda: self.update_roi_selection("input")
         )
-        self.input_roi_selection_threshold_value_label = self.get_ui(
+        self.input_mask_selection_threshold_value_label = self.get_ui(
             QLabel, "InputROISelectionThresholdValueLabel"
         )
 
         # :COMMENT: Connect the target ROI selection threshold slider.
-        self.target_roi_selection_threshold_slider = self.get_ui(
+        self.target_mask_selection_threshold_slider = self.get_ui(
             QSlider, "TargetROISelectionThresholdSlider"
         )
-        self.target_roi_selection_threshold_slider.valueChanged.connect(
+        self.target_mask_selection_threshold_slider.valueChanged.connect(
             lambda: self.update_roi_selection("target")
         )
-        self.target_roi_selection_threshold_value_label = self.get_ui(
+        self.target_mask_selection_threshold_value_label = self.get_ui(
             QLabel, "TargetROISelectionThresholdValueLabel"
         )
 
@@ -1031,8 +1044,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.volume_roi_map = {}
 
         # :COMMENT: Initialize the ROI selection.
-        self.input_mask = None
-        self.target_mask = None
+        self.input_foreground_volume = None
+        self.target_foreground_volume = None
         self.roi_selection_preview_allowed = True
         self.reset_roi_selection()
 
@@ -1043,9 +1056,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Reset the ROI selection threshold values.
         self.roi_selection_preview_allowed = False
-        self.input_roi_selection_threshold_slider.setValue(0)
-        self.target_roi_selection_threshold_slider.setValue(0)
+        self.input_mask_selection_threshold_slider.setValue(0)
+        self.target_mask_selection_threshold_slider.setValue(0)
         self.cropping_preview_allowed = True
+        self.roi_selection_collapsible_button.collapsed = True
 
         # :COMMENT: Update the ROI selection.
         self.update_roi_selection()
@@ -1073,12 +1087,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             else:
                 range = (0, 255)
             self.roi_selection_preview_allowed = False
-            self.input_roi_selection_threshold_slider.setMinimum(range[0])
-            self.input_roi_selection_threshold_slider.setMaximum(range[1])
+            self.input_mask_selection_threshold_slider.setMinimum(range[0])
+            self.input_mask_selection_threshold_slider.setMaximum(range[1])
             self.roi_selection_preview_allowed = True
 
-            threshold = self.input_roi_selection_threshold_slider.value
-            self.input_roi_selection_threshold_value_label.setText(int(threshold))
+            threshold = self.input_mask_selection_threshold_slider.value
+            self.input_mask_selection_threshold_value_label.setText(int(threshold))
 
         # :COMMENT: Update the target threshold value.
         if variation == "target":
@@ -1089,18 +1103,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             else:
                 range = (0, 255)
             self.roi_selection_preview_allowed = False
-            self.target_roi_selection_threshold_slider.setMinimum(range[0])
-            self.target_roi_selection_threshold_slider.setMaximum(range[1])
+            self.target_mask_selection_threshold_slider.setMinimum(range[0])
+            self.target_mask_selection_threshold_slider.setMaximum(range[1])
             self.roi_selection_preview_allowed = True
 
-            threshold = self.target_roi_selection_threshold_slider.value
-            self.target_roi_selection_threshold_value_label.setText(int(threshold))
+            threshold = self.target_mask_selection_threshold_slider.value
+            self.target_mask_selection_threshold_value_label.setText(int(threshold))
 
-        if (
-            self.roi_selection_collapsible_button.isChecked()
-            and self.roi_selection_preview_allowed
-        ):
-            self.preview_roi_selection(variation)
+        if self.roi_selection_preview_allowed:
+            if self.roi_selection_collapsible_button.isChecked():
+                self.preview_roi_selection(variation)
+            else:
+                self.display_roi(variation)
 
     def preview_roi_selection(self, variation: str = "all") -> None:
         """
@@ -1118,41 +1132,51 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         if variation == "input":
             # :COMMENT: Remove the previous input mask if needed.
-            if self.input_mask:
-                mrmlScene.RemoveNode(self.input_mask)
+            if self.input_foreground_volume:
+                mrmlScene.RemoveNode(self.input_foreground_volume)
+                self.input_foreground_volume = None
 
             # :COMMENT: Ensure the input volume is not None.
             if not self.input_volume:
                 self.update_allowed = True
                 return
 
-            # :COMMENT: Retrieve the threshold value.
-            threshold = self.input_roi_selection_threshold_slider.value
-
             # :COMMENT: Call the ROI selection algorithm.
-            self.input_mask = self.logic.create_mask(self.input_volume, threshold)
+            threshold = self.input_mask_selection_threshold_slider.value
+            self.input_foreground_volume = self.logic.create_mask(
+                self.input_volume, threshold
+            )
 
             # :COMMENT: Get or create the mask display node.
-            mask_display_node = self.input_mask.GetDisplayNode()
+            mask_display_node = self.input_foreground_volume.GetDisplayNode()
             if not mask_display_node:
                 mask_display_node = vtkMRMLScalarVolumeDisplayNode()
                 mrmlScene.AddNode(mask_display_node)
-                self.input_mask.SetAndObserveDisplayNodeID(mask_display_node.GetID())
+                self.input_foreground_volume.SetAndObserveDisplayNodeID(
+                    mask_display_node.GetID()
+                )
 
             # :COMMENT: Assign the color map to the mask display.
-            mask_display_node.SetAndObserveColorNodeID(self.color_table_node.GetID())
+            mask_display_node.SetAndObserveColorNodeID(
+                self.red_color_table_node.GetID()
+            )
 
             # :COMMENT: Add the mask to the scene to visualize it.
-            self.input_mask.SetName(f"{self.input_volume.GetName()} ROI Mask")
-            mrmlScene.AddNode(self.input_mask)
+            self.input_foreground_volume.SetName(
+                f"{self.input_volume.GetName()} ROI Mask"
+            )
+            mrmlScene.AddNode(self.input_foreground_volume)
 
             # :COMMENT: Set the update rule to allowed.
-            self.update_specific_view(0, self.input_volume, self.input_mask)
+            self.update_specific_view(
+                0, self.input_volume, self.input_foreground_volume
+            )
 
         if variation == "target":
             # :COMMENT: Remove the previous target mask if needed.
-            if self.target_mask:
-                mrmlScene.RemoveNode(self.target_mask)
+            if self.target_foreground_volume:
+                mrmlScene.RemoveNode(self.target_foreground_volume)
+                self.target_foreground_volume = None
 
             # :COMMENT: Ensure the input volume is not None.
             if not self.target_volume:
@@ -1160,27 +1184,146 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 return
 
             # :COMMENT: Retrieve the threshold value.
-            threshold = self.target_roi_selection_threshold_slider.value
+            threshold = self.target_mask_selection_threshold_slider.value
 
             # :COMMENT: Call the ROI selection algorithm.
-            self.target_mask = self.logic.create_mask(self.target_volume, threshold)
+            self.target_foreground_volume = self.logic.create_mask(
+                self.target_volume, threshold
+            )
 
             # :COMMENT: Get or create the mask display node.
-            mask_display_node = self.target_mask.GetDisplayNode()
+            mask_display_node = self.target_foreground_volume.GetDisplayNode()
             if not mask_display_node:
                 mask_display_node = vtkMRMLScalarVolumeDisplayNode()
                 mrmlScene.AddNode(mask_display_node)
-                self.target_mask.SetAndObserveDisplayNodeID(mask_display_node.GetID())
+                self.target_foreground_volume.SetAndObserveDisplayNodeID(
+                    mask_display_node.GetID()
+                )
 
             # :COMMENT: Assign the color map to the mask display.
-            mask_display_node.SetAndObserveColorNodeID(self.color_table_node.GetID())
+            mask_display_node.SetAndObserveColorNodeID(
+                self.red_color_table_node.GetID()
+            )
 
             # :COMMENT: Add the mask to the scene to visualize it.
-            self.target_mask.SetName(f"{self.target_volume.GetName()} ROI Mask")
-            mrmlScene.AddNode(self.target_mask)
+            self.target_foreground_volume.SetName(
+                f"{self.target_volume.GetName()} ROI Mask"
+            )
+            mrmlScene.AddNode(self.target_foreground_volume)
 
             # :COMMENT: Set the update rule to allowed.
-            self.update_specific_view(1, self.target_volume, self.target_mask)
+            self.update_specific_view(
+                1, self.target_volume, self.target_foreground_volume
+            )
+
+        # :COMMENT: Set the update rule to allowed.
+        self.update_allowed = True
+
+    def display_roi(self, variation: str = "all") -> None:
+        """
+        Displays the ROI volume in green.
+        """
+
+        assert variation in ["input", "target", "all"]
+
+        if variation == "all":
+            self.display_roi("input")
+            self.display_roi("target")
+
+        # :COMMENT: Set the update rule to blocked.
+        self.update_allowed = False
+
+        if variation == "input":
+            # :COMMENT: Remove the previous input ROI if needed.
+            if self.input_foreground_volume:
+                mrmlScene.RemoveNode(self.input_foreground_volume)
+                self.input_foreground_volume = None
+
+            # :COMMENT: Ensure the target volume is not None.
+            if not self.input_volume:
+                self.update_allowed = True
+                return
+
+            # :COMMENT: Ensure the volume has ROI.
+            if self.input_volume.GetName() not in self.volume_roi_map:
+                self.update_allowed = True
+                return
+
+            # :COMMENT: Retrieve the ROI volume.
+            self.input_foreground_volume = self.volume_roi_map[
+                self.input_volume.GetName()
+            ]
+
+            # :COMMENT: Get or create the ROI display node.
+            roi_display_node = self.input_foreground_volume.GetDisplayNode()
+            if not roi_display_node:
+                roi_display_node = vtkMRMLScalarVolumeDisplayNode()
+                mrmlScene.AddNode(roi_display_node)
+                self.input_foreground_volume.SetAndObserveDisplayNodeID(
+                    roi_display_node.GetID()
+                )
+
+            # :COMMENT: Assign the color map to the ROI display.
+            roi_display_node.SetAndObserveColorNodeID(
+                self.green_color_table_node.GetID()
+            )
+
+            # :COMMENT: Add the ROI to the scene to visualize it.
+            self.input_foreground_volume.SetName(
+                f"{self.input_volume.GetName()} ROI Volume"
+            )
+            mrmlScene.AddNode(self.input_foreground_volume)
+
+            # :COMMENT: Set the update rule to allowed.
+            self.update_specific_view(
+                0, self.input_volume, self.input_foreground_volume
+            )
+
+        if variation == "target":
+            # :COMMENT: Remove the previous target ROI if needed.
+            if self.target_foreground_volume:
+                mrmlScene.RemoveNode(self.target_foreground_volume)
+                self.target_foreground_volume = None
+
+            # :COMMENT: Ensure the target volume is not None.
+            if not self.target_volume:
+                self.update_allowed = True
+                return
+
+            # :COMMENT: Ensure the volume has ROI.
+            if self.target_volume.GetName() not in self.volume_roi_map:
+                self.update_allowed = True
+                return
+
+            # :COMMENT: Retrieve the ROI volume.
+            self.target_foreground_volume = self.volume_roi_map[
+                self.target_volume.GetName()
+            ]
+
+            # :COMMENT: Get or create the ROI display node.
+            roi_display_node = self.target_foreground_volume.GetDisplayNode()
+            if not roi_display_node:
+                roi_display_node = vtkMRMLScalarVolumeDisplayNode()
+                mrmlScene.AddNode(roi_display_node)
+                self.target_foreground_volume.SetAndObserveDisplayNodeID(
+                    roi_display_node.GetID()
+                )
+
+            # :COMMENT: Assign the color map to the ROI display.
+            roi_display_node.SetAndObserveColorNodeID(
+                self.green_color_table_node.GetID()
+            )
+
+            # :COMMENT: Add the ROI to the scene to visualize it.
+            self.target_foreground_volume.SetName(
+                f"{self.target_volume.GetName()} ROI Volume"
+            )
+            mrmlScene.AddNode(self.target_foreground_volume)
+
+            # :COMMENT: Set the update rule to allowed.
+            self.update_specific_view(
+                1, self.target_volume, self.target_foreground_volume
+            )
 
         # :COMMENT: Set the update rule to allowed.
         self.update_allowed = True
@@ -1202,18 +1345,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             name = self.input_volume.GetName()
 
             # :COMMENT: Compute missing mask if needed.
-            if not self.input_mask:
-                self.input_mask = self.logic.create_mask(
-                    self.input_volume, self.input_roi_selection_threshold_slider.value
+            if not self.input_foreground_volume:
+                self.input_foreground_volume = self.logic.create_mask(
+                    self.input_volume, self.input_mask_selection_threshold_slider.value
                 )
 
             # :COMMENT: Compute and save the ROI using the mask.
-            roi = self.logic.select_roi(self.input_volume, self.input_mask)
+            roi = self.logic.select_roi(self.input_volume, self.input_foreground_volume)
             self.volume_roi_map[name] = roi
 
             # :COMMENT: Log the ROI selection.
             print(
-                f'ROI has been selected with a threshold value of {self.input_roi_selection_threshold_slider.value} in "{name}".'
+                f'ROI has been selected with a threshold value of {self.input_mask_selection_threshold_slider.value} in "{name}".'
             )
 
         if self.target_volume:
@@ -1221,18 +1364,21 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             name = self.target_volume.GetName()
 
             # :COMMENT: Compute missing mask if needed.
-            if not self.target_mask:
-                self.target_mask = self.logic.create_mask(
-                    self.target_volume, self.target_roi_selection_threshold_slider.value
+            if not self.target_foreground_volume:
+                self.target_foreground_volume = self.logic.create_mask(
+                    self.target_volume,
+                    self.target_mask_selection_threshold_slider.value,
                 )
 
             # :COMMENT: Compute and save the ROI using the mask.
-            roi = self.logic.select_roi(self.target_volume, self.target_mask)
+            roi = self.logic.select_roi(
+                self.target_volume, self.target_foreground_volume
+            )
             self.volume_roi_map[name] = roi
 
             # :COMMENT: Log the ROI selection.
             print(
-                f'ROI has been selected with a threshold value of {self.target_roi_selection_threshold_slider.value} in "{name}".'
+                f'ROI has been selected with a threshold value of {self.target_mask_selection_threshold_slider.value} in "{name}".'
             )
 
         # :COMMENT: Reset the ROI selection data.
@@ -1286,6 +1432,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropping_start[i].value = 0
             self.cropping_end[i].value = 0
         self.cropping_preview_allowed = True
+        self.cropping_collapsible_button.collapsed = True
 
         # :COMMENT: Update the cropping.
         self.update_cropping()
@@ -1328,6 +1475,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Remove the previous cropping box if needed.
         if self.cropping_box:
             mrmlScene.RemoveNode(self.cropping_box)
+            self.cropping_box = None
 
         # :COMMENT: Ensure that the input volume is not None.
         if not self.input_volume:
@@ -1462,7 +1610,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         …
         """
 
-        # :COMMENT: Nothing to reset.
+        self.get_ui(
+            ctkCollapsibleButton, "ResamplingCollapsibleWidget"
+        ).collapsed = True
 
         # :COMMENT: Update the resampling.
         self.update_resampling()
@@ -2684,6 +2834,7 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
         self.assertTrue(np.array_equal(cropped_array, expected_array))
 
         mrmlScene.RemoveNode(volume)
+        volume = None
 
         print("Cropping test passed.")
 
