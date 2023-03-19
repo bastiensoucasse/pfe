@@ -2063,11 +2063,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             if self.regProcess is None or self.regProcess.registration_completed:
                 assert self.input_volume
                 print(
-                    f'"{self.input_volume.GetName()}" has been registered as "{self.volumes.GetItemAsObject(self.volumes.GetNumberOfItems() - 1).GetName()}".'
+                    f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
                 )
 
             # :COMMENT: Select the new volume to display it.
-            self.choose_input_volume(self.volumes.GetNumberOfItems() - 1)
+            self.choose_input_volume(len(self.volumes) - 1)
 
     def activate_timer_and_progress_bar(self) -> None:
         """
@@ -2251,141 +2251,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         except ValueError:
             self.display_error_message("not values.")
             QLineEdit.text = "4, 2, 1"
-    #
-    # INPUT VOLUME
-    #
-
-    def setup_input_volume(self) -> None:
-        """
-        Sets up the input volume architecture by initializing the data and retrieving the UI widgets.
-        """
-
-        def on_input_volume_combo_box_changed(
-            index: int, combo_box: ctkComboBox
-        ) -> None:
-            """
-            Handles change of input volume with options.
-
-            Called when an item in an input volume combobox is selected.
-
-            Parameters:
-                index: The input volume index.
-            """
-
-            OPTIONS = ["Delete current volume…", "Rename current volume…"]
-
-            # :COMMENT: Retrieve the selection text.
-            name = combo_box.currentText
-
-            # :COMMENT: Handle the different options.
-            if name in OPTIONS:
-                # :COMMENT: Ensure that there is at least one volume imported.
-                if self.volumes.GetNumberOfItems() < 1:
-                    self.update_volume_list()
-                    self.display_error_message("No volumes imported.")
-                    return
-
-                # :COMMENT: Ensure that a volume is selected as input.
-                if not self.input_volume:
-                    self.update_volume_list()
-                    self.display_error_message("Please select a volume first.")
-                    return
-
-                if name == "Rename current volume…":
-                    self.rename_input_volume()
-                    return
-
-                if name == "Delete current volume…":
-                    self.delete_input_volume()
-                    return
-
-            # :COMMENT: Select the volume at specified index otherwise.
-            self.choose_input_volume(index)
-
-        def on_registration_input_volume_combo_box_changed(index: int) -> None:
-            on_input_volume_combo_box_changed(
-                index, self.registration_input_volume_combo_box
-            )
-
-        # :COMMENT: Initialize the input volume.
-        self.input_volume = None
-        self.input_volume_index = None
-
-        # :COMMENT: Get and connection the registration input volume combo box.
-        self.registration_input_volume_combo_box = self.get_ui(
-            ctkComboBox, "RegistrationInputVolumeComboBox"
-        )
-        assert self.registration_input_volume_combo_box
-        self.registration_input_volume_combo_box.activated.connect(
-            on_registration_input_volume_combo_box_changed
-        )
-
-    def reset_input_volume(self) -> None:
-        """
-        Resets the input volume to None.
-        """
-
-        # :COMMENT: Reset the input volume.
-        self.input_volume = None
-        self.input_volume_index = None
-
-        # :COMMENT: Remove the input volume in-memory ROI.
-        self.remove_roi()
-
-        # :COMMENT: Clear the view (top visualization).
-        self.slice_composite_nodes[0].SetBackgroundVolumeID("")
-
-    def choose_input_volume(self, index: int) -> None:
-        """
-        Selects an input volume.
-        """
-
-        # :COMMENT: Set the volume as input.
-        self.input_volume_index = index
-        self.input_volume = self.volumes.GetItemAsObject(index)
-        assert self.input_volume
-        self.update_volume_list()
-
-        # :COMMENT: Update the cropping parameters accordingly.
-        input_volume_image_data = self.input_volume.GetImageData()
-        input_volume_dimensions = input_volume_image_data.GetDimensions()
-        for i in range(3):
-            self.cropping_start[i].setMaximum(input_volume_dimensions[i] - 1)
-            self.cropping_end[i].setMaximum(input_volume_dimensions[i] - 1)
-
-    def rename_input_volume(self) -> None:
-        """
-        Loads the renaming feature with a minimal window.
-        """
-
-        def on_registration_completed():
-            """
-            Handles the completion callback.
-            """
-
-            # :DIRTY:Tony: For debug only (to be removed).
-            # print(logic.state())
-
-            # :COMMENT: Log the registration.
-            assert self.input_volume
-            print(
-                f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
-            )
-
-            # :COMMENT: Reset the registration.
-            self.reset_registration()
-
-            # :COMMENT: Select the new volume to display it.
-            self.choose_input_volume(len(self.volumes) - 1)
-
-        logic = ProcessesLogic(completedCallback=lambda: on_registration_completed())
-        if self.rigid_r_button.isChecked():
-            scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
-        else:
-            scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
-        regProcess = RegistrationProcess(scriptPath, self.fixed_image, self.moving_image, input)
-        logic.addProcess(regProcess)
-        logic.run()
 
     #
     # PLUGIN LOADING
