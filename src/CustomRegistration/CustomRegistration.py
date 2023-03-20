@@ -5,9 +5,12 @@ The Custom Registration module for Slicer provides the features for 3D images re
 import datetime
 import os
 import pickle
-from math import pi
 import unittest
+from math import pi
+
+import Elastix
 import numpy as np
+import scipy
 import SimpleITK as sitk
 import sitkUtils as su
 import vtk
@@ -17,20 +20,19 @@ from qt import (
     QCheckBox,
     QDialog,
     QDoubleSpinBox,
+    QElapsedTimer,
     QFileDialog,
+    QGroupBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QProgressBar,
     QPushButton,
-    QRadioButton,
     QSlider,
     QSpinBox,
     QTimer,
-    QElapsedTimer,
-    QProgressBar,
-    QGroupBox,
     QVBoxLayout,
 )
 from slicer import (
@@ -47,10 +49,9 @@ from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModuleLogic,
     ScriptedLoadableModuleTest,
     ScriptedLoadableModuleWidget,
-    ScriptedLoadableModuleTest
 )
-import Elastix
 
+AXIS_MAP = {"x": 0, "y": 1, "z": 2}
 
 
 class CustomRegistration(ScriptedLoadableModule):
@@ -144,8 +145,9 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             label_map, lowerThreshold=largest_label, upperThreshold=largest_label
         )
 
-        roi = self.sitk_to_vtk(sitk.Mask(self.vtk_to_sitk(volume), binary))
+        roi = self.sitk_to_vtk(binary)
         self.transfer_volume_metadata(volume, roi)
+
         return roi
 
     #
@@ -174,6 +176,20 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         # cropped_image = crop_filter.Execute(image)
         # return cropped_image
 
+        # :COMMENT: Ensure that the size is valid.
+        crop_size = [end[i] - start[i] for i in range(len(start))]
+        if not all(crop_size):
+            return None
+
+        # :COMMENT: Handles the autocropping offset too large.
+        dims = volume.GetImageData().GetDimensions()
+        for axis, i in AXIS_MAP.items():
+            if start[i] < 0 or end[i] > dims[i]:
+                raise AutocroppingValueError(
+                    f"Offset {axis} too large.",
+                    axis,
+                )
+
         # :COMMENT: Convert the volume to a SimpleITK image.
         image = self.vtk_to_sitk(volume)
 
@@ -197,6 +213,54 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         self.transfer_volume_metadata(volume, cropped_volume)
 
         return cropped_volume
+
+    def automatic_crop(
+        self,
+        volume: vtkMRMLScalarVolumeNode,
+        roi: vtkMRMLScalarVolumeNode,
+        margins,
+    ) -> vtkMRMLScalarVolumeNode:
+        """
+        Crops a volume using the selected algorithm.
+
+        Parameters:
+            volume: The VTK volume to be cropped.
+            roi: The VTK volume representing the ROI selection of the input volume.
+            margins: The margin to add around the ROI selection.
+
+        Returns:
+            A tuple representing
+                - The cropped VTK volume.
+                - The start index of the cropping region.
+                - The end index of the cropping region.
+        """
+
+        # :COMMENT: Get the pixel data array and dimensions of the image data.
+        roi_image_data = roi.GetImageData()
+        dims = roi_image_data.GetDimensions()
+
+        # :COMMENT: Convert the pixel data array into a numpy array.
+        pixel_data_array = vtk.util.numpy_support.vtk_to_numpy(
+            roi_image_data.GetPointData().GetScalars()
+        )
+        # :TODO:Iantsa: Make sure the order is the right one for better optimization.
+        pixel_data_array = pixel_data_array.reshape(dims, order="F")
+
+        # :COMMENT: Ensure the selection is not empty.
+        if not np.any(pixel_data_array):
+            return None
+
+        # :COMMENT: Get the bounds of the ROI.
+        xyz = np.argwhere(pixel_data_array).T
+        start = [int(np.min(i)) for i in xyz]
+        end = [int(np.max(i)) for i in xyz]
+
+        # :COMMENT Apply the margins along the ROI.
+        for i in range(3):
+            start[i] -= margins[i]
+            end[i] += margins[i]
+
+        return self.crop(volume, start, end), start, end
 
     #
     # RESAMPLING
@@ -303,6 +367,79 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         target_volume.SetOrigin(origin)
         target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
 
+    def difference_map(self, imageData1, imageData2, name, mode, sigma):
+        dims1 = imageData1.GetImageData().GetDimensions()
+        dims2 = imageData2.GetImageData().GetDimensions()
+        if dims1 != dims2:
+            raise ValueError("Images must have the same dimensions")
+
+        volume_image_data1 = imageData1.GetImageData()
+        np_array1 = vtk.util.numpy_support.vtk_to_numpy(
+            volume_image_data1.GetPointData().GetScalars()
+        )
+        np_array1 = np.reshape(
+            np_array1, volume_image_data1.GetDimensions()[::-1]
+        ).astype(
+            np.float  # type: ignore
+        )
+
+        volume_image_data2 = imageData2.GetImageData()
+        np_array2 = vtk.util.numpy_support.vtk_to_numpy(
+            volume_image_data2.GetPointData().GetScalars()
+        )
+        np_array2 = np.reshape(
+            np_array2, volume_image_data2.GetDimensions()[::-1]
+        ).astype(
+            np.float  # type: ignore
+        )
+
+        # outputNode = outputNode.astype(np.float)
+
+        if mode == "gradient":
+            #:COMMENT: Compute the gradient of each image
+            grad_x1, grad_y1, grad_z1 = np.gradient(np_array1)
+            grad_x2, grad_y2, grad_z2 = np.gradient(np_array2)
+
+            #:COMMENT:  Compute the difference of the gradient
+            outputNode = (
+                np.abs(grad_x1 - grad_x2)
+                + np.abs(grad_y1 - grad_y2)
+                + np.abs(grad_z1 - grad_z2)
+            )
+        elif mode == "absolute":
+            outputNode = np.abs(np_array1 - np_array2).astype(np.float)  # type: ignore
+        else:
+            raise ValueError("Invalid mode. Mode must be 'gradient' or 'absolute'.")
+
+        if sigma >= 3:
+            #:COMMENT: Apply a sigma*sigma*sigma blur with zero padding to outputNode
+            kernel = np.ones((sigma, sigma, sigma)) / (
+                np.sum(np.ones((sigma, sigma, sigma))) + 1e-8
+            )
+            outputNode = scipy.ndimage.convolve(
+                outputNode, kernel, mode="constant", cval=0.0
+            )
+        # #:COMMENT:  Normalize the difference
+        outputNode = outputNode / np.linalg.norm(outputNode)
+
+        #:COMMENT:  Create a new volume node for the output
+        volume_image_data = vtk.vtkImageData()
+        volume_image_data.SetDimensions(outputNode.shape[::-1])
+        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(outputNode.flatten())
+        volume_image_data.GetPointData().SetScalars(vtk_array)
+        volume = vtkMRMLScalarVolumeNode()
+
+        #:COMMENT:  Transfer metadata from the first input image data to the output volume node
+        self.transfer_volume_metadata(imageData1, volume)
+        volume.SetName(name)
+        volume.SetAndObserveImageData(volume_image_data)
+
+        #:COMMENT: Compute the mean of the difference
+        mean_difference = np.mean(outputNode)
+
+        return volume, mean_difference
+
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     """
@@ -314,7 +451,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup(self) -> None:
         """
-        Sets up the widget for the module by adding a welcome message to the layout.
+        Sets up the widget for the module.
         """
 
         # :COMMENT: Initialize the widget.
@@ -350,14 +487,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Set up the input/target volume architecture.
         self.setup_input_volume()
         self.setup_target_volume()
+        self.difference_map = None
 
         # :COMMENT: Set up the module regions.
         self.setup_view()
         self.setup_pascal_only_mode()
         self.setup_roi_selection()
         self.setup_cropping()
+        self.setup_automatic_cropping()
         self.setup_resampling()
         self.setup_registration()
+        self.setup_difference_map()
         self.setup_plugin_loading()
 
         # :COMMENT: Add observer to update combobox when new volume is added to MRML Scene.
@@ -397,6 +537,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.reset_cropping()
         self.reset_resampling()
         self.reset_registration()
+        self.reset_difference_map()
         self.reset_plugin_loading()
 
     def update(self, caller=None, event=None) -> None:
@@ -508,7 +649,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.update_view()
         self.update_pascal_only_mode()
         self.update_roi_selection()
-        self.update_cropping()
+        self.update_cropping("manual")
         self.update_resampling()
         self.update_plugin_loading()
 
@@ -871,8 +1012,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.update_specific_view(1, None)
 
         # :COMMENT: Update the difference map view.
-        # :TODO:Bastien: Add support for the difference map (during merge).
-        self.update_specific_view(2, None)
+        if self.difference_map:
+            self.update_specific_view(
+                2,
+                self.difference_map,
+            )
+        else:
+            self.update_specific_view(2, None)
 
     def update_specific_view(
         self,
@@ -1397,23 +1543,29 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropping_collapsible_button = self.get_ui(
             ctkCollapsibleButton, "CroppingCollapsibleWidget"
         )
-        self.cropping_collapsible_button.clicked.connect(self.update_cropping)
+        self.cropping_collapsible_button.clicked.connect(
+            lambda: self.update_cropping("manual")
+        )
+        # :TODO:Iantsa: Change "manual" right above to trigger the correct switch (manual vs. automatic).
+
+        # :COMMENT: Get the crop button widget.
+        self.cropping_button = self.get_ui(QPushButton, "CroppingButton")
+        self.cropping_button.clicked.connect(self.crop)
 
         # :COMMENT: Get the coordinates spinbox widgets.
         self.cropping_start = []
         self.cropping_end = []
-        axis = ["x", "y", "z"]
-        for i in range(len(axis)):
-            self.cropping_start.append(self.get_ui(QSpinBox, "s" + axis[i]))
-            self.cropping_end.append(self.get_ui(QSpinBox, "e" + axis[i]))
+        for axis, i in AXIS_MAP.items():
+            self.cropping_start.append(self.get_ui(QSpinBox, "s" + axis))
+            self.cropping_end.append(self.get_ui(QSpinBox, "e" + axis))
 
             # :COMMENT: Connect the spinbox widgets to their "on changed" function that displays the cropping preview.
-            self.cropping_start[i].valueChanged.connect(self.update_cropping)
-            self.cropping_end[i].valueChanged.connect(self.update_cropping)
-
-        # :COMMENT: Get the crop button widget.
-        self.cropping_button = self.get_ui(QPushButton, "crop_button")
-        self.cropping_button.clicked.connect(self.crop)
+            self.cropping_start[i].valueChanged.connect(
+                lambda: self.update_cropping("manual")
+            )
+            self.cropping_end[i].valueChanged.connect(
+                lambda: self.update_cropping("manual")
+            )
 
         # :COMMENT: Initialize the cropping preview.
         self.cropped_volume = None
@@ -1435,32 +1587,44 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropping_collapsible_button.collapsed = True
 
         # :COMMENT: Update the cropping.
-        self.update_cropping()
+        self.update_cropping("manual")
 
-    def update_cropping(self) -> None:
+    def update_cropping(self, variation: str) -> None:
         """
         …
         """
+
+        assert variation in ["manual", "automatic"]
 
         # :COMMENT: Hide the cropping box by default.
         if self.cropping_box and self.cropping_box.GetDisplayNode():
             self.cropping_box.GetDisplayNode().SetVisibility(False)
 
+        if not self.input_volume:
+            return
+
         # :COMMENT: Reset the cropping value ranges.
-        if self.input_volume:
-            input_volume_image_data = self.input_volume.GetImageData()
-            input_volume_dimensions = input_volume_image_data.GetDimensions()
-            self.cropping_preview_allowed = False
-            for i in range(3):
-                self.cropping_start[i].setMaximum(input_volume_dimensions[i])
-                self.cropping_end[i].setMaximum(input_volume_dimensions[i])
-            self.cropping_preview_allowed = True
+        input_volume_image_data = self.input_volume.GetImageData()
+        input_volume_dimensions = input_volume_image_data.GetDimensions()
+        self.cropping_preview_allowed = False
+        for i in range(3):
+            self.cropping_start[i].setMaximum(input_volume_dimensions[i])
+            self.cropping_end[i].setMaximum(input_volume_dimensions[i])
+        self.cropping_preview_allowed = True
 
         if (
-            self.cropping_collapsible_button.isChecked()
+            variation == "manual"
+            and self.cropping_collapsible_button.isChecked()
             and self.cropping_preview_allowed
         ):
             self.preview_cropping()
+
+        if (
+            variation == "automatic"
+            and self.cropping_collapsible_button.isChecked()
+            and self.cropping_preview_allowed
+        ):
+            self.preview_automatic_cropping()
 
     def preview_cropping(self) -> None:
         """
@@ -1479,6 +1643,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Ensure that the input volume is not None.
         if not self.input_volume:
+            self.cropped_volume = None
+            self.cropping_box = None
             self.update_allowed = True
             return
 
@@ -1491,6 +1657,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Check that coordinates are valid.
         if any(end_val[i] <= start_val[i] for i in range(3)):
+            self.cropped_volume = None
+            self.cropping_box = None
             self.update_allowed = True
             return
 
@@ -1533,8 +1701,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropping_box.SetXYZ(transformed_center)
         self.cropping_box.SetRadiusXYZ(transformed_radius)
 
+        # :COMMENT: Show the automatic cropping preview.
+        self.cropping_box.GetDisplayNode().SetVisibility(True)
+
         # :COMMENT: Set the update rule to allowed.
         self.update_allowed = True
+
+        # :END_DIRTY/TRICKY:
 
     def crop(self) -> None:
         """
@@ -1551,6 +1724,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             return
 
         # :COMMENT: Retrieve coordinates input.
+        # :DIRTY:Iantsa: This is done twice: in preview and in crop.
         start_val = []
         end_val = []
         for i in range(3):
@@ -1563,6 +1737,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             return
 
         # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
+        assert self.cropping_box
         self.update_allowed = False
         mrmlScene.RemoveNode(self.cropping_box)
         self.cropping_box = None
@@ -1579,6 +1754,209 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Reset the cropping.
         self.reset_cropping()
+
+        # :COMMENT: Select the cropped volume.
+        self.choose_input_volume(len(self.volumes) - 1)
+
+        # :COMMENT: Delete the temporary cropped volume.
+        self.cropped_volume = None
+        self.cropping_box = None
+
+    #
+    # AUTOMATIC CROPPING
+    #
+
+    def setup_automatic_cropping(self) -> None:
+        """
+        Sets up the automatic cropping widget by linking the UI to the scene and algorithm.
+        """
+
+        # :COMMENT: Collapsible button and cropping data handled by manual cropping setup.
+
+        # :COMMENT: Get the automatic crop button widget.
+        self.automatic_cropping_button = self.get_ui(
+            QPushButton, "AutomaticCroppingButton"
+        )
+        self.automatic_cropping_button.clicked.connect(self.automatic_crop)
+
+        # :COMMENT: Get the coordinates spinbox widgets.
+        self.automatic_cropping_margins = []
+        for axis, i in AXIS_MAP.items():
+            self.automatic_cropping_margins.append(
+                self.get_ui(QSpinBox, axis + "Margin")
+            )
+            # :DIRTY: Magic number.
+            self.automatic_cropping_margins[i].setMaximum(2000)
+
+            # :COMMENT: Connect the spinbox widgets to their "on changed" function that displays the automatic cropping preview.
+            self.automatic_cropping_margins[i].valueChanged.connect(
+                lambda: self.update_cropping("automatic")
+            )
+
+        self.reset_automatic_cropping()
+
+        # :TODO:Iantsa: Initialize the cropping volume/box with 0 margin instead of None.
+
+    def reset_automatic_cropping(self) -> None:
+        """
+        Reset the automatic cropping parameters.
+        """
+
+        # :COMMENT: Reset the cropping values.
+        self.cropping_preview_allowed = False
+        for i in range(3):
+            self.automatic_cropping_margins[i].value = 0
+        self.cropping_preview_allowed = True
+        self.cropping_collapsible_button.collapsed = True
+
+        # :COMMENT: Update the cropping.
+        self.update_cropping("automatic")
+
+    def preview_automatic_cropping(self) -> None:
+        """
+        Generates a bounding box to preview the automatic cropping.
+
+        Called when a margin parameter spin box value is changed.
+        """
+
+        # :DIRTY/TRICKY:Iantsa: Volume cropped each time a parameter is changed by user, even if the volume is not cropped in the end.
+
+        # :COMMENT: Set the update rule to blocked.
+        self.update_allowed = False
+
+        # :COMMENT: Remove the previous cropping box if needed.
+        if self.cropping_box:
+            mrmlScene.RemoveNode(self.cropping_box)
+            self.cropping_box = None
+
+        # :COMMENT: Ensure that a volume is selected.
+        if not self.input_volume:
+            self.cropped_volume = None
+            self.cropping_box = None
+            self.update_allowed = True
+            return
+
+        # :COMMENT: Retrieve the name of the selected input volume.
+        name = self.input_volume.GetName()
+
+        # :COMMENT: Ensure that a ROI has been selected.
+        if name not in self.volume_roi_map:
+            self.cropped_volume = None
+            self.cropping_box = None
+            self.display_error_message("Please select a ROI.")
+            return
+        roi = self.volume_roi_map[name]  # type: ignore
+
+        # :COMMENT: Retrieve margins input.
+        margins = []
+        for i in range(3):
+            margins.append(self.automatic_cropping_margins[i].value)
+
+        # :COMMENT: Save the temporary cropped volume.
+        try:
+            self.cropped_volume, start_val, end_val = self.logic.automatic_crop(
+                self.input_volume, roi, margins
+            )
+        except AutocroppingValueError as e:
+            self.cropping_preview_allowed = False
+            spin_box = self.automatic_cropping_margins[AXIS_MAP[e.axis]]
+            spin_box.setValue(0)
+            self.cropping_preview_allowed = True
+            self.cropped_volume = None
+            self.cropping_box = None
+            self.display_error_message(str(e))
+            return
+
+        if not self.cropped_volume:
+            self.cropping_box = None
+            self.display_error_message(
+                "Empty ROI selection. Please select a ROI again."
+            )
+            return
+
+        # :COMMENT: Create a new cropping box.
+        self.cropping_box = mrmlScene.AddNewNodeByClass(
+            "vtkMRMLMarkupsROINode", "Automatic Cropping Preview"
+        )
+        self.cropping_box.SetLocked(True)
+
+        # :COMMENT: Display cropping box only in red view.
+        self.cropping_box.GetDisplayNode().SetViewNodeIDs(["vtkMRMLSliceNodeRed"])
+
+        # :COMMENT: Get the bounds of the volume.
+        bounds = [0, 0, 0, 0, 0, 0]
+        self.cropped_volume.GetBounds(bounds)
+
+        # :COMMENT: Compute the size of ROI.
+        size = [end_val[i] - start_val[i] for i in range(3)]
+
+        # :COMMENT: Calculate the center and radius of the ROI.
+        center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
+        radius = [size[i] / 2 for i in range(3)]
+
+        # :COMMENT: Transform the center and radius according to the volume's orientation and spacing.
+        matrix = vtk.vtkMatrix4x4()
+        self.input_volume.GetIJKToRASDirectionMatrix(matrix)
+        transform_matrix = np.array(
+            [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
+        )
+        transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
+        transformed_radius = np.matmul(
+            transform_matrix,
+            np.array(self.input_volume.GetSpacing()) * np.array(radius),
+        )
+
+        # :COMMENT: Set the center and radius of the cropping box to the transformed center and radius.
+        self.cropping_box.SetXYZ(transformed_center)
+        self.cropping_box.SetRadiusXYZ(transformed_radius)
+
+        # :COMMENT: Show the automatic cropping preview.
+        self.cropping_box.GetDisplayNode().SetVisibility(True)
+
+        # :COMMENT: Set the update rule to allowed.
+        self.update_allowed = True
+
+        # :END_DIRTY/TRICKY:
+
+    def automatic_crop(self) -> None:
+        """
+        Crops a volume using the selected ROI and margins.
+        """
+
+        # :COMMENT: Ensure that a volume is selected.
+        if not self.input_volume:
+            self.display_error_message("Please select a volume to automatically crop.")
+            return
+
+        # :BUG:Iantsa: Not handled yet (can be non existent if crop button clicked without changing the default parameters)
+        if not self.cropped_volume:  # and not self.cropping_box:
+            self.display_error_message(
+                "Margin out of bound. Please enter valid parameters."
+            )
+            return
+
+        # :BUG:Iantsa: Cannot ensure that coordinates are valid.
+
+        # :COMMENT: Delete the cropping box (should exist if cropped_volume also exists)
+        assert self.cropping_box
+        self.update_allowed = False
+        mrmlScene.RemoveNode(self.cropping_box)
+        self.cropping_box = None
+        self.update_allowed = True
+
+        volume = self.cropped_volume
+
+        # :COMMENT: Add the VTK volume to the scene.
+        self.add_new_volume(self.cropped_volume, "cropped")
+
+        # :COMMENT: Log the automatic cropping.
+        new_size = volume.GetImageData().GetDimensions()
+        print(
+            f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{volume.GetName()}".'
+        )
+
+        # :COMMENT: Reset the cropping.
+        self.reset_automatic_cropping()
 
         # :COMMENT: Select the cropped volume.
         self.choose_input_volume(len(self.volumes) - 1)
@@ -1677,61 +2055,59 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
 
         # :COMMENT: registration types
-        self.sitk_combo_box = self.get_ui(
-            ctkComboBox, "ComboBoxSitk"
+        self.sitk_combo_box = self.get_ui(ctkComboBox, "ComboBoxSitk")
+        self.sitk_combo_box.addItems(
+            [
+                "Rigid (6DOF)",
+                "Affine",
+                "Non Rigid Bspline (>27DOF)",
+                "Demons",
+                "Diffeomorphic Demons",
+                "Fast Symmetric Forces Demons",
+                "Symmetric Forces Demons",
+            ]
         )
-        self.sitk_combo_box.addItems(["Rigid (6DOF)",
-        "Affine",
-        "Non Rigid Bspline (>27DOF)",
-        "Demons",
-        "Diffeomorphic Demons",
-        "Fast Symmetric Forces Demons",
-        "Symmetric Forces Demons"])
 
-        self.elastix_combo_box = self.get_ui(
-            ctkComboBox, "ComboBoxElastix"
-        )
+        self.elastix_combo_box = self.get_ui(ctkComboBox, "ComboBoxElastix")
         self.elastix_logic = Elastix.ElastixLogic()
         for preset in self.elastix_logic.getRegistrationPresets():
-            self.elastix_combo_box.addItem("{0} ({1})".format(
-            preset[Elastix.RegistrationPresets_Modality], preset[Elastix.RegistrationPresets_Content]))
+            self.elastix_combo_box.addItem(
+                "{0} ({1})".format(
+                    preset[Elastix.RegistrationPresets_Modality],
+                    preset[Elastix.RegistrationPresets_Content],
+                )
+            )
 
         self.settings_registration = self.get_ui(
             ctkCollapsibleButton, "RegistrationSettingsCollapsibleButton"
         )
 
         # :COMMENT: Bspline only
-        self.bspline_group_box = self.get_ui(
-            QGroupBox, "groupBoxNonRigidBspline"
-        )
+        self.bspline_group_box = self.get_ui(QGroupBox, "groupBoxNonRigidBspline")
         self.transform_domain_mesh_size = self.get_ui(
             QLineEdit, "lineEditTransformDomainMeshSize"
         )
-        self.transform_domain_mesh_size.editingFinished.connect(self.verify_transform_domain_ms)
-        self.scale_factor = self.get_ui(
-            QLineEdit, "lineEditScaleFactor"
+        self.transform_domain_mesh_size.editingFinished.connect(
+            self.verify_transform_domain_ms
         )
+        self.scale_factor = self.get_ui(QLineEdit, "lineEditScaleFactor")
         self.scale_factor.editingFinished.connect(self.verify_scale_factor)
-        self.shrink_factor = self.get_ui(
-            QLineEdit, "lineEditShrinkFactor"
+        self.shrink_factor = self.get_ui(QLineEdit, "lineEditShrinkFactor")
+        self.shrink_factor.editingFinished.connect(
+            lambda: self.verify_shrink_factor(self.shrink_factor)
         )
-        self.shrink_factor.editingFinished.connect(lambda: self.verify_shrink_factor(self.shrink_factor))
-        self.smoothing_sigmas = self.get_ui(
-            QLineEdit, "lineEditSmoothingFactor"
+        self.smoothing_sigmas = self.get_ui(QLineEdit, "lineEditSmoothingFactor")
+        self.smoothing_sigmas.editingFinished.connect(
+            lambda: self.verify_shrink_factor(self.smoothing_sigmas)
         )
-        self.smoothing_sigmas.editingFinished.connect(lambda: self.verify_shrink_factor(self.smoothing_sigmas))
 
         # :COMMENT: Demons only
-        self.demons_group_box = self.get_ui(
-            QGroupBox, "groupBoxDemons"
+        self.demons_group_box = self.get_ui(QGroupBox, "groupBoxDemons")
+        self.demons_nb_iter = self.get_ui(QLineEdit, "lineEditDemonsNbIter")
+        self.demons_std_deviation = self.get_ui(QLineEdit, "lineEditDemonsStdDeviation")
+        self.demons_std_deviation.editingFinished.connect(
+            self.verify_demons_std_deviation
         )
-        self.demons_nb_iter = self.get_ui(
-            QLineEdit, "lineEditDemonsNbIter"
-        )
-        self.demons_std_deviation = self.get_ui(
-            QLineEdit, "lineEditDemonsStdDeviation"
-        )
-        self.demons_std_deviation.editingFinished.connect(self.verify_demons_std_deviation)
 
         # :COMMENT: Gradients parameters
         self.gradients_box = self.get_ui(
@@ -1760,12 +2136,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.lbfgs2_box = self.get_ui(
             ctkCollapsibleGroupBox, "CollapsibleGroupBoxLBFGS2"
         )
-        self.gradient_conv_tol_edit = self.get_ui(
-            QLineEdit, "lineEditGradientConvTol"
+        self.gradient_conv_tol_edit = self.get_ui(QLineEdit, "lineEditGradientConvTol")
+        self.gradient_conv_tol_edit.editingFinished.connect(
+            self.verify_gradient_conv_tol
         )
-        self.gradient_conv_tol_edit.editingFinished.connect(self.verify_gradient_conv_tol)
         self.nb_iter_lbfgs2 = self.get_ui(QSpinBox, "spinBoxNbIterLBFGS2")
-        self.max_nb_correction_spin_box = self.get_ui(QSpinBox, "spinBoxMaxNbCorrection")
+        self.max_nb_correction_spin_box = self.get_ui(
+            QSpinBox, "spinBoxMaxNbCorrection"
+        )
         self.max_nb_func_eval_spin_box = self.get_ui(QSpinBox, "spinBoxMaxNbFuncEval")
         self.step_length_edit = self.get_ui(QLineEdit, "lineEditLength")
         self.nb_steps_edit = self.get_ui(QLineEdit, "lineEditSteps")
@@ -1773,10 +2151,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Fill them combo boxes.
         self.metrics_combo_box.addItems(
-            ["Mean Squares", 
-             "Mattes Mutual Information", 
-             "Joint Histogram Mutual Information", 
-             "Correlation"])
+            [
+                "Mean Squares",
+                "Mattes Mutual Information",
+                "Joint Histogram Mutual Information",
+                "Correlation",
+                "Demons",
+            ]
+        )
         self.optimizers_combo_box.addItems(["Gradient Descent", "Exhaustive", "LBFGSB"])
         self.interpolator_combo_box.addItems(
             [
@@ -1803,8 +2185,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.label_status = self.get_ui(QLabel, "label_status")
         self.label_status.hide()
 
-        self.optimizers_combo_box.currentIndexChanged.connect(self.update_registration_optimizer)
-        self.metrics_combo_box.currentIndexChanged.connect(self.update_metrics_value)
+        self.optimizers_combo_box.currentIndexChanged.connect(
+            self.update_registration_optimizer
+        )
+        self.metrics_combo_box.currentIndexChanged.connect(
+            self.update_metrics_value
+        )
         self.sitk_combo_box.activated.connect(
             lambda: self.update_registration(True, self.sitk_combo_box.currentIndex)
         )
@@ -1908,17 +2294,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             # if bspline, set visible psbline parameters
             if index == 2:
                 self.bspline_group_box.setEnabled(True)
-            #demons algorithms starts at 3
+            # demons algorithms starts at 3
             if index >= 3:
                 self.demons_group_box.setEnabled(True)
-            #rigid registration are 0 and 1
+            # rigid registration are 0 and 1
             if index == 0 or index == 1:
                 self.scriptPath = self.resourcePath("Scripts/Registration/Rigid.py")
             if index > 1:
                 self.scriptPath = self.resourcePath("Scripts/Registration/NonRigid.py")
         # else elastix presets, scriptPath is None to verify later which function to use (custom_script_registration or elastix_registration)
         else:
-            self.scriptPath=None
+            self.scriptPath = None
             self.sitk_combo_box.setCurrentIndex(-1)
             self.elastix_combo_box.setCurrentIndex(index)
         self.update_registration_optimizer()
@@ -1937,11 +2323,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.display_error_message("No target volume selected.")
             return
         # :COMMENT: only allow metrics, interpolator and optimizer for rigid and bspline sitk
-        if self.elastix_combo_box.currentIndex == -1 and self.sitk_combo_box.currentIndex == -1:
+        if (
+            self.elastix_combo_box.currentIndex == -1
+            and self.sitk_combo_box.currentIndex == -1
+        ):
             self.display_error_message("No registration algorithm selected.")
             return
         # Demons registration do not need metrics, interpolator and optimizer.
-        if self.elastix_combo_box.currentIndex == -1 and 0 <= self.sitk_combo_box.currentIndex < 3:
+        if (
+            self.elastix_combo_box.currentIndex == -1
+            and 0 <= self.sitk_combo_box.currentIndex < 3
+        ):
             if self.metrics_combo_box.currentIndex == -1:
                 self.display_error_message("No metrics selected.")
                 return
@@ -1968,7 +2360,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input["volume_name"] = volume_name
         self.data_to_dictionary(input)
         if self.scriptPath:
-            self.custom_script_registration(self.scriptPath, fixed_image, moving_image, input)
+            self.custom_script_registration(
+                self.scriptPath, fixed_image, moving_image, input
+            )
         else:
             self.elastix_registration()
 
@@ -1982,18 +2376,28 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT:---- User settings retrieve -----
         data_dictionary["histogram_bin_count"] = int(self.metric_related_value_spin_box.value)
         # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
-        data_dictionary["sampling_strategy"] = self.sampling_strat_combo_box.currentIndex
+        data_dictionary[
+            "sampling_strategy"
+        ] = self.sampling_strat_combo_box.currentIndex
         data_dictionary["sampling_percentage"] = self.sampling_perc_spin_box.value
         data_dictionary["metrics"] = self.metrics_combo_box.currentText.replace(" ", "")
         data_dictionary["interpolator"] = self.interpolator_combo_box.currentText
         data_dictionary["optimizer"] = self.optimizers_combo_box.currentText
 
         # :COMMENT: Bspline settings only
-        #test : all others have positive 3 positive values (mutli-resolution approach)
-        data_dictionary["transform_domain_mesh_size"] = int(self.transform_domain_mesh_size.text)
-        data_dictionary["scale_factor"] = [int(factor) for factor in self.scale_factor.text.split(",")]
-        data_dictionary["shrink_factor"] = [int(factor) for factor in self.shrink_factor.text.split(",")]
-        data_dictionary["smoothing_sigmas"] = [int(sig) for sig in self.smoothing_sigmas.text.split(",")]
+        # test : all others have positive 3 positive values (mutli-resolution approach)
+        data_dictionary["transform_domain_mesh_size"] = int(
+            self.transform_domain_mesh_size.text
+        )
+        data_dictionary["scale_factor"] = [
+            int(factor) for factor in self.scale_factor.text.split(",")
+        ]
+        data_dictionary["shrink_factor"] = [
+            int(factor) for factor in self.shrink_factor.text.split(",")
+        ]
+        data_dictionary["smoothing_sigmas"] = [
+            int(sig) for sig in self.smoothing_sigmas.text.split(",")
+        ]
 
         # :COMMENT: settings for gradients only
         data_dictionary["learning_rate"] = self.learning_rate_spin_box.value
@@ -2003,15 +2407,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: settings for exhaustive only
         nb_of_steps = self.nb_steps_edit.text
-        data_dictionary["nb_of_steps"]= [int(step) for step in nb_of_steps.split(",")]
+        data_dictionary["nb_of_steps"] = [int(step) for step in nb_of_steps.split(",")]
         self.step_length = self.step_length_edit.text
         if self.step_length == "pi":
             data_dictionary["step_length"] = pi
         else:
-           data_dictionary["step_length"] = float(self.step_length)
+            data_dictionary["step_length"] = float(self.step_length)
 
         optimizer_scale = self.opti_scale_edit.text
-        data_dictionary["optimizer_scale"] = [int(scale) for scale in optimizer_scale.split(",")]
+        data_dictionary["optimizer_scale"] = [
+            int(scale) for scale in optimizer_scale.split(",")
+        ]
 
         # :COMMENT: settings for LBFGSB
         data_dictionary["gradient_conv_tol"] = float(self.gradient_conv_tol_edit.text)
@@ -2026,7 +2432,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     # :TODO:Tony ajouter des tests pour les nouvelles metrics
     # :TODO:Tony: Rapport
     # :TODO:Tony: déporter les tests dans ce fichier
-    def custom_script_registration(self, scriptPath, fixed_image, moving_image, input) -> None:
+    def custom_script_registration(
+        self, scriptPath, fixed_image, moving_image, input
+    ) -> None:
         """
         Calls parallelProcessing extesion and execute a registration script as a background task.
 
@@ -2037,14 +2445,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             input: the dictionary that contains user parameters.
         """
         self.elastix_logic = None
-        self.process_logic = ProcessesLogic(completedCallback=lambda: self.on_registration_completed())
-        self.regProcess = RegistrationProcess(scriptPath, fixed_image, moving_image, input)
+        self.process_logic = ProcessesLogic(
+            completedCallback=lambda: self.on_registration_completed()
+        )
+        self.regProcess = RegistrationProcess(
+            scriptPath, fixed_image, moving_image, input
+        )
         self.process_logic.addProcess(self.regProcess)
         self.button_registration.setEnabled(False)
         self.button_cancel.setEnabled(True)
         self.activate_timer_and_progress_bar()
         self.process_logic.run()
-
 
     def elastix_registration(self) -> None:
         """
@@ -2057,10 +2468,17 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_cancel.setEnabled(True)
         self.activate_timer_and_progress_bar()
         preset = self.elastix_combo_box.currentIndex
-        parameterFilenames = self.elastix_logic.getRegistrationPresets()[preset][Elastix.RegistrationPresets_ParameterFilenames]
+        parameterFilenames = self.elastix_logic.getRegistrationPresets()[preset][
+            Elastix.RegistrationPresets_ParameterFilenames
+        ]
         new_volume = mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
         try:
-            self.elastix_logic.registerVolumes(self.target_volume, self.input_volume, parameterFilenames = parameterFilenames, outputVolumeNode = new_volume)
+            self.elastix_logic.registerVolumes(
+                self.target_volume,
+                self.input_volume,
+                parameterFilenames=parameterFilenames,
+                outputVolumeNode=new_volume,
+            )
         except ValueError as ve:
             print(ve)
         finally:
@@ -2084,7 +2502,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
                 )
                 self.choose_input_volume(len(self.volumes) - 1)
-            if self.regProcess.message_error:
+            if self.regProcess and self.regProcess.message_error:
                 self.display_error_message(self.regProcess.message_error)
 
     def activate_timer_and_progress_bar(self) -> None:
@@ -2127,9 +2545,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         kills the slicerParallelProcessing registration processus.
         """
-        import signal
         import os
-        os.kill(self.regProcess.processId()+10, signal.SIGKILL)
+        import signal
+
+        assert self.regProcess
+        os.kill(self.regProcess.processId() + 10, signal.SIGKILL)
         self.regProcess.kill()
 
     def verify_convergence_min_val(self) -> None:
@@ -2140,12 +2560,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         try:
             float(value)
             if float(value) < 0 or float(value) > 1:
-                self.display_error_message("value must be between 0 and 1.") 
+                self.display_error_message("value must be between 0 and 1.")
                 self.conv_min_val_edit.text = "1e-6"
         except ValueError:
             self.display_error_message("not a value.")
             self.conv_min_val_edit.text = "1e-6"
-        
+
     def verify_nb_steps(self) -> None:
         """
         Assert that the content of the number of steps value is correct.
@@ -2163,7 +2583,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         except ValueError:
             self.display_error_message("not values.")
             self.nb_steps_edit.text = "1, 1, 1, 0, 0, 0"
-    
+
     def verify_step_length(self) -> None:
         """
         Assert that the content of the step length value is correct.
@@ -2176,7 +2596,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         except ValueError:
             self.display_error_message("not a value.")
             self.step_length_edit.text = "pi"
-    
+
     def verify_opti_scale_edit(self) -> None:
         """
         Assert that the content of the optimizer scale value is correct.
@@ -2246,7 +2666,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.display_error_message("must have 3 values.")
                 self.scale_factor.text = "1, 2, 4"
                 return
-            if any(factor <0 for factor in scale_factor):
+            if any(factor < 0 for factor in scale_factor):
                 self.display_error_message("must have positive values.")
                 self.scale_factor.text = "1, 2, 4"
         except ValueError:
@@ -2269,6 +2689,122 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         except ValueError:
             self.display_error_message("not values.")
             QLineEdit.text = "4, 2, 1"
+
+    #
+    # DIFFERENCE MAP
+    #
+
+    def setup_difference_map(self) -> None:
+        """
+        Sets up the difference map computation by retrieving and connecting the UI data.
+        """
+
+        self.algorithms_difference_map_combo_box = self.get_ui(
+            ctkComboBox, "mapFunction"
+        )
+        for algo in ["Mean squared error", "Gradient"]:
+            self.algorithms_difference_map_combo_box.addItem(algo)
+        self.algorithms_difference_map_combo_box.setCurrentIndex(-1)
+
+        self.difference_map_button_apply = self.get_ui(
+            QPushButton, "processMapFunction"
+        )
+
+        self.spin_box = self.get_ui(QSpinBox, "patchSizeSpinBox")
+
+        self.mean = self.get_ui(QLabel, "mean")
+
+        self.difference_map_button_apply.clicked.connect(self.compute_difference_map)
+
+        self.reset_difference_map()
+
+    def reset_difference_map(self) -> None:
+        """
+        Resets the difference map computation to the defaults.
+        """
+
+        self.spin_box.value = 0
+        self.difference_map_current_algorithm = None
+
+        self.update_difference_map()
+
+    def update_difference_map(self) -> None:
+        """
+        Updates the difference map computation.
+        """
+
+        # :COMMENT: Nothing to update!
+
+    def compute_difference_map(self):
+        """
+        Applies the choosen algorithm for difference map (Gradient or MSE)
+        """
+
+        if not self.input_volume or not self.target_volume:
+            self.display_error_message("Please select both input and target volumes.")
+            return
+
+        algorithm = self.algorithms_difference_map_combo_box.currentText
+        if algorithm not in ["Mean squared error", "Gradient"]:
+            self.display_error_message("Please select an algorithm.")
+            return
+
+        difference_map_mean = -1
+        try:
+            if algorithm == "Mean squared error":
+                (
+                    self.difference_map,
+                    difference_map_mean,
+                ) = self.logic.difference_map(
+                    self.input_volume,
+                    self.target_volume,
+                    f"{self.input_volume.GetName()}_{self.target_volume.GetName()}_MSEDifferenceMap",
+                    "absolute",
+                    self.spin_box.value,
+                )
+
+            if algorithm == "Gradient":
+                (
+                    self.difference_map,
+                    difference_map_mean,
+                ) = self.logic.difference_map(
+                    self.input_volume,
+                    self.target_volume,
+                    f"{self.input_volume.GetName()}_{self.target_volume.GetName()}_GradientDifferenceMap",
+                    "gradient",
+                    self.spin_box.value,
+                )
+        except ValueError as e:
+            self.display_error_message(str(e))
+            self.difference_map = None
+            return
+
+        self.update_allowed = False
+        mrmlScene.AddNode(self.difference_map)
+        self.update_allowed = True
+        self.mean.text = difference_map_mean
+        self.plot_difference_map()
+
+    def plot_difference_map(self):
+        """
+        Plots the difference map on the yellow window and apply a Look Up Table
+        """
+
+        assert self.difference_map
+
+        difference_map_display_node = self.difference_map.GetDisplayNode()
+        if not difference_map_display_node:
+            difference_map_display_node = vtkMRMLScalarVolumeDisplayNode()
+            mrmlScene.AddNode(difference_map_display_node)
+            self.difference_map.SetAndObserveDisplayNodeID(
+                difference_map_display_node.GetID()
+            )
+
+        difference_map_display_node.SetAndObserveColorNodeID(
+            util.getNode("ColdToHotRainbow").GetID()
+        )
+
+        self.update_specific_view(2, self.difference_map, None)
 
     #
     # PLUGIN LOADING
@@ -2641,15 +3177,32 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         parameters["convergence_win_size"] = 10
         from Resources.Scripts.Registration.Rigid import rigid_registration
 
-        final_transform = rigid_registration(self.fixed_image, self.moving_image, parameters)
-        expected_transform = sitk.ReadTransform(self.resourcePath("TestData/expected_transform_1.tfm"))
+        final_transform = rigid_registration(
+            self.fixed_image, self.moving_image, parameters
+        )
+        expected_transform = sitk.ReadTransform(
+            self.resourcePath("TestData/expected_transform_1.tfm")
+        )
         self.assertIsNotNone(final_transform)
-        self.assertEqual(final_transform.GetDimension(), expected_transform.GetDimension())
-        self.assertEqual(final_transform.GetNumberOfFixedParameters(), expected_transform.GetNumberOfFixedParameters())
-        self.assertEqual(final_transform.GetNumberOfParameters(), expected_transform.GetNumberOfParameters())
-        for x, y in zip(final_transform.GetParameters(), expected_transform.GetParameters()):
+        self.assertEqual(
+            final_transform.GetDimension(), expected_transform.GetDimension()
+        )
+        self.assertEqual(
+            final_transform.GetNumberOfFixedParameters(),
+            expected_transform.GetNumberOfFixedParameters(),
+        )
+        self.assertEqual(
+            final_transform.GetNumberOfParameters(),
+            expected_transform.GetNumberOfParameters(),
+        )
+        for x, y in zip(
+            final_transform.GetParameters(), expected_transform.GetParameters()
+        ):
             self.assertAlmostEqual(x, y, delta=0.01)
-        for x, y in zip(final_transform.GetFixedParameters(), expected_transform.GetFixedParameters()):
+        for x, y in zip(
+            final_transform.GetFixedParameters(),
+            expected_transform.GetFixedParameters(),
+        ):
             self.assertAlmostEqual(x, y, delta=0.01)
 
         print("rigid test 1 passed.")
@@ -2738,9 +3291,7 @@ class RegistrationProcess(Process):
         input_parameters: a dictionary used to pass parameters for the script
     """
 
-    def __init__(
-        self, scriptPath, fixed_image, moving_image, input_parameters
-    ):
+    def __init__(self, scriptPath, fixed_image, moving_image, input_parameters):
         Process.__init__(self, scriptPath)
         self.fixed_image = fixed_image
         self.moving_image = moving_image
@@ -2748,7 +3299,7 @@ class RegistrationProcess(Process):
         self.registration_completed = True
         self.message_error = None
 
-    def prepareProcessInput(self) -> None:
+    def prepareProcessInput(self) -> bytes:
         """
         Helper function to send input parameters to a script
         """
@@ -2779,3 +3330,10 @@ class RegistrationProcess(Process):
             print("Number of iteration: " + str(output["nb_iteration"]))
             print("Metric value: " + str(output["metric_value"]) )
             su.PushVolumeToSlicer(image_resampled, name=volume_name)
+
+
+class AutocroppingValueError(ValueError):
+    def __init__(self, message, axis):
+        assert axis in AXIS_MAP
+        super().__init__(message)
+        self.axis = axis
