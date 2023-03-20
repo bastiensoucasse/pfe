@@ -2,10 +2,10 @@
 The Custom Registration module for Slicer provides the features for 3D images registration, based on the ITK library.
 """
 
-import concurrent.futures
 import datetime
 
 import numpy as np
+import scipy
 import SimpleITK as sitk
 import slicer
 import vtk
@@ -19,10 +19,7 @@ from qt import (
     QSlider,
     QSpinBox,
 )
-
 from slicer import mrmlScene, util, vtkMRMLScalarVolumeNode, vtkMRMLScene
-import scipy
-
 from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModule,
     ScriptedLoadableModuleLogic,
@@ -174,7 +171,6 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         target_volume.SetOrigin(origin)
         target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
 
-   
     def difference_map(self, imageData1, imageData2, name, mode, sigma):
         dims1 = imageData1.GetImageData().GetDimensions()
         dims2 = imageData2.GetImageData().GetDimensions()
@@ -187,7 +183,9 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         )
         np_array1 = np.reshape(
             np_array1, volume_image_data1.GetDimensions()[::-1]
-        ).astype(np.float)
+        ).astype(
+            np.float  # type: ignore
+        )
 
         volume_image_data2 = imageData2.GetImageData()
         np_array2 = vtk.util.numpy_support.vtk_to_numpy(
@@ -195,11 +193,13 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         )
         np_array2 = np.reshape(
             np_array2, volume_image_data2.GetDimensions()[::-1]
-        ).astype(np.float)
+        ).astype(
+            np.float  # type: ignore
+        )
 
         # outputNode = outputNode.astype(np.float)
 
-        if mode == 'gradient':
+        if mode == "gradient":
             #:COMMENT: Compute the gradient of each image
             grad_x1, grad_y1, grad_z1 = np.gradient(np_array1)
             grad_x2, grad_y2, grad_z2 = np.gradient(np_array2)
@@ -210,15 +210,19 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
                 + np.abs(grad_y1 - grad_y2)
                 + np.abs(grad_z1 - grad_z2)
             )
-        elif mode == 'absolute':
-            outputNode = np.abs(np_array1 - np_array2).astype(np.float)
+        elif mode == "absolute":
+            outputNode = np.abs(np_array1 - np_array2).astype(np.float)  # type: ignore
         else:
             raise ValueError("Invalid mode. Mode must be 'gradient' or 'absolute'.")
-        
+
         if sigma >= 3:
             #:COMMENT: Apply a sigma*sigma*sigma blur with zero padding to outputNode
-            kernel = np.ones((sigma, sigma, sigma)) / (np.sum(np.ones((sigma, sigma, sigma))) + 1e-8)
-            outputNode = scipy.ndimage.convolve(outputNode, kernel, mode='constant', cval=0.0)
+            kernel = np.ones((sigma, sigma, sigma)) / (
+                np.sum(np.ones((sigma, sigma, sigma))) + 1e-8
+            )
+            outputNode = scipy.ndimage.convolve(
+                outputNode, kernel, mode="constant", cval=0.0
+            )
         # #:COMMENT:  Normalize the difference
         outputNode = outputNode / np.linalg.norm(outputNode)
 
@@ -239,6 +243,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         mean_difference = np.mean(outputNode)
 
         return volume, mean_difference
+
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     """
@@ -915,16 +920,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         )
         assert self.difference_map_button_apply
 
-        self.spin_box = self.panel.findChild(
-            QSpinBox, "patchSizeSpinBox"
-        )
+        self.spin_box = self.panel.findChild(QSpinBox, "patchSizeSpinBox")
         assert self.spin_box
 
-        self.mean = self.panel.findChild(
-            QLabel, "mean"
-        )
+        self.mean = self.panel.findChild(QLabel, "mean")
         assert self.mean
-
 
         self.difference_map_list = []
         self.number_of_difference_map = 0
@@ -933,7 +933,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.difference_map_button_apply.clicked.connect(
             self.on_apply_button_difference_map
         )
-
 
     def on_apply_button_difference_map(self):
         """
@@ -960,7 +959,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.selected_volume,
                 self.resampling_target_volume,
                 "Difference Map(MSE) " + str(self.number_of_difference_map),
-                'absolute',
+                "absolute",
                 self.spin_box.value,
             )
             self.number_of_difference_map += 1
@@ -973,7 +972,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.selected_volume,
                 self.resampling_target_volume,
                 "Difference Map(Gradient) " + str(self.number_of_difference_map),
-                'gradient',
+                "gradient",
                 self.spin_box.value,
             )
             self.number_of_difference_map += 1
@@ -987,6 +986,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # :GOTCHA: Factoriser le code avec celui de Iansta
+
+        assert self.difference_map_current_node
 
         # :COMMENT: Get the yellow slice node
         slice_node = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow")
