@@ -2496,7 +2496,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_cancel.setEnabled(False)
         # :COMMENT: Log the registration.
         if not self.registration_cancelled:
-            if self.regProcess and self.regProcess.registration_completed:
+            if (self.regProcess and self.regProcess.registration_completed) or self.elastix_logic:
                 assert self.input_volume
                 print(
                     f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
