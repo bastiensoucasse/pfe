@@ -2,6 +2,14 @@
 <ui version="4.0">
  <class>Panel</class>
  <widget class="qSlicerWidget" name="Panel">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>346</width>
+    <height>927</height>
+   </rect>
+  </property>
   <property name="windowTitle">
    <string>Custom Registration</string>
   </property>
@@ -376,45 +384,51 @@
       <property name="bottomMargin">
        <number>12</number>
       </property>
-
-
-    <item>
-     <widget class="ctkComboBox" name="mapFunction">
-      <property name="defaultText">
-       <string>Algorithms</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QPushButton" name="processMapFunction">
-      <property name="text">
-       <string>Apply</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <layout class="QHBoxLayout" name="horizontalLayout">
       <item>
-       <widget class="QLabel" name="labelMSE">
-        <property name="text">
-         <string>Mean Square Error  : </string>
+       <widget class="ctkComboBox" name="mapFunction">
+        <property name="defaultText">
+         <string>Algorithms</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QLabel" name="mean">
+       <widget class="QLabel" name="label">
         <property name="text">
-         <string>...</string>
+         <string>Patch size:</string>
         </property>
        </widget>
       </item>
-     </layout>
-    </item>
-    <item>
-     <widget class="ctkVTKScalarsToColorsView" name="ScalarsToColorsView"/>
-    </item>
-
-
+      <item>
+       <widget class="QSpinBox" name="patchSizeSpinBox"/>
+      </item>
+      <item>
+       <widget class="QPushButton" name="processMapFunction">
+        <property name="text">
+         <string>Apply</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QLabel" name="labelMSE">
+          <property name="text">
+           <string>Mean Square Error  : </string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="mean">
+          <property name="text">
+           <string>...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="ctkVTKScalarsToColorsView" name="ScalarsToColorsView"/>
+      </item>
      </layout>
     </widget>
    </item>
@@ -438,6 +452,16 @@
  </widget>
  <layoutdefault spacing="0" margin="0"/>
  <customwidgets>
+  <customwidget>
+   <class>ctkVTKChartView</class>
+   <extends>QOpenGLWidget</extends>
+   <header>ctkVTKChartView.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkVTKScalarsToColorsView</class>
+   <extends>ctkVTKChartView</extends>
+   <header>ctkVTKScalarsToColorsView.h</header>
+  </customwidget>
   <customwidget>
    <class>ctkCollapsibleButton</class>
    <extends>QWidget</extends>

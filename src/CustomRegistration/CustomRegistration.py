@@ -216,7 +216,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             raise ValueError("Invalid mode. Mode must be 'gradient' or 'absolute'.")
         
         if sigma >= 3:
-            #:COMMENT: Apply a 3x3 blur with zero padding to outputNode
+            #:COMMENT: Apply a sigma*sigma*sigma blur with zero padding to outputNode
             kernel = np.ones((sigma, sigma, sigma)) / (np.sum(np.ones((sigma, sigma, sigma))) + 1e-8)
             outputNode = scipy.ndimage.convolve(outputNode, kernel, mode='constant', cval=0.0)
         # #:COMMENT:  Normalize the difference
@@ -913,8 +913,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.difference_map_button_apply = self.panel.findChild(
             QPushButton, "processMapFunction"
         )
-
         assert self.difference_map_button_apply
+
+        self.spin_box = self.panel.findChild(
+            QSpinBox, "patchSizeSpinBox"
+        )
+        assert self.spin_box
+
+        self.mean = self.panel.findChild(
+            QLabel, "mean"
+        )
+        assert self.mean
+
 
         self.difference_map_list = []
         self.number_of_difference_map = 0
@@ -923,6 +933,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.difference_map_button_apply.clicked.connect(
             self.on_apply_button_difference_map
         )
+
 
     def on_apply_button_difference_map(self):
         """
@@ -950,7 +961,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.resampling_target_volume,
                 "Difference Map(MSE) " + str(self.number_of_difference_map),
                 'absolute',
-                1,
+                self.spin_box.value,
             )
             self.number_of_difference_map += 1
 
@@ -963,10 +974,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.resampling_target_volume,
                 "Difference Map(Gradient) " + str(self.number_of_difference_map),
                 'gradient',
-                3,
+                self.spin_box.value,
             )
             self.number_of_difference_map += 1
         mrmlScene.AddNode(self.difference_map_current_node)
+        self.mean.text = self.mean_difference_map
         self.plot_difference_map_on_yellow_window()
 
     def plot_difference_map_on_yellow_window(self):
