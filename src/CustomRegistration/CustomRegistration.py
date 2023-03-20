@@ -1667,7 +1667,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.metrics_combo_box = self.get_ui(ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.get_ui(ctkComboBox, "comboBoxInterpolator")
         self.optimizers_combo_box = self.get_ui(ctkComboBox, "ComboOptimizers")
-        self.histogram_bin_count_spin_box = self.get_ui(QSpinBox, "spinBoxBinCount")
+        self.metric_related_value_spin_box = self.get_ui(QDoubleSpinBox, "spinBoxMetricValue")
+        self.metric_related_value_label = self.get_ui(QLabel, "RegistrationMetricLabel")
         self.sampling_strat_combo_box = self.get_ui(
             ctkComboBox, "comboBoxSamplingStrat"
         )
@@ -1775,8 +1776,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             ["Mean Squares", 
              "Mattes Mutual Information", 
              "Joint Histogram Mutual Information", 
-             "Correlation",
-             "Demons"])
+             "Correlation"])
         self.optimizers_combo_box.addItems(["Gradient Descent", "Exhaustive", "LBFGSB"])
         self.interpolator_combo_box.addItems(
             [
@@ -1804,7 +1804,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.label_status.hide()
 
         self.optimizers_combo_box.currentIndexChanged.connect(self.update_registration_optimizer)
-
+        self.metrics_combo_box.currentIndexChanged.connect(self.update_metrics_value)
         self.sitk_combo_box.activated.connect(
             lambda: self.update_registration(True, self.sitk_combo_box.currentIndex)
         )
@@ -1839,13 +1839,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.settings_registration.setEnabled(False)
         self.bspline_group_box.setEnabled(False)
         self.demons_group_box.setEnabled(False)
-        self.histogram_bin_count_spin_box.setEnabled(False)
+        self.metric_related_value_spin_box.setEnabled(False)
         self.sampling_strat_combo_box.setEnabled(False)
         self.sampling_perc_spin_box.setEnabled(False)
         self.exhaustive_box.setEnabled(False)
         self.gradients_box.setEnabled(False)
         self.lbfgs2_box.setEnabled(False)
 
+        self.metric_related_value_label.text = ""
+        self.metric_related_value_spin_box.setValue(0)
         self.scale_factor.setEnabled(True)
         self.scale_factor.text = "1, 2, 4"
 
@@ -1865,6 +1867,24 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.scale_factor.text = "1, 1, 1"
             self.scale_factor.setEnabled(False)
 
+
+    def update_metrics_value(self) -> None:
+        """
+        update the displayed value for metrics depending on the choice of the metrics
+        """
+        if "Mattes" in self.metrics_combo_box.currentText:
+            self.metric_related_value_label.text = "number Of Histogram Bins"
+            self.metric_related_value_spin_box.setValue(50)
+            self.metric_related_value_spin_box.setEnabled(True)
+        elif "Joint" in self.metrics_combo_box.currentText:
+            self.metric_related_value_label.text = "number Of Histogram Bins"
+            self.metric_related_value_spin_box.setValue(20)
+            self.metric_related_value_spin_box.setEnabled(True)
+        else:
+            self.metric_related_value_label.text = ""
+            self.metric_related_value_spin_box.setValue(0)
+            self.metric_related_value_spin_box.setEnabled(False)
+
     def update_registration(self, is_sitk: bool, index: int) -> None:
         """
         update the UI according to the registration algorithm selected by the user.
@@ -1883,7 +1903,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.metrics_combo_box.setEnabled(True)
                 self.interpolator_combo_box.setEnabled(True)
                 self.optimizers_combo_box.setEnabled(True)
-                self.histogram_bin_count_spin_box.setEnabled(True)
                 self.sampling_strat_combo_box.setEnabled(True)
                 self.sampling_perc_spin_box.setEnabled(True)
             # if bspline, set visible psbline parameters
@@ -1903,6 +1922,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.sitk_combo_box.setCurrentIndex(-1)
             self.elastix_combo_box.setCurrentIndex(index)
         self.update_registration_optimizer()
+        self.update_metrics_value()
 
     def register(self) -> None:
         """
@@ -1960,7 +1980,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             data_dictionary: the dictionary to fill.
         """
         # :COMMENT:---- User settings retrieve -----
-        data_dictionary["histogram_bin_count"] = self.histogram_bin_count_spin_box.value
+        data_dictionary["histogram_bin_count"] = int(self.metric_related_value_spin_box.value)
         # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
         data_dictionary["sampling_strategy"] = self.sampling_strat_combo_box.currentIndex
         data_dictionary["sampling_percentage"] = self.sampling_perc_spin_box.value
@@ -2003,10 +2023,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         data_dictionary["demons_nb_iter"] = int(self.demons_nb_iter.text)
         data_dictionary["demons_std_dev"] = float(self.demons_std_deviation.text)
 
-    # :TODO:Tony: update l'ui en fonction des nouvelles metrics
-    # SetMetricAsMattesMutualInformation(self, numberOfHistogramBins=50)
-    # SetMetricAsJointHistogramMutualInformation(self, numberOfHistogramBins=20, varianceForJointPDFSmoothing=1.5)
-    # :TODO:Tony: Print le résultat des méthodes de recalage dans la console
+    # :TODO:Tony ajouter des tests pour les nouvelles metrics
     # :TODO:Tony: Rapport
     # :TODO:Tony: déporter les tests dans ce fichier
     def custom_script_registration(self, scriptPath, fixed_image, moving_image, input) -> None:
@@ -2758,4 +2775,7 @@ class RegistrationProcess(Process):
                 self.message_error = output["error"]
                 self.registration_completed = False
                 return
+            print( "Optimizer stop condition: " + output["stop_condition"])
+            print("Number of iteration: " + str(output["nb_iteration"]))
+            print("Metric value: " + str(output["metric_value"]) )
             su.PushVolumeToSlicer(image_resampled, name=volume_name)

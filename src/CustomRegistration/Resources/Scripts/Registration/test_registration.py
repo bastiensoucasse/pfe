@@ -311,7 +311,6 @@ class TestRigidMethods(unittest.TestCase):
     def test_select_metrics(self):
 
         R = sitk.ImageRegistrationMethod()
-        R.SetMetricAsJointHistogramMutualInformation()
         select_metrics(R, 50, "MattesMutualInformation")
         R.SetMetricSamplingPercentage(0.001, seed=10)
         R.SetMetricSamplingStrategy(R.RANDOM)

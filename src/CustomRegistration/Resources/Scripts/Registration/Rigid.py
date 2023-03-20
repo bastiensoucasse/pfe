@@ -10,6 +10,7 @@ import SimpleITK as sitk
 import Utilities as util
 
 error = []
+optimizer_end_results = []
 
 def rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transform:
     """
@@ -53,10 +54,9 @@ def rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transform:
     R.SetInitialTransform(initial_transform, inPlace=False)
 
     final_transform = R.Execute(fixed_image, moving_image)
-    print("-------")
-    print(f"Optimizer stop condition: {R.GetOptimizerStopConditionDescription()}")
-    print(f" Iteration: {R.GetOptimizerIteration()}")
-    print(f" Metric value: {R.GetMetricValue()}")
+    optimizer_end_results.append(R.GetOptimizerStopConditionDescription())
+    optimizer_end_results.append(R.GetOptimizerIteration())
+    optimizer_end_results.append(R.GetMetricValue())
 
     return final_transform
 
@@ -82,4 +82,7 @@ if __name__ == "__main__":
     output["image_resampled"] = resampled
     output["volume_name"] = parameters["volume_name"]
     output["error"] = "\n".join(error)
+    output["stop_condition"] = optimizer_end_results[0]
+    output["nb_iteration"] = optimizer_end_results[1]
+    output["metric_value"] = optimizer_end_results[2]
     sys.stdout.buffer.write(pickle.dumps(output))

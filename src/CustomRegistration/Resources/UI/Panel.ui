@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>401</width>
-    <height>2094</height>
+    <height>2482</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -751,7 +751,7 @@
 The higher the bin count, the more accurate the estimation of mutual information, but also the more samples needed to avoid noise.</string>
              </property>
              <property name="text">
-              <string>Histogram Bin Count</string>
+              <string>Metric related value</string>
              </property>
             </widget>
            </item>
@@ -778,16 +778,6 @@ The sampling strategy affects the speed and robustness of registration.</string>
              </property>
             </widget>
            </item>
-           <item row="0" column="1">
-            <widget class="QSpinBox" name="spinBoxBinCount">
-             <property name="maximum">
-              <number>255</number>
-             </property>
-             <property name="value">
-              <number>50</number>
-             </property>
-            </widget>
-           </item>
            <item row="1" column="1">
             <widget class="ctkComboBox" name="comboBoxSamplingStrat"/>
            </item>
@@ -801,6 +791,13 @@ The sampling strategy affects the speed and robustness of registration.</string>
              </property>
              <property name="value">
               <double>0.100000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBoxMetricValue">
+             <property name="decimals">
+              <number>6</number>
              </property>
             </widget>
            </item>

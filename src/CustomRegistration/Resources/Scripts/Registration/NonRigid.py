@@ -10,6 +10,7 @@ import SimpleITK as sitk
 import Utilities as util
 
 error = []
+optimizer_end_results = []
 
 def non_rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transform:
     """
@@ -74,6 +75,9 @@ def non_rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transf
         R.SetSmoothingSigmasPerLevel(smoothing_sigmas)
         R.SetOptimizerScalesFromPhysicalShift()
         outTx = R.Execute(fixed_image, moving_image)
+        optimizer_end_results.append(R.GetOptimizerStopConditionDescription())
+        optimizer_end_results.append(R.GetOptimizerIteration())
+        optimizer_end_results.append(R.GetMetricValue())
         return outTx
 
 if __name__ == "__main__":
@@ -99,4 +103,12 @@ if __name__ == "__main__":
     output["image_resampled"] = resampled
     output["volume_name"] = parameters["volume_name"]
     output["error"] = "\n".join(error)
+    if "Demons" in parameters["algorithm"]:
+        output["stop_condition"] = ""
+        output["nb_iteration"] = ""
+        output["metric_value"] = ""
+    else:
+        output["stop_condition"] = optimizer_end_results[0]
+        output["nb_iteration"] = optimizer_end_results[1]
+        output["metric_value"] = optimizer_end_results[2]
     sys.stdout.buffer.write(pickle.dumps(output))
