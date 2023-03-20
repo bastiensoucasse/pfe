@@ -256,7 +256,7 @@
      <property name="collapsed">
       <bool>false</bool>
      </property>
-     <layout class="QVBoxLayout" name="PreprocessingVerticalLayout" stretch="0,0,0,0">
+     <layout class="QVBoxLayout" name="PreprocessingVerticalLayout" stretch="0,0,0">
       <property name="spacing">
        <number>12</number>
       </property>
@@ -517,7 +517,7 @@
         <property name="collapsed">
          <bool>false</bool>
         </property>
-        <layout class="QVBoxLayout" name="ResamplingVerticalLayout" stretch="0,0,0">
+        <layout class="QVBoxLayout" name="ResamplingVerticalLayout" stretch="0,0">
          <property name="spacing">
           <number>12</number>
          </property>
@@ -745,7 +745,7 @@
          <item>
           <layout class="QGridLayout" name="RegistrationBaseSettingsLayout">
            <item row="0" column="0">
-            <widget class="QLabel" name="RegistrationHistogramBinCountLabel">
+            <widget class="QLabel" name="RegistrationMetricLabel">
              <property name="toolTip">
               <string>number of bins used to discretize the joint intensity distribution of the fixed and moving images in MattesMutualInformation.
 The higher the bin count, the more accurate the estimation of mutual information, but also the more samples needed to avoid noise.</string>

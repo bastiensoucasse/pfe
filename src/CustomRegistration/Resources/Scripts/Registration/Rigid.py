@@ -22,11 +22,6 @@ def rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transform:
 
     Return : the result of the registration, a transform
     """
-    metrics_name = parameters["metrics"]
-    interpolator_name = parameters["interpolator"]
-    bin_count = parameters["histogram_bin_count"]
-    sampling_strat = parameters["sampling_strategy"]
-    sampling_perc = parameters["sampling_percentage"]
     algorithm = parameters["algorithm"]
 
     if algorithm == "Affine":
@@ -40,8 +35,13 @@ def rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transform:
             fixed_image,
             moving_image,
             sitk.Euler3DTransform(),
-            sitk.CenteredTransformInitializerFilter.GEOMETRY,
-        )
+            sitk.CenteredTransformInitializerFilter.GEOMETRY)
+
+    metrics_name = parameters["metrics"]
+    interpolator_name = parameters["interpolator"]
+    bin_count = parameters["histogram_bin_count"]
+    sampling_strat = parameters["sampling_strategy"]
+    sampling_perc = parameters["sampling_percentage"]
 
     R = sitk.ImageRegistrationMethod()
     R.SetMetricSamplingStrategy(sampling_strat)
