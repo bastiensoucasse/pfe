@@ -6,6 +6,7 @@ import datetime
 import os
 import pickle
 from math import pi
+import unittest
 import numpy as np
 import SimpleITK as sitk
 import sitkUtils as su
@@ -509,7 +510,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.update_roi_selection()
         self.update_cropping()
         self.update_resampling()
-        self.update_registration()
         self.update_plugin_loading()
 
     #
@@ -1660,11 +1660,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_registration(self) -> None:
         """
-        …
+        Set up registration UI elements and connect to code and functions.
         """
 
         # :COMMENT: Link settings UI and code
-        self.volume_name_edit = self.get_ui(QLineEdit, "lineEditNewVolumeName")
         self.metrics_combo_box = self.get_ui(ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.get_ui(ctkComboBox, "comboBoxInterpolator")
         self.optimizers_combo_box = self.get_ui(ctkComboBox, "ComboOptimizers")
@@ -1799,69 +1798,36 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.label_status = self.get_ui(QLabel, "label_status")
         self.label_status.hide()
 
-        self.optimizers_combo_box.currentIndexChanged.connect(self.update_registration)
+        self.optimizers_combo_box.currentIndexChanged.connect(self.update_registration_optimizer)
 
         self.sitk_combo_box.activated.connect(
-            lambda: self.update_registration_combo_box(True, self.sitk_combo_box.currentIndex)
+            lambda: self.update_registration(True, self.sitk_combo_box.currentIndex)
         )
         self.elastix_combo_box.activated.connect(
-            lambda: self.update_registration_combo_box(False, self.elastix_combo_box.currentIndex)
+            lambda: self.update_registration(False, self.elastix_combo_box.currentIndex)
         )
         # :COMMENT: Initialize the registration.
         self.reset_registration()
 
     def reset_registration(self) -> None:
         """
-        …
+        Reset all user parameters, disable all parameters until user selects an algorithm
         """
-
         self.metrics_combo_box.setCurrentIndex(-1)
         self.optimizers_combo_box.setCurrentIndex(-1)
         self.interpolator_combo_box.setCurrentIndex(-1)
         self.sitk_combo_box.setCurrentIndex(-1)
         self.elastix_combo_box.setCurrentIndex(-1)
         self.sampling_strat_combo_box.setCurrentIndex(2)
-        self.volume_name_edit.text = ""
         self.bspline_group_box.setEnabled(False)
         self.demons_group_box.setEnabled(False)
-        self.scale_factor.text = "1, 2, 4"
-
-        self.update_registration()
-
-    def update_registration(self) -> None:
-        """
-        …
-        """
-
         self.gradients_box.setEnabled(False)
         self.gradients_box.collapsed = 1
         self.exhaustive_box.setEnabled(False)
         self.exhaustive_box.collapsed = 1
         self.lbfgs2_box.setEnabled(False)
         self.lbfgs2_box.collapsed = 1
-        self.scale_factor.setEnabled(True)
 
-        if self.optimizers_combo_box.currentText == "Gradient Descent":
-            self.gradients_box.setEnabled(True)
-            self.gradients_box.collapsed = 0
-        elif self.optimizers_combo_box.currentText == "Exhaustive":
-            self.exhaustive_box.setEnabled(True)
-            self.exhaustive_box.collapsed = 0
-        elif self.optimizers_combo_box.currentText == "LBFGSB":
-            self.lbfgs2_box.setEnabled(True)
-            self.lbfgs2_box.collapsed = 0
-            self.scale_factor.text = "1, 1, 1"
-            self.scale_factor.setEnabled(False)
-
-    def update_registration_combo_box(self, is_sitk: bool, index: int) -> None:
-        """
-        update the UI according to the registration algorithm selected by the user.
-
-        Parameters:
-            is_sitk: boolean that indicates if the registration algorithm is from sitk
-            index: the current index of the combo box
-        """
-        #disable a bunch of parameters, enabled later in this function
         self.metrics_combo_box.setEnabled(False)
         self.interpolator_combo_box.setEnabled(False)
         self.optimizers_combo_box.setEnabled(False)
@@ -1874,7 +1840,37 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.exhaustive_box.setEnabled(False)
         self.gradients_box.setEnabled(False)
         self.lbfgs2_box.setEnabled(False)
+
+        self.scale_factor.setEnabled(True)
+        self.scale_factor.text = "1, 2, 4"
+
+    def update_registration_optimizer(self) -> None:
+        """
+        Update the UI according to selected optimizer by user.
+        """
+        if self.optimizers_combo_box.currentText == "Gradient Descent":
+            self.gradients_box.setEnabled(True)
+            self.gradients_box.collapsed = 0
+        elif self.optimizers_combo_box.currentText == "Exhaustive":
+            self.exhaustive_box.setEnabled(True)
+            self.exhaustive_box.collapsed = 0
+        elif self.optimizers_combo_box.currentText == "LBFGSB":
+            self.lbfgs2_box.setEnabled(True)
+            self.lbfgs2_box.collapsed = 0
+            self.scale_factor.text = "1, 1, 1"
+            self.scale_factor.setEnabled(False)
+
+    def update_registration(self, is_sitk: bool, index: int) -> None:
+        """
+        update the UI according to the registration algorithm selected by the user.
+
+        Parameters:
+            is_sitk: boolean that indicates if the registration algorithm is from sitk
+            index: the current index of the combo box
+        """
+        self.reset_registration()
         if is_sitk:
+            self.sitk_combo_box.setCurrentIndex(index)
             self.settings_registration.setEnabled(True)
             self.elastix_combo_box.setCurrentIndex(-1)
             # if rigid, affine or bspline, those settings can be changed, thus are enabled
@@ -1885,9 +1881,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.histogram_bin_count_spin_box.setEnabled(True)
                 self.sampling_strat_combo_box.setEnabled(True)
                 self.sampling_perc_spin_box.setEnabled(True)
-                self.exhaustive_box.setEnabled(True)
-                self.gradients_box.setEnabled(True)
-                self.lbfgs2_box.setEnabled(True)
             # if bspline, set visible psbline parameters
             if index == 2:
                 self.bspline_group_box.setEnabled(True)
@@ -1903,10 +1896,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         else:
             self.scriptPath=None
             self.sitk_combo_box.setCurrentIndex(-1)
+            self.elastix_combo_box.setCurrentIndex(index)
+        self.update_registration_optimizer()
 
     def register(self) -> None:
         """
-        …
+        Apply a registration algorithm. Either sitk based, or using SlicerElastix algorithm.
         """
 
         # :COMMENT: Ensure the parameters are set.
@@ -1944,8 +1939,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         input = {}
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         volume_name = f"{self.input_volume.GetName()}_registered_{current_time}"
-        if self.volume_name_edit.text:
-            volume_name = f"{self.volume_name_edit.text}_registered_{current_time}"
         input["algorithm"] = self.sitk_combo_box.currentText.replace(" ", "")
         input["volume_name"] = volume_name
         self.data_to_dictionary(input)
@@ -2005,9 +1998,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         data_dictionary["demons_nb_iter"] = int(self.demons_nb_iter.text)
         data_dictionary["demons_std_dev"] = float(self.demons_std_deviation.text)
 
-    # :TODO: merge all
-    # :TODO: Add other metrics (demons, correlation...)
-    # :TODO: add tests for demons
+    # :TODO:Tony: Add other metrics (demons, correlation...)
+    # :TODO:Tony: add tests for demons
+    # :TODO:Tony: Rapport
+    # :TODO:Tony: déporter les tests dans ce fichier
     def custom_script_registration(self, scriptPath, fixed_image, moving_image, input) -> None:
         """
         Calls parallelProcessing extesion and execute a registration script as a background task.
@@ -2060,14 +2054,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_cancel.setEnabled(False)
         # :COMMENT: Log the registration.
         if not self.registration_cancelled:
-            if self.regProcess is None or self.regProcess.registration_completed:
+            if self.regProcess and self.regProcess.registration_completed:
                 assert self.input_volume
                 print(
                     f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
                 )
-
-            # :COMMENT: Select the new volume to display it.
-            self.choose_input_volume(len(self.volumes) - 1)
+                self.choose_input_volume(len(self.volumes) - 1)
 
     def activate_timer_and_progress_bar(self) -> None:
         """
@@ -2559,13 +2551,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         return ui
 
 
-class CustomRegistrationTest(ScriptedLoadableModuleTest):
+class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
     """
     Test class for the Custom Registration module used to define the tests of the module.
     """
 
     def __init__(self):
         ScriptedLoadableModuleTest().__init__()
+        unittest.TestCase.__init__(self)
 
     def resourcePath(self, path: str) -> str:
         """
@@ -2585,15 +2578,13 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
         """
         Runs all the tests in the Custom Registration module.
         """
-        print("Please run test_registration.py outside of Slicer for unittesting.")
-        print("use the command : python3 test_registration.py")
-        print("Located in Resources/Registration/Scripts")
-        print("Warning : do know it takes time to process all the tests")
 
         self.logic = CustomRegistrationLogic()
 
         self.test_dummy()
         self.test_cropping()
+        self.setup_test_registration()
+        self.test_rigid_1()
 
     def test_dummy(self):
         """
@@ -2601,6 +2592,41 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest):
         """
 
         print("Dummy test passed.")
+
+    def setup_test_registration(self):
+        self.fixed_image = self.resourcePath("TestData/RegLib_C01_MRMeningioma_1.nrrd")
+        self.moving_image = self.resourcePath("TestData/RegLib_C01_MRMeningioma_2.nrrd")
+        self.fixed_image = sitk.ReadImage(self.fixed_image, sitk.sitkFloat32)
+        self.moving_image = sitk.ReadImage(self.moving_image, sitk.sitkFloat32)
+
+    def test_rigid_1(self):
+        parameters = {}
+        parameters["metrics"] = "MeanSquares"
+        parameters["interpolator"] = "Linear"
+        parameters["optimizer"] = "Gradient Descent"
+        parameters["algorithm"] = "rigid"
+        parameters["histogram_bin_count"] = 50
+        parameters["sampling_strategy"] = 2
+        parameters["sampling_percentage"] = 0.01
+        # parameters for gradient optimizer
+        parameters["learning_rate"] = 5
+        parameters["nb_iteration"] = 100
+        parameters["convergence_min_val"] = 1e-6
+        parameters["convergence_win_size"] = 10
+        from Resources.Scripts.Registration.Rigid import rigid_registration
+
+        final_transform = rigid_registration(self.fixed_image, self.moving_image, parameters)
+        expected_transform = sitk.ReadTransform(self.resourcePath("TestData/expected_transform_1.tfm"))
+        self.assertIsNotNone(final_transform)
+        self.assertEqual(final_transform.GetDimension(), expected_transform.GetDimension())
+        self.assertEqual(final_transform.GetNumberOfFixedParameters(), expected_transform.GetNumberOfFixedParameters())
+        self.assertEqual(final_transform.GetNumberOfParameters(), expected_transform.GetNumberOfParameters())
+        for x, y in zip(final_transform.GetParameters(), expected_transform.GetParameters()):
+            self.assertAlmostEqual(x, y, delta=0.01)
+        for x, y in zip(final_transform.GetFixedParameters(), expected_transform.GetFixedParameters()):
+            self.assertAlmostEqual(x, y, delta=0.01)
+
+        print("rigid test 1 passed.")
 
     def test_cropping(self):
         # :COMMENT: Load a volume as test data.
@@ -2718,7 +2744,7 @@ class RegistrationProcess(Process):
             output = pickle.loads(processOutput)
             image_resampled = output["image_resampled"]
             volume_name = output["volume_name"]
-            if image_resampled == None:
+            if not image_resampled:
                 print(output["error"])
                 self.registration_completed = False
                 return

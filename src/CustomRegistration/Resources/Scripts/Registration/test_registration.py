@@ -13,10 +13,12 @@ from Utilities import select_metrics, select_interpolator, select_optimizer_and_
 class TestRigidMethods(unittest.TestCase):
     def setUp(self):
         self.thisPath = os.path.dirname(os.path.abspath(__file__))
-        self.fixed_image = os.path.join(self.thisPath, "test_data", "RegLib_C01_MRMeningioma_1.nrrd")
-        self.moving_image = os.path.join(self.thisPath, "test_data", "RegLib_C01_MRMeningioma_2.nrrd")
+        self.fixed_image = os.path.join(self.thisPath, "..", "..","TestData", "RegLib_C01_MRMeningioma_1.nrrd")
+        self.moving_image = os.path.join(self.thisPath, "..", "..","TestData", "RegLib_C01_MRMeningioma_2.nrrd")
+        self.resampled_image = os.path.join(self.thisPath, "..", "..","TestData", "resampled.nrrd")
         self.fixed_image = sitk.ReadImage(self.fixed_image, sitk.sitkFloat32)
         self.moving_image = sitk.ReadImage(self.moving_image, sitk.sitkFloat32)
+        self.resampled_image = sitk.ReadImage(self.resampled_image, sitk.sitkFloat32)
 
     def test_rigid_1(self):
         parameters = {}
@@ -92,10 +94,6 @@ class TestRigidMethods(unittest.TestCase):
         for x, y in zip(final_transform.GetFixedParameters(), expected_transform.GetFixedParameters()):
             self.assertAlmostEqual(x, y, delta=0.01)
 
-    # :TODO: -nettoyer le code, voir le kanban
-    # :TODO: corriger lbfgsb avec bspline : pas de scale factor, ou scale factor = [1, 1, 1]
-    # :TODO: -pull le code de main, merge
-    # :TODO: écrire la doc
     # lbfgsb optimizer not working with scale_factor
     def test_non_rigid_registration_1(self):
         parameters = {}
@@ -128,7 +126,6 @@ class TestRigidMethods(unittest.TestCase):
             self.assertAlmostEqual(x, y, delta=0.01)
         for x, y in zip(final_transform.GetFixedParameters(), expected_transform.GetFixedParameters()):
             self.assertAlmostEqual(x, y, delta=0.01)
-
 
     def test_non_rigid_registration_2(self):
         parameters = {}
@@ -190,6 +187,64 @@ class TestRigidMethods(unittest.TestCase):
         parameters["demons_nb_iter"] = None
         parameters["demons_std_dev"] = None
         self.assertRaises(RuntimeError, non_rigid_registration, self.moving_image, self.fixed_image, parameters)
+
+    def test_demons_registration_1(self):
+        parameters = {}
+        parameters["metrics"] = "MattesMutualInformation"
+        parameters["interpolator"] = "Linear"
+        parameters["algorithm"] = "Demons"
+        parameters["optimizer"] = "Gradient Descent"
+        parameters["histogram_bin_count"] = 50
+        parameters["sampling_strategy"] = 2
+        parameters["sampling_percentage"] = 0.01
+        # parameters for bspline
+        parameters["transform_domain_mesh_size"] = 1
+        parameters["scale_factor"] = [1, 2, 4]
+        parameters["shrink_factor"] = [4, 2, 1]
+        parameters["smoothing_sigmas"] = [4, 2, 1]
+        # parameters for demons
+        parameters["demons_nb_iter"] = 50
+        parameters["demons_std_dev"] = 1
+
+        final_transform = non_rigid_registration(self.fixed_image, self.moving_image, parameters)
+        #because images are not resampled, or registrated.
+        self.assertIsNone(final_transform)
+
+    def test_demons_registration_2(self):
+        parameters = {}
+        parameters["metrics"] = "MattesMutualInformation"
+        parameters["interpolator"] = "Linear"
+        parameters["algorithm"] = "Demons"
+        parameters["optimizer"] = "Gradient Descent"
+        parameters["histogram_bin_count"] = 50
+        parameters["sampling_strategy"] = 2
+        parameters["sampling_percentage"] = 0.01
+        # parameters for bspline
+        parameters["transform_domain_mesh_size"] = 1
+        parameters["scale_factor"] = [1, 2, 4]
+        parameters["shrink_factor"] = [4, 2, 1]
+        parameters["smoothing_sigmas"] = [4, 2, 1]
+        # parameters for demons
+        parameters["demons_nb_iter"] = 50
+        parameters["demons_std_dev"] = 1
+
+        final_transform = non_rigid_registration(self.fixed_image, self.resampled_image, parameters)
+        #because images are not resampled, or registrated.
+        self.assertIsNotNone(final_transform)
+
+        demons = sitk.DemonsRegistrationFilter()
+        demons.SetNumberOfIterations(50)
+        demons.SetStandardDeviations(1.0)
+        displacementField = demons.Execute(self.fixed_image, self.resampled_image)
+        expected_transform = sitk.DisplacementFieldTransform(displacementField)
+
+        self.assertEqual(final_transform.GetDimension(), expected_transform.GetDimension())
+        self.assertEqual(final_transform.GetNumberOfFixedParameters(), expected_transform.GetNumberOfFixedParameters())
+        self.assertEqual(final_transform.GetNumberOfParameters(), expected_transform.GetNumberOfParameters())
+        for x, y in zip(final_transform.GetParameters(), expected_transform.GetParameters()):
+            self.assertAlmostEqual(x, y, delta=0.01)
+        for x, y in zip(final_transform.GetFixedParameters(), expected_transform.GetFixedParameters()):
+            self.assertAlmostEqual(x, y, delta=0.01)
 
     def test_select_metrics(self):
 
@@ -419,4 +474,7 @@ class TestRigidMethods(unittest.TestCase):
         self.assertRaises(ValueError, select_optimizer_and_setup, R, input)
 
 if __name__ == '__main__':
-    unittest.main()
+    testClass = TestRigidMethods()
+    testClass.setUp()
+    testClass.test_demons_registration_1()
+    testClass.test_demons_registration_2()
