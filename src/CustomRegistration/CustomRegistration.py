@@ -2060,7 +2060,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
                 )
                 self.choose_input_volume(len(self.volumes) - 1)
-
+            if self.regProcess.message_error:
+                self.display_error_message(self.regProcess.message_error)
+                
     def activate_timer_and_progress_bar(self) -> None:
         """
         Starts the progressBar activation and a timer to displays elapsed time.
@@ -2720,6 +2722,7 @@ class RegistrationProcess(Process):
         self.moving_image = moving_image
         self.input_parameters = input_parameters
         self.registration_completed = True
+        self.message_error = None
 
     def prepareProcessInput(self) -> None:
         """
@@ -2745,7 +2748,7 @@ class RegistrationProcess(Process):
             image_resampled = output["image_resampled"]
             volume_name = output["volume_name"]
             if not image_resampled:
-                print(output["error"])
+                self.message_error = output["error"]
                 self.registration_completed = False
                 return
             su.PushVolumeToSlicer(image_resampled, name=volume_name)
