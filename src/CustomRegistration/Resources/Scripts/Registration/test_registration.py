@@ -16,11 +16,13 @@ class TestRigidMethods(unittest.TestCase):
         self.fixed_image = os.path.join(self.thisPath, "..", "..","TestData", "RegLib_C01_MRMeningioma_1.nrrd")
         self.moving_image = os.path.join(self.thisPath, "..", "..","TestData", "RegLib_C01_MRMeningioma_2.nrrd")
         self.resampled_image = os.path.join(self.thisPath, "..", "..","TestData", "resampled.nrrd")
+        self.affine_image = os.path.join(self.thisPath, "..", "..", "TestData", "affine_reg.nrrd")
         self.fixed_image = sitk.ReadImage(self.fixed_image, sitk.sitkFloat32)
         self.moving_image = sitk.ReadImage(self.moving_image, sitk.sitkFloat32)
         self.resampled_image = sitk.ReadImage(self.resampled_image, sitk.sitkFloat32)
+        self.affine_image = sitk.ReadImage(self.affine_image, sitk.sitkFloat32)
 
-    def test_rigid_1(self):
+    def test_rigid_registration_1(self):
         parameters = {}
         parameters["metrics"] = "MeanSquares"
         parameters["interpolator"] = "Linear"
@@ -116,7 +118,7 @@ class TestRigidMethods(unittest.TestCase):
         parameters["smoothing_sigmas"] =  [2, 1, 0]
 
 
-        final_transform = non_rigid_registration(self.moving_image, self.fixed_image, parameters)
+        final_transform = non_rigid_registration(self.fixed_image, self.moving_image, parameters)
         expected_transform = sitk.ReadTransform(os.path.join(self.thisPath, "test_data", "expected_transform_4.tfm"))
         self.assertIsNotNone(final_transform)
         self.assertEqual(final_transform.GetDimension(), expected_transform.GetDimension())
@@ -147,7 +149,7 @@ class TestRigidMethods(unittest.TestCase):
         parameters["shrink_factor"] = [4, 2, 1]
         parameters["smoothing_sigmas"] = [2, 1, 0]
 
-        final_transform = non_rigid_registration(self.moving_image, self.fixed_image, parameters)
+        final_transform = non_rigid_registration(self.fixed_image, self.moving_image, parameters)
         expected_transform = sitk.ReadTransform(os.path.join(self.thisPath, "test_data", "expected_transform_5.tfm"))
         self.assertIsNotNone(final_transform)
         self.assertEqual(final_transform.GetDimension(), expected_transform.GetDimension())
@@ -186,7 +188,7 @@ class TestRigidMethods(unittest.TestCase):
         # parameters for demons
         parameters["demons_nb_iter"] = None
         parameters["demons_std_dev"] = None
-        self.assertRaises(RuntimeError, non_rigid_registration, self.moving_image, self.fixed_image, parameters)
+        self.assertRaises(RuntimeError, non_rigid_registration, self.fixed_image, self.moving_image, parameters)
 
     def test_demons_registration_1(self):
         parameters = {}
@@ -212,30 +214,90 @@ class TestRigidMethods(unittest.TestCase):
 
     def test_demons_registration_2(self):
         parameters = {}
-        parameters["metrics"] = "MattesMutualInformation"
         parameters["interpolator"] = "Linear"
         parameters["algorithm"] = "Demons"
-        parameters["optimizer"] = "Gradient Descent"
-        parameters["histogram_bin_count"] = 50
-        parameters["sampling_strategy"] = 2
-        parameters["sampling_percentage"] = 0.01
-        # parameters for bspline
-        parameters["transform_domain_mesh_size"] = 1
-        parameters["scale_factor"] = [1, 2, 4]
-        parameters["shrink_factor"] = [4, 2, 1]
-        parameters["smoothing_sigmas"] = [4, 2, 1]
         # parameters for demons
         parameters["demons_nb_iter"] = 50
         parameters["demons_std_dev"] = 1
 
         final_transform = non_rigid_registration(self.fixed_image, self.resampled_image, parameters)
-        #because images are not resampled, or registrated.
         self.assertIsNotNone(final_transform)
 
         demons = sitk.DemonsRegistrationFilter()
         demons.SetNumberOfIterations(50)
         demons.SetStandardDeviations(1.0)
         displacementField = demons.Execute(self.fixed_image, self.resampled_image)
+        expected_transform = sitk.DisplacementFieldTransform(displacementField)
+
+        self.assertEqual(final_transform.GetDimension(), expected_transform.GetDimension())
+        self.assertEqual(final_transform.GetNumberOfFixedParameters(), expected_transform.GetNumberOfFixedParameters())
+        self.assertEqual(final_transform.GetNumberOfParameters(), expected_transform.GetNumberOfParameters())
+        for x, y in zip(final_transform.GetFixedParameters(), expected_transform.GetFixedParameters()):
+            self.assertAlmostEqual(x, y, delta=0.01)
+
+    def test_demons_registration_3(self):
+        parameters = {}
+        parameters["algorithm"] = "DiffeomorphicDemons"
+        parameters["demons_nb_iter"] = 50
+        parameters["demons_std_dev"] = 1.0
+
+        final_transform = non_rigid_registration(self.fixed_image, self.resampled_image, parameters)
+        #diffeomorphic demons needs same spacing for both images, hence a rigid or affige reg is required before use.
+        self.assertIsNone(final_transform)
+
+        final_transform = non_rigid_registration(self.fixed_image, self.affine_image, parameters)
+        demons = sitk.DiffeomorphicDemonsRegistrationFilter()
+        demons.SetNumberOfIterations(50)
+        demons.SetStandardDeviations(1.0)
+        displacementField = demons.Execute(self.fixed_image, self.affine_image)
+        expected_transform = sitk.DisplacementFieldTransform(displacementField)
+
+        self.assertEqual(final_transform.GetDimension(), expected_transform.GetDimension())
+        self.assertEqual(final_transform.GetNumberOfFixedParameters(), expected_transform.GetNumberOfFixedParameters())
+        self.assertEqual(final_transform.GetNumberOfParameters(), expected_transform.GetNumberOfParameters())
+        for x, y in zip(final_transform.GetParameters(), expected_transform.GetParameters()):
+            self.assertAlmostEqual(x, y, delta=1)
+        for x, y in zip(final_transform.GetFixedParameters(), expected_transform.GetFixedParameters()):
+            self.assertAlmostEqual(x, y, delta=0.01)
+
+    def test_demons_registration_4(self):
+        parameters = {}
+        parameters["algorithm"] = "FastSymmetricForcesDemons"
+        parameters["demons_nb_iter"] = 25
+        parameters["demons_std_dev"] = 1.0
+
+        final_transform = non_rigid_registration(self.fixed_image, self.affine_image, parameters)
+        #diffeomorphic demons needs same spacing for both images, hence a rigid or affige reg is required before use.
+        self.assertIsNotNone(final_transform)
+
+        demons = sitk.FastSymmetricForcesDemonsRegistrationFilter()
+        demons.SetNumberOfIterations(25)
+        demons.SetStandardDeviations(1.0)
+        displacementField = demons.Execute(self.fixed_image, self.affine_image)
+        expected_transform = sitk.DisplacementFieldTransform(displacementField)
+
+        self.assertEqual(final_transform.GetDimension(), expected_transform.GetDimension())
+        self.assertEqual(final_transform.GetNumberOfFixedParameters(), expected_transform.GetNumberOfFixedParameters())
+        self.assertEqual(final_transform.GetNumberOfParameters(), expected_transform.GetNumberOfParameters())
+        for x, y in zip(final_transform.GetParameters(), expected_transform.GetParameters()):
+            self.assertAlmostEqual(x, y, delta=1)
+        for x, y in zip(final_transform.GetFixedParameters(), expected_transform.GetFixedParameters()):
+            self.assertAlmostEqual(x, y, delta=0.01)
+
+    def test_demons_registration_5(self):
+        parameters = {}
+        parameters["algorithm"] = "SymmetricForcesDemons"
+        parameters["demons_nb_iter"] = 25
+        parameters["demons_std_dev"] = 1.0
+
+        final_transform = non_rigid_registration(self.fixed_image, self.affine_image, parameters)
+        #diffeomorphic demons needs same spacing for both images, hence a rigid or affige reg is required before use.
+        self.assertIsNotNone(final_transform)
+
+        demons = sitk.SymmetricForcesDemonsRegistrationFilter()
+        demons.SetNumberOfIterations(25)
+        demons.SetStandardDeviations(1.0)
+        displacementField = demons.Execute(self.fixed_image, self.affine_image)
         expected_transform = sitk.DisplacementFieldTransform(displacementField)
 
         self.assertEqual(final_transform.GetDimension(), expected_transform.GetDimension())
@@ -249,6 +311,7 @@ class TestRigidMethods(unittest.TestCase):
     def test_select_metrics(self):
 
         R = sitk.ImageRegistrationMethod()
+        R.SetMetricAsJointHistogramMutualInformation()
         select_metrics(R, 50, "MattesMutualInformation")
         R.SetMetricSamplingPercentage(0.001, seed=10)
         R.SetMetricSamplingStrategy(R.RANDOM)
@@ -476,5 +539,4 @@ class TestRigidMethods(unittest.TestCase):
 if __name__ == '__main__':
     testClass = TestRigidMethods()
     testClass.setUp()
-    testClass.test_demons_registration_1()
-    testClass.test_demons_registration_2()
+    testClass.test_demons_registration_5()

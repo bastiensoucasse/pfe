@@ -23,16 +23,6 @@ def non_rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transf
     Return : the result of the registration, a transform
     """
     algorithm = parameters["algorithm"]
-    metrics_name = parameters["metrics"]
-    interpolator_name = parameters["interpolator"]
-    bin_count = parameters["histogram_bin_count"]
-    sampling_strat = parameters["sampling_strategy"]
-    sampling_perc = parameters["sampling_percentage"]
-    # parameters for bspline
-    transform_domain_mesh_size = parameters["transform_domain_mesh_size"]
-    scale_factor = parameters["scale_factor"]
-    shrink_factor = parameters["shrink_factor"]
-    smoothing_sigmas = parameters["smoothing_sigmas"]
 
     if "Demons" in algorithm:
         demons = util.get_demons_algorithm(algorithm)
@@ -41,9 +31,9 @@ def non_rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transf
         toDisplacementFilter = sitk.TransformToDisplacementFieldFilter()
         toDisplacementFilter.SetReferenceImage(fixed_image)
         initialTransform = sitk.CenteredTransformInitializer(fixed_image, 
-                                                      moving_image, 
-                                                      sitk.AffineTransform(3), 
-                                                      sitk.CenteredTransformInitializerFilter.GEOMETRY)
+            moving_image, 
+            sitk.AffineTransform(3), 
+            sitk.CenteredTransformInitializerFilter.GEOMETRY)
         displacementField = toDisplacementFilter.Execute(initialTransform)
         try:
             displacementField = demons.Execute(fixed_image, moving_image, displacementField)
@@ -56,6 +46,16 @@ def non_rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transf
             return outTx
 
     else:
+        metrics_name = parameters["metrics"]
+        interpolator_name = parameters["interpolator"]
+        bin_count = parameters["histogram_bin_count"]
+        sampling_strat = parameters["sampling_strategy"]
+        sampling_perc = parameters["sampling_percentage"]
+        # parameters for bspline
+        transform_domain_mesh_size = parameters["transform_domain_mesh_size"]
+        scale_factor = parameters["scale_factor"]
+        shrink_factor = parameters["shrink_factor"]
+        smoothing_sigmas = parameters["smoothing_sigmas"]
         transformDomainMeshSize = [transform_domain_mesh_size] * fixed_image.GetDimension()
         tx = sitk.BSplineTransformInitializer(fixed_image, transformDomainMeshSize)
 

@@ -1685,7 +1685,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         "Demons",
         "Diffeomorphic Demons",
         "Fast Symmetric Forces Demons",
-        "SymmetricForcesDemons"])
+        "Symmetric Forces Demons"])
 
         self.elastix_combo_box = self.get_ui(
             ctkComboBox, "ComboBoxElastix"
@@ -1771,7 +1771,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.opti_scale_edit = self.get_ui(QLineEdit, "lineEditScale")
 
         # :COMMENT: Fill them combo boxes.
-        self.metrics_combo_box.addItems(["Mean Squares", "Mattes Mutual Information"])
+        self.metrics_combo_box.addItems(
+            ["Mean Squares", 
+             "Mattes Mutual Information", 
+             "Joint Histogram Mutual Information", 
+             "Correlation",
+             "Demons"])
         self.optimizers_combo_box.addItems(["Gradient Descent", "Exhaustive", "LBFGSB"])
         self.interpolator_combo_box.addItems(
             [
@@ -1998,8 +2003,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         data_dictionary["demons_nb_iter"] = int(self.demons_nb_iter.text)
         data_dictionary["demons_std_dev"] = float(self.demons_std_deviation.text)
 
-    # :TODO:Tony: Add other metrics (demons, correlation...)
-    # :TODO:Tony: add tests for demons
+    # :TODO:Tony: update l'ui en fonction des nouvelles metrics
+    # SetMetricAsMattesMutualInformation(self, numberOfHistogramBins=50)
+    # SetMetricAsJointHistogramMutualInformation(self, numberOfHistogramBins=20, varianceForJointPDFSmoothing=1.5)
+    # :TODO:Tony: Print le résultat des méthodes de recalage dans la console
     # :TODO:Tony: Rapport
     # :TODO:Tony: déporter les tests dans ce fichier
     def custom_script_registration(self, scriptPath, fixed_image, moving_image, input) -> None:
@@ -2062,7 +2069,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.choose_input_volume(len(self.volumes) - 1)
             if self.regProcess.message_error:
                 self.display_error_message(self.regProcess.message_error)
-                
+
     def activate_timer_and_progress_bar(self) -> None:
         """
         Starts the progressBar activation and a timer to displays elapsed time.
