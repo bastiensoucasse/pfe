@@ -45,6 +45,8 @@ from slicer.ScriptedLoadableModule import (
     ScriptedLoadableModuleWidget,
 )
 
+AXIS_MAP = {"x": 0, "y": 1, "z": 2}
+
 
 class CustomRegistration(ScriptedLoadableModule):
     """
@@ -169,14 +171,18 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         # cropped_image = crop_filter.Execute(image)
         # return cropped_image
 
+        # :COMMENT: Ensure that the size is valid.
+        crop_size = [end[i] - start[i] for i in range(len(start))]
+        if not all(crop_size):
+            return None
+
         # :COMMENT: Handles the autocropping offset too large.
         dims = volume.GetImageData().GetDimensions()
-        axis = ["x", "y", "z"]
-        for i in range(len(axis)):
+        for axis, i in AXIS_MAP.items():
             if start[i] < 0 or end[i] > dims[i]:
                 raise AutocroppingValueError(
-                    f"Offset {axis[i]} too large.",
-                    axis[i],
+                    f"Offset {axis} too large.",
+                    axis,
                 )
 
         # :COMMENT: Convert the volume to a SimpleITK image.
@@ -202,6 +208,54 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         self.transfer_volume_metadata(volume, cropped_volume)
 
         return cropped_volume
+
+    def automatic_crop(
+        self,
+        volume: vtkMRMLScalarVolumeNode,
+        roi: vtkMRMLScalarVolumeNode,
+        margins,
+    ) -> vtkMRMLScalarVolumeNode:
+        """
+        Crops a volume using the selected algorithm.
+
+        Parameters:
+            volume: The VTK volume to be cropped.
+            roi: The VTK volume representing the ROI selection of the input volume.
+            margins: The margin to add around the ROI selection.
+
+        Returns:
+            A tuple representing
+                - The cropped VTK volume.
+                - The start index of the cropping region.
+                - The end index of the cropping region.
+        """
+
+        # :COMMENT: Get the pixel data array and dimensions of the image data.
+        roi_image_data = roi.GetImageData()
+        dims = roi_image_data.GetDimensions()
+
+        # :COMMENT: Convert the pixel data array into a numpy array.
+        pixel_data_array = vtk.util.numpy_support.vtk_to_numpy(
+            roi_image_data.GetPointData().GetScalars()
+        )
+        # :TODO:Iantsa: Make sure the order is the right one for better optimization.
+        pixel_data_array = pixel_data_array.reshape(dims, order="F")
+
+        # :COMMENT: Ensure the selection is not empty.
+        if not np.any(pixel_data_array):
+            return None
+
+        # :COMMENT: Get the bounds of the ROI.
+        xyz = np.argwhere(pixel_data_array).T
+        start = [int(np.min(i)) for i in xyz]
+        end = [int(np.max(i)) for i in xyz]
+
+        # :COMMENT Apply the margins along the ROI.
+        for i in range(3):
+            start[i] -= margins[i]
+            end[i] += margins[i]
+
+        return self.crop(volume, start, end), start, end
 
     def resample(
         self,
@@ -347,8 +401,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def __init__(self, parent=None) -> None:
         ScriptedLoadableModuleWidget.__init__(self, parent)
-
-        self.AXIS_MAP = {"x": 0, "y": 1, "z": 2}
 
     def setup(self) -> None:
         """
@@ -913,10 +965,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Get the coordinates spinbox widgets.
         self.cropping_start = []
         self.cropping_end = []
-        axis = ["x", "y", "z"]
-        for i in range(len(axis)):
-            self.cropping_start.append(self.get_ui(QSpinBox, "s" + axis[i]))
-            self.cropping_end.append(self.get_ui(QSpinBox, "e" + axis[i]))
+        for axis, i in AXIS_MAP.items():
+            self.cropping_start.append(self.get_ui(QSpinBox, "s" + axis))
+            self.cropping_end.append(self.get_ui(QSpinBox, "e" + axis))
 
             # :COMMENT: Connect the spinbox widgets to their "on changed" function that displays the cropping preview.
             self.cropping_start[i].valueChanged.connect(self.preview_cropping)
@@ -1125,10 +1176,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Get the coordinates spinbox widgets.
         self.automatic_cropping_margins = []
-        axis = ["x", "y", "z"]
-        for i in range(len(axis)):
+        for axis, i in AXIS_MAP.items():
             self.automatic_cropping_margins.append(
-                self.get_ui(QSpinBox, axis[i] + "Margin")
+                self.get_ui(QSpinBox, axis + "Margin")
             )
             # :DIRTY: Magic number.
             self.automatic_cropping_margins[i].setMaximum(2000)
@@ -1177,46 +1227,34 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             return
         roi = self.volume_roi_map[name]  # type: ignore
 
-        # :COMMENT: Get the pixel data array and dimensions of the image data.
-        roi_image_data = roi.GetImageData()
-        dims = roi_image_data.GetDimensions()
-
-        # :COMMENT: Convert the pixel data array into a numpy array.
-        pixel_data_array = vtk.util.numpy_support.vtk_to_numpy(
-            roi_image_data.GetPointData().GetScalars()
-        )
-        pixel_data_array = pixel_data_array.reshape(dims, order="F")
-
-        # :COMMENT: Get the bounds of the ROI.
-        if not np.any(pixel_data_array):
-            pass
-
-        xyz = np.argwhere(pixel_data_array).T
-        mins = [int(np.min(i)) for i in xyz]
-        maxs = [int(np.max(i)) for i in xyz]
-
         # :COMMENT: Retrieve margins input.
         margins = []
         for i in range(3):
             margins.append(self.automatic_cropping_margins[i].value)
 
-        # :COMMENT Apply the margins along the ROI.
-        for i in range(3):
-            mins[i] -= margins[i]
-            maxs[i] += margins[i]
-
         # :COMMENT: Save the temporary cropped volume.
         try:
-            self.cropped_volume = self.logic.crop(self.input_volume, mins, maxs)
+            # self.cropped_volume = self.logic.crop(self.input_volume, mins, maxs)
+            self.cropped_volume, start_val, end_val = self.logic.automatic_crop(
+                self.input_volume, roi, margins
+            )
         except AutocroppingValueError as e:
             # :BUG:Bastien: Reset to the maximum value available (not working, so only displaying an error message).
-            spin_box = self.automatic_cropping_margins[self.AXIS_MAP[e.axis]]
+            spin_box = self.automatic_cropping_margins[AXIS_MAP[e.axis]]
             self.cropping_preview_is_allowed = False
             spin_box.setValue(0)
             self.cropping_preview_is_allowed = True
             self.cropped_volume = None
             self.cropped_box = None
             self.display_error_message(str(e))
+            return
+
+        if self.cropped_volume is None:
+            self.cropped_volume = None
+            self.cropped_box = None
+            self.display_error_message(
+                "Empty ROI selection. Please select a ROI again."
+            )
             return
 
         # :COMMENT: Delete the previous cropping box from the scene if exists.
@@ -1236,9 +1274,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         bounds = [0, 0, 0, 0, 0, 0]
         self.cropped_volume.GetBounds(bounds)
 
-        # :COMMENT: Get the size of ROI.
-        start_val = mins
-        end_val = maxs
+        # :COMMENT: Compute the size of ROI.
+        # start_val = mins
+        # end_val = maxs
         size = [end_val[i] - start_val[i] for i in range(3)]
 
         # :COMMENT: Calculate the center and radius of the ROI.
@@ -1264,7 +1302,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # :COMMENT: Show the automatic cropping preview.
         self.cropping_box.GetDisplayNode().SetVisibility(True)
 
-        # :END_DIRT/TRICK:
+        # :END_DIRTY/TRICKY:
 
     def automatic_crop(self) -> None:
         """
@@ -2339,6 +2377,6 @@ class RegistrationProcess(Process):
 
 class AutocroppingValueError(ValueError):
     def __init__(self, message, axis):
-        assert axis in ["x", "y", "z"]
+        assert axis in AXIS_MAP
         super().__init__(message)
         self.axis = axis
