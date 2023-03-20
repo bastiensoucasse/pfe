@@ -348,6 +348,8 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def __init__(self, parent=None) -> None:
         ScriptedLoadableModuleWidget.__init__(self, parent)
 
+        self.AXIS_MAP = {"x": 0, "y": 1, "z": 2}
+
     def setup(self) -> None:
         """
         Sets up the widget for the module.
@@ -1186,17 +1188,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         pixel_data_array = pixel_data_array.reshape(dims, order="F")
 
         # :COMMENT: Get the bounds of the ROI.
-        # :DIRTY: Find a way to optimize this algorithm.
-        mins = [pixel_data_array.shape[i] - 1 for i in range(3)]
-        maxs = [0, 0, 0]
-        it = np.nditer(pixel_data_array, flags=["multi_index"], order="F")
-        while not it.finished:
-            if it[0]:
-                idx = it.multi_index
-                for i in range(3):
-                    mins[i] = min(mins[i], idx[i])
-                    maxs[i] = max(maxs[i], idx[i])
-            it.iternext()
+        if not np.any(pixel_data_array):
+            pass
+
+        xyz = np.argwhere(pixel_data_array).T
+        mins = [int(np.min(i)) for i in xyz]
+        maxs = [int(np.max(i)) for i in xyz]
 
         # :COMMENT: Retrieve margins input.
         margins = []
@@ -1213,8 +1210,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropped_volume = self.logic.crop(self.input_volume, mins, maxs)
         except AutocroppingValueError as e:
             # :BUG:Bastien: Reset to the maximum value available (not working, so only displaying an error message).
-            axis_map = {"x": 0, "y": 1, "z": 2}
-            spin_box = self.automatic_cropping_margins[axis_map[e.axis]]
+            spin_box = self.automatic_cropping_margins[self.AXIS_MAP[e.axis]]
             self.cropping_preview_is_allowed = False
             spin_box.setValue(0)
             self.cropping_preview_is_allowed = True
