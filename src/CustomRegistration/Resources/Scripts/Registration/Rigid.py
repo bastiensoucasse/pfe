@@ -47,7 +47,7 @@ def rigid_registration(fixed_image, moving_image, parameters) -> sitk.Transform:
     R = sitk.ImageRegistrationMethod()
     R.SetMetricSamplingStrategy(sampling_strat)
     R.SetMetricSamplingPercentage(sampling_perc, seed=10)
-    util.select_metrics(R, bin_count, metrics_name)
+    util.select_metrics(R, metrics_name, bin_count)
     util.select_interpolator(R, interpolator_name)
     util.select_optimizer_and_setup(R, parameters)
     R.SetOptimizerScalesFromPhysicalShift()

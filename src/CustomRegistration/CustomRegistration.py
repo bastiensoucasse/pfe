@@ -2155,8 +2155,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 "Mean Squares",
                 "Mattes Mutual Information",
                 "Joint Histogram Mutual Information",
-                "Correlation",
-                "Demons",
+                "Correlation"
             ]
         )
         self.optimizers_combo_box.addItems(["Gradient Descent", "Exhaustive", "LBFGSB"])

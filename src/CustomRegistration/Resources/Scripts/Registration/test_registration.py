@@ -308,10 +308,10 @@ class TestRigidMethods(unittest.TestCase):
         for x, y in zip(final_transform.GetFixedParameters(), expected_transform.GetFixedParameters()):
             self.assertAlmostEqual(x, y, delta=0.01)
 
-    def test_select_metrics(self):
+    def test_select_metrics_1(self):
 
         R = sitk.ImageRegistrationMethod()
-        select_metrics(R, 50, "MattesMutualInformation")
+        select_metrics(R, "MattesMutualInformation", 50)
         R.SetMetricSamplingPercentage(0.001, seed=10)
         R.SetMetricSamplingStrategy(R.RANDOM)
         R.SetOptimizerAsGradientDescent(learningRate=5,
@@ -350,9 +350,197 @@ class TestRigidMethods(unittest.TestCase):
         outTx2 = R2.Execute(self.fixed_image, self.moving_image)
 
         for x, y in zip(outTx.GetParameters(), outTx2.GetParameters()):
-            self.assertEqual(x, y, delta=0.0001)
+            self.assertAlmostEqual(x, y, delta=0.0001)
         for x, y in zip(outTx.GetFixedParameters(), outTx2.GetFixedParameters()):
-            self.assertEqual(x, y, delta=0.0001)
+            self.assertAlmostEqual(x, y, delta=0.0001)
+
+    def test_select_metrics_2(self):
+
+        R = sitk.ImageRegistrationMethod()
+        select_metrics(R, "MeanSquares")
+        R.SetMetricSamplingPercentage(0.001, seed=10)
+        R.SetMetricSamplingStrategy(R.RANDOM)
+        R.SetOptimizerAsGradientDescent(learningRate=1,
+            numberOfIterations=20,
+            convergenceMinimumValue=1e-5,
+            convergenceWindowSize=10)
+        initial_transform = sitk.CenteredTransformInitializer(
+            self.fixed_image,
+            self.moving_image,
+            sitk.Euler3DTransform(),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        R.SetInitialTransform(initial_transform)
+        R.SetInterpolator(sitk.sitkLinear)
+        R.SetOptimizerScalesFromIndexShift()
+
+        outTx = R.Execute(self.fixed_image, self.moving_image)
+
+        R2 = sitk.ImageRegistrationMethod()
+        R2.SetMetricAsMeanSquares()
+        R2.SetMetricSamplingPercentage(0.001, seed=10)
+        R2.SetMetricSamplingStrategy(R2.RANDOM)
+        R2.SetOptimizerAsGradientDescent(learningRate=1,
+            numberOfIterations=20,
+            convergenceMinimumValue=1e-5,
+            convergenceWindowSize=10)
+        initial_transform = sitk.CenteredTransformInitializer(
+            self.fixed_image,
+            self.moving_image,
+            sitk.Euler3DTransform(),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        R2.SetInitialTransform(initial_transform)
+        R2.SetInterpolator(sitk.sitkLinear)
+        R2.SetOptimizerScalesFromIndexShift()
+        outTx2 = R2.Execute(self.fixed_image, self.moving_image)
+
+        for x, y in zip(outTx.GetParameters(), outTx2.GetParameters()):
+            self.assertEqual(x, y)
+        for x, y in zip(outTx.GetFixedParameters(), outTx2.GetFixedParameters()):
+            self.assertEqual(x, y)
+
+    def test_select_metrics_3(self):
+
+        R = sitk.ImageRegistrationMethod()
+        select_metrics(R, "JointHistogramMutualInformation", 20)
+        R.SetMetricSamplingPercentage(0.001, seed=10)
+        R.SetMetricSamplingStrategy(R.RANDOM)
+        R.SetOptimizerAsGradientDescent(learningRate=1,
+            numberOfIterations=20,
+            convergenceMinimumValue=1e-5,
+            convergenceWindowSize=10)
+        initial_transform = sitk.CenteredTransformInitializer(
+            self.fixed_image,
+            self.moving_image,
+            sitk.Euler3DTransform(),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        R.SetInitialTransform(initial_transform)
+        R.SetInterpolator(sitk.sitkLinear)
+        R.SetOptimizerScalesFromIndexShift()
+
+        outTx = R.Execute(self.fixed_image, self.moving_image)
+
+        R2 = sitk.ImageRegistrationMethod()
+        R2.SetMetricAsJointHistogramMutualInformation(20)
+        R2.SetMetricSamplingPercentage(0.001, seed=10)
+        R2.SetMetricSamplingStrategy(R2.RANDOM)
+        R2.SetOptimizerAsGradientDescent(learningRate=1,
+            numberOfIterations=20,
+            convergenceMinimumValue=1e-5,
+            convergenceWindowSize=10)
+        initial_transform = sitk.CenteredTransformInitializer(
+            self.fixed_image,
+            self.moving_image,
+            sitk.Euler3DTransform(),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        R2.SetInitialTransform(initial_transform)
+        R2.SetInterpolator(sitk.sitkLinear)
+        R2.SetOptimizerScalesFromIndexShift()
+        outTx2 = R2.Execute(self.fixed_image, self.moving_image)
+
+        for x, y in zip(outTx.GetParameters(), outTx2.GetParameters()):
+            self.assertEqual(x, y)
+        for x, y in zip(outTx.GetFixedParameters(), outTx2.GetFixedParameters()):
+            self.assertEqual(x, y)
+
+    def test_select_metrics_4(self):
+
+        R = sitk.ImageRegistrationMethod()
+        select_metrics(R, "Correlation")
+        R.SetMetricSamplingPercentage(0.001, seed=10)
+        R.SetMetricSamplingStrategy(R.RANDOM)
+        R.SetOptimizerAsGradientDescent(learningRate=1,
+            numberOfIterations=50,
+            convergenceMinimumValue=1e-5,
+            convergenceWindowSize=10)
+        initial_transform = sitk.CenteredTransformInitializer(
+            self.fixed_image,
+            self.moving_image,
+            sitk.Euler3DTransform(),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        R.SetInitialTransform(initial_transform)
+        R.SetInterpolator(sitk.sitkLinear)
+        R.SetOptimizerScalesFromIndexShift()
+
+        outTx = R.Execute(self.fixed_image, self.moving_image)
+
+        R2 = sitk.ImageRegistrationMethod()
+        R2.SetMetricAsCorrelation()
+        R2.SetMetricSamplingPercentage(0.001, seed=10)
+        R2.SetMetricSamplingStrategy(R2.RANDOM)
+        R2.SetOptimizerAsGradientDescent(learningRate=1,
+            numberOfIterations=50,
+            convergenceMinimumValue=1e-5,
+            convergenceWindowSize=10)
+        initial_transform = sitk.CenteredTransformInitializer(
+            self.fixed_image,
+            self.moving_image,
+            sitk.Euler3DTransform(),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        R2.SetInitialTransform(initial_transform)
+        R2.SetInterpolator(sitk.sitkLinear)
+        R2.SetOptimizerScalesFromIndexShift()
+        outTx2 = R2.Execute(self.fixed_image, self.moving_image)
+
+        for x, y in zip(outTx.GetParameters(), outTx2.GetParameters()):
+            self.assertEqual(x, y)
+        for x, y in zip(outTx.GetFixedParameters(), outTx2.GetFixedParameters()):
+            self.assertEqual(x, y)
+
+    def test_select_metrics_5(self):
+
+        R = sitk.ImageRegistrationMethod()
+        self.assertRaises(AttributeError, select_metrics, R, "Mean Squares")
+        self.assertRaises(AttributeError, select_metrics, R, "meansquares")
+        self.assertRaises(AttributeError, select_metrics, R, "Joint Histogram Mutual Information")
+        self.assertRaises(AttributeError, select_metrics, R, "Mattes Mutual Information")
+        self.assertRaises(AttributeError, select_metrics, R, "mattesmutualinformation")
+
+        select_metrics(R, "MeanSquares")
+        R.SetMetricSamplingPercentage(0.001, seed=10)
+        R.SetMetricSamplingStrategy(R.RANDOM)
+        R.SetOptimizerAsGradientDescent(learningRate=1,
+            numberOfIterations=50,
+            convergenceMinimumValue=1e-5,
+            convergenceWindowSize=10)
+        initial_transform = sitk.CenteredTransformInitializer(
+            self.fixed_image,
+            self.moving_image,
+            sitk.Euler3DTransform(),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        R.SetInitialTransform(initial_transform)
+        R.SetInterpolator(sitk.sitkLinear)
+        R.SetOptimizerScalesFromIndexShift()
+
+        outTx = R.Execute(self.fixed_image, self.moving_image)
+
+        R2 = sitk.ImageRegistrationMethod()
+        R2.SetMetricAsCorrelation()
+        R2.SetMetricSamplingPercentage(0.001, seed=10)
+        R2.SetMetricSamplingStrategy(R2.RANDOM)
+        R2.SetOptimizerAsGradientDescent(learningRate=1,
+            numberOfIterations=50,
+            convergenceMinimumValue=1e-5,
+            convergenceWindowSize=10)
+        initial_transform = sitk.CenteredTransformInitializer(
+            self.fixed_image,
+            self.moving_image,
+            sitk.Euler3DTransform(),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        R2.SetInitialTransform(initial_transform)
+        R2.SetInterpolator(sitk.sitkLinear)
+        R2.SetOptimizerScalesFromIndexShift()
+        outTx2 = R2.Execute(self.fixed_image, self.moving_image)
+
+        for x, y in zip(outTx.GetParameters(), outTx2.GetParameters()):
+            self.assertNotEqual(x, y)
 
     def test_select_interpolator(self):
         R = sitk.ImageRegistrationMethod()
@@ -538,4 +726,4 @@ class TestRigidMethods(unittest.TestCase):
 if __name__ == '__main__':
     testClass = TestRigidMethods()
     testClass.setUp()
-    testClass.test_demons_registration_5()
+    testClass.test_select_metrics_5()

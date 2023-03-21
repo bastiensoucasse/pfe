@@ -11,7 +11,7 @@ interpolator_enum["BSpline2"] = 13
 interpolator_enum["BSpline3"] = 11
 interpolator_enum["Gaussian"] = 4
 
-def select_metrics(R, metric_value, metrics_name) -> None:
+def select_metrics(R, metrics_name, metric_value=None) -> None:
     """
     Calls the user-defined metrics function.
 
