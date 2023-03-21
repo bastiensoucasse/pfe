@@ -2478,7 +2478,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         parameterFilenames = self.elastix_logic.getRegistrationPresets()[preset][
             Elastix.RegistrationPresets_ParameterFilenames
         ]
-        new_volume = mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        volume_name = f"{self.input_volume.GetName()}_registered_{current_time}"
+        new_volume = mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", volume_name)
         try:
             self.elastix_logic.registerVolumes(
                 self.target_volume,
