@@ -2211,13 +2211,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.sampling_strat_combo_box.setCurrentIndex(2)
         self.bspline_group_box.setEnabled(False)
         self.demons_group_box.setEnabled(False)
-        self.gradients_box.setEnabled(False)
-        self.gradients_box.collapsed = 1
-        self.exhaustive_box.setEnabled(False)
-        self.exhaustive_box.collapsed = 1
-        self.lbfgs2_box.setEnabled(False)
-        self.lbfgs2_box.collapsed = 1
-
+        self.reset_optimizers_box()
         self.metrics_combo_box.setEnabled(False)
         self.interpolator_combo_box.setEnabled(False)
         self.optimizers_combo_box.setEnabled(False)
@@ -2233,13 +2227,23 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         self.metric_related_value_label.text = ""
         self.metric_related_value_spin_box.setValue(0)
-        self.scale_factor.setEnabled(True)
+
+    def reset_optimizers_box(self) -> None:
+        self.gradients_box.setEnabled(False)
+        self.gradients_box.collapsed = 1
+        self.exhaustive_box.setEnabled(False)
+        self.exhaustive_box.collapsed = 1
+        self.lbfgs2_box.setEnabled(False)
+        self.lbfgs2_box.collapsed = 1
         self.scale_factor.text = "1, 2, 4"
+        self.scale_factor.setEnabled(True)
+
 
     def update_registration_optimizer(self) -> None:
         """
         Update the UI according to selected optimizer by user.
         """
+        self.reset_optimizers_box()
         if self.optimizers_combo_box.currentText == "Gradient Descent":
             self.gradients_box.setEnabled(True)
             self.gradients_box.collapsed = 0
@@ -2428,8 +2432,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         data_dictionary["demons_nb_iter"] = int(self.demons_nb_iter.text)
         data_dictionary["demons_std_dev"] = float(self.demons_std_deviation.text)
 
-    # :TODO:Tony ajouter des tests pour les nouvelles metrics
-    # :TODO:Tony: Rapport
     # :TODO:Tony: déporter les tests dans ce fichier
     def custom_script_registration(
         self, scriptPath, fixed_image, moving_image, input
