@@ -562,6 +562,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 for volume in mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
                 if not volume.GetName().endswith("ROI Mask")
                 and not volume.GetName().endswith("ROI Volume")
+                and not volume.GetName().endswith("Difference Map")
             ]
 
         def update_panel(variation: str = "all") -> None:
@@ -2679,10 +2680,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the difference map computation by retrieving and connecting the UI data.
         """
 
+        self.ALGORITHMS = ["Mean squared error", "Gradient"]
+
         self.algorithms_difference_map_combo_box = self.get_ui(
             ctkComboBox, "mapFunction"
         )
-        for algo in ["Mean squared error", "Gradient"]:
+        for algo in self.ALGORITHMS:
             self.algorithms_difference_map_combo_box.addItem(algo)
         self.algorithms_difference_map_combo_box.setCurrentIndex(-1)
 
@@ -2725,7 +2728,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             return
 
         algorithm = self.algorithms_difference_map_combo_box.currentText
-        if algorithm not in ["Mean squared error", "Gradient"]:
+        if algorithm not in self.ALGORITHMS:
             self.display_error_message("Please select an algorithm.")
             return
 
@@ -2738,7 +2741,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 ) = self.logic.difference_map(
                     self.input_volume,
                     self.target_volume,
-                    f"{self.input_volume.GetName()}_{self.target_volume.GetName()}_MSEDifferenceMap",
+                    f"{self.input_volume.GetName()} {self.target_volume.GetName()} P{self.spin_box.value} MSE Difference Map",
                     "absolute",
                     self.spin_box.value,
                 )
@@ -2750,7 +2753,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 ) = self.logic.difference_map(
                     self.input_volume,
                     self.target_volume,
-                    f"{self.input_volume.GetName()}_{self.target_volume.GetName()}_GradientDifferenceMap",
+                    f"{self.input_volume.GetName()} {self.target_volume.GetName()} P{self.spin_box.value} Gradient Difference Map",
                     "gradient",
                     self.spin_box.value,
                 )
