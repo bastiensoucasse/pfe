@@ -302,70 +302,8 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         return resampled_volume
 
     #
-    # UTILITIES
+    # DIFFERENCE MAP
     #
-
-    def vtk_to_sitk(self, volume: vtkMRMLScalarVolumeNode) -> sitk.Image:
-        """
-        Converts a VTK volume into a SimpleITK image.
-
-        Parameters:
-            volume: The VTK volume to convert.
-
-        Returns:
-            The SimpleITK image.
-        """
-
-        volume_image_data = volume.GetImageData()
-        np_array = vtk.util.numpy_support.vtk_to_numpy(volume_image_data.GetPointData().GetScalars())  # type: ignore
-        np_array = np.reshape(np_array, volume_image_data.GetDimensions()[::-1])
-        image = sitk.GetImageFromArray(np_array)
-        return image
-
-    def sitk_to_vtk(self, image: sitk.Image) -> vtkMRMLScalarVolumeNode:
-        """
-        Converts a SimpleITK image to a VTK volume.
-
-        Parameters:
-            image: The SimpleITK image to convert.
-
-        Returns:
-            The VTK volume.
-        """
-
-        np_array = sitk.GetArrayFromImage(image)
-        volume_image_data = vtk.vtkImageData()
-        volume_image_data.SetDimensions(np_array.shape[::-1])
-        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
-        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())  # type: ignore
-        volume_image_data.GetPointData().SetScalars(vtk_array)
-        volume = vtkMRMLScalarVolumeNode()
-        volume.SetAndObserveImageData(volume_image_data)
-        return volume
-
-    def transfer_volume_metadata(
-        self,
-        source_volume: vtkMRMLScalarVolumeNode,
-        target_volume: vtkMRMLScalarVolumeNode,
-    ) -> None:
-        """
-        Copies the metadata from the source volume to the target volume.
-
-        Parameters:
-            source_volume: The VTK volume to copy the metadata from.
-            target_volume: The VTK volume to copy the metadata to.
-        """
-
-        # :COMMENT: Retrieve the metadata from the source volume.
-        spacing = source_volume.GetSpacing()
-        origin = source_volume.GetOrigin()
-        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
-        source_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
-
-        # :COMMENT: Apply the metadata to the target volume.
-        target_volume.SetSpacing(spacing)
-        target_volume.SetOrigin(origin)
-        target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
 
     def difference_map(self, imageData1, imageData2, name, mode, sigma):
         dims1 = imageData1.GetImageData().GetDimensions()
@@ -439,6 +377,72 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         mean_difference = np.mean(outputNode)
 
         return volume, mean_difference
+
+    #
+    # UTILITIES
+    #
+
+    def vtk_to_sitk(self, volume: vtkMRMLScalarVolumeNode) -> sitk.Image:
+        """
+        Converts a VTK volume into a SimpleITK image.
+
+        Parameters:
+            volume: The VTK volume to convert.
+
+        Returns:
+            The SimpleITK image.
+        """
+
+        volume_image_data = volume.GetImageData()
+        np_array = vtk.util.numpy_support.vtk_to_numpy(volume_image_data.GetPointData().GetScalars())  # type: ignore
+        np_array = np.reshape(np_array, volume_image_data.GetDimensions()[::-1])
+        image = sitk.GetImageFromArray(np_array)
+        return image
+
+    def sitk_to_vtk(self, image: sitk.Image) -> vtkMRMLScalarVolumeNode:
+        """
+        Converts a SimpleITK image to a VTK volume.
+
+        Parameters:
+            image: The SimpleITK image to convert.
+
+        Returns:
+            The VTK volume.
+        """
+
+        np_array = sitk.GetArrayFromImage(image)
+        volume_image_data = vtk.vtkImageData()
+        volume_image_data.SetDimensions(np_array.shape[::-1])
+        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten())  # type: ignore
+        volume_image_data.GetPointData().SetScalars(vtk_array)
+        volume = vtkMRMLScalarVolumeNode()
+        volume.SetAndObserveImageData(volume_image_data)
+        return volume
+
+    def transfer_volume_metadata(
+        self,
+        source_volume: vtkMRMLScalarVolumeNode,
+        target_volume: vtkMRMLScalarVolumeNode,
+    ) -> None:
+        """
+        Copies the metadata from the source volume to the target volume.
+
+        Parameters:
+            source_volume: The VTK volume to copy the metadata from.
+            target_volume: The VTK volume to copy the metadata to.
+        """
+
+        # :COMMENT: Retrieve the metadata from the source volume.
+        spacing = source_volume.GetSpacing()
+        origin = source_volume.GetOrigin()
+        ijk_to_ras_direction_matrix = vtk.vtkMatrix4x4()
+        source_volume.GetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
+
+        # :COMMENT: Apply the metadata to the target volume.
+        target_volume.SetSpacing(spacing)
+        target_volume.SetOrigin(origin)
+        target_volume.SetIJKToRASDirectionMatrix(ijk_to_ras_direction_matrix)
 
 
 class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
@@ -562,6 +566,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 for volume in mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
                 if not volume.GetName().endswith("ROI Mask")
                 and not volume.GetName().endswith("ROI Volume")
+                and not volume.GetName().endswith("Difference Map")
             ]
 
         def update_panel(variation: str = "all") -> None:
@@ -2045,7 +2050,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.metrics_combo_box = self.get_ui(ctkComboBox, "ComboMetrics")
         self.interpolator_combo_box = self.get_ui(ctkComboBox, "comboBoxInterpolator")
         self.optimizers_combo_box = self.get_ui(ctkComboBox, "ComboOptimizers")
-        self.metric_related_value_spin_box = self.get_ui(QDoubleSpinBox, "spinBoxMetricValue")
+        self.metric_related_value_spin_box = self.get_ui(
+            QDoubleSpinBox, "spinBoxMetricValue"
+        )
         self.metric_related_value_label = self.get_ui(QLabel, "RegistrationMetricLabel")
         self.sampling_strat_combo_box = self.get_ui(
             ctkComboBox, "comboBoxSamplingStrat"
@@ -2155,7 +2162,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 "Mean Squares",
                 "Mattes Mutual Information",
                 "Joint Histogram Mutual Information",
-                "Correlation"
+                "Correlation",
             ]
         )
         self.optimizers_combo_box.addItems(["Gradient Descent", "Exhaustive", "LBFGSB"])
@@ -2187,9 +2194,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.optimizers_combo_box.currentIndexChanged.connect(
             self.update_registration_optimizer
         )
-        self.metrics_combo_box.currentIndexChanged.connect(
-            self.update_metrics_value
-        )
+        self.metrics_combo_box.currentIndexChanged.connect(self.update_metrics_value)
         self.sitk_combo_box.activated.connect(
             lambda: self.update_registration(True, self.sitk_combo_box.currentIndex)
         )
@@ -2255,7 +2260,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.lbfgs2_box.collapsed = 0
             self.scale_factor.text = "1, 1, 1"
             self.scale_factor.setEnabled(False)
-
 
     def update_metrics_value(self) -> None:
         """
@@ -2377,7 +2381,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             data_dictionary: the dictionary to fill.
         """
         # :COMMENT:---- User settings retrieve -----
-        data_dictionary["histogram_bin_count"] = int(self.metric_related_value_spin_box.value)
+        data_dictionary["histogram_bin_count"] = int(
+            self.metric_related_value_spin_box.value
+        )
         # :COMMENT: Sampling strategies range from 0 to 2, they are enums (None, Regular, Random), thus index is sufficient
         data_dictionary[
             "sampling_strategy"
@@ -2437,7 +2443,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self, scriptPath, fixed_image, moving_image, input
     ) -> None:
         """
-        Calls parallelProcessing extesion and execute a registration script as a background task.
+        Calls parallelProcessing extension and execute a registration script as a background task.
 
         Parameters:
             scriptPath: the path to the script.
@@ -2497,7 +2503,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.button_cancel.setEnabled(False)
         # :COMMENT: Log the registration.
         if not self.registration_cancelled:
-            if (self.regProcess and self.regProcess.registration_completed) or self.elastix_logic:
+            if (
+                self.regProcess and self.regProcess.registration_completed
+            ) or self.elastix_logic:
                 assert self.input_volume
                 print(
                     f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
@@ -2700,10 +2708,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Sets up the difference map computation by retrieving and connecting the UI data.
         """
 
+        self.ALGORITHMS = ["Mean squared error", "Gradient"]
+
         self.algorithms_difference_map_combo_box = self.get_ui(
             ctkComboBox, "mapFunction"
         )
-        for algo in ["Mean squared error", "Gradient"]:
+        for algo in self.ALGORITHMS:
             self.algorithms_difference_map_combo_box.addItem(algo)
         self.algorithms_difference_map_combo_box.setCurrentIndex(-1)
 
@@ -2736,7 +2746,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :COMMENT: Nothing to update!
 
-    def compute_difference_map(self):
+    def compute_difference_map(self) -> None:
         """
         Applies the choosen algorithm for difference map (Gradient or MSE)
         """
@@ -2746,7 +2756,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             return
 
         algorithm = self.algorithms_difference_map_combo_box.currentText
-        if algorithm not in ["Mean squared error", "Gradient"]:
+        if algorithm not in self.ALGORITHMS:
             self.display_error_message("Please select an algorithm.")
             return
 
@@ -2759,7 +2769,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 ) = self.logic.difference_map(
                     self.input_volume,
                     self.target_volume,
-                    f"{self.input_volume.GetName()}_{self.target_volume.GetName()}_MSEDifferenceMap",
+                    f"{self.input_volume.GetName()} {self.target_volume.GetName()} P{self.spin_box.value} MSE Difference Map",
                     "absolute",
                     self.spin_box.value,
                 )
@@ -2771,7 +2781,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 ) = self.logic.difference_map(
                     self.input_volume,
                     self.target_volume,
-                    f"{self.input_volume.GetName()}_{self.target_volume.GetName()}_GradientDifferenceMap",
+                    f"{self.input_volume.GetName()} {self.target_volume.GetName()} P{self.spin_box.value} Gradient Difference Map",
                     "gradient",
                     self.spin_box.value,
                 )
@@ -2786,7 +2796,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.mean.text = difference_map_mean
         self.plot_difference_map()
 
-    def plot_difference_map(self):
+    def plot_difference_map(self) -> None:
         """
         Plots the difference map on the yellow window and apply a Look Up Table
         """
@@ -3059,7 +3069,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         msg.setWindowTitle("Error")
         msg.exec_()
 
-    def get_volume_by_name(self, name: str):
+    def get_volume_by_name(self, name: str) -> vtkMRMLScalarVolumeDisplayNode:
         """
         Retrieves a volume by its name.
 
@@ -3327,9 +3337,9 @@ class RegistrationProcess(Process):
                 self.message_error = output["error"]
                 self.registration_completed = False
                 return
-            print( "Optimizer stop condition: " + output["stop_condition"])
+            print("Optimizer stop condition: " + output["stop_condition"])
             print("Number of iteration: " + str(output["nb_iteration"]))
-            print("Metric value: " + str(output["metric_value"]) )
+            print("Metric value: " + str(output["metric_value"]))
             su.PushVolumeToSlicer(image_resampled, name=volume_name)
 
 
