@@ -62,9 +62,9 @@ class CustomRegistration(ScriptedLoadableModule):
     def __init__(self, parent) -> None:
         ScriptedLoadableModule.__init__(self, parent)
 
-        self.parent.title = "CustomRegistration"
-        self.parent.categories = ["PFE"]
-        self.parent.dependencies = []
+        self.parent.title = "Custom Registration"
+        self.parent.categories = ["", "Registration", "PFE"]
+        self.parent.dependencies = ["Elastix", "Processes"]
         self.parent.contributors = [
             "Wissam Boussella (Université de Bordeaux)",
             "Iantsa Provost (Université de Bordeaux)",
@@ -72,7 +72,7 @@ class CustomRegistration(ScriptedLoadableModule):
             "Tony Wolff (Université de Bordeaux)",
         ]
         self.parent.helpText = "This module provides features for 3D images registration, based on the ITK library."
-        self.parent.acknowledgementText = "This project is supported and supervised by the reseacher and professor Fabien Baldacci (Université de Bordeaux)."
+        self.parent.acknowledgementText = "This project is supported and supervised by the reseachers and professors Fabien Baldacci (Université de Bordeaux) and Pascal Desbarats (Université de Bordeaux)."
 
 
 class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
@@ -2243,7 +2243,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.scale_factor.text = "1, 2, 4"
         self.scale_factor.setEnabled(True)
 
-
     def update_registration_optimizer(self) -> None:
         """
         Update the UI according to selected optimizer by user.
@@ -2438,7 +2437,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         data_dictionary["demons_nb_iter"] = int(self.demons_nb_iter.text)
         data_dictionary["demons_std_dev"] = float(self.demons_std_deviation.text)
 
-    # :TODO:Tony: déporter les tests dans ce fichier
     def custom_script_registration(
         self, scriptPath, fixed_image, moving_image, input
     ) -> None:
@@ -2479,6 +2477,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             Elastix.RegistrationPresets_ParameterFilenames
         ]
         current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        assert self.input_volume
         volume_name = f"{self.input_volume.GetName()}_registered_{current_time}"
         new_volume = mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", volume_name)
         try:
