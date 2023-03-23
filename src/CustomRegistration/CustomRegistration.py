@@ -30,6 +30,7 @@ from qt import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QRadioButton,
     QSlider,
     QSpinBox,
     QTimer,
@@ -498,7 +499,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.setup_pascal_only_mode()
         self.setup_roi_selection()
         self.setup_cropping()
-        self.setup_automatic_cropping()
         self.setup_resampling()
         self.setup_registration()
         self.setup_difference_map()
@@ -653,7 +653,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.update_view()
         self.update_pascal_only_mode()
         self.update_roi_selection()
-        self.update_cropping("manual")
+        self.update_cropping()
         self.update_resampling()
         self.update_plugin_loading()
 
@@ -1538,67 +1538,104 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_cropping(self) -> None:
         """
-        …
+        Sets up the cropping feature by retreiving the UI, connecting the elements, and initializing the data.
         """
 
-        #
-
         # Get the collapsible button.
-        self.cropping_collapsible_button = self.get_ui(
-            ctkCollapsibleButton, "CroppingCollapsibleWidget"
-        )
-        self.cropping_collapsible_button.clicked.connect(
-            lambda: self.update_cropping("manual")
-        )
-        # :TODO:Iantsa: Change "manual" right above to trigger the correct switch (manual vs. automatic).
+        self.cropping_collapsible_button = self.get_ui(ctkCollapsibleButton, "CroppingCollapsibleWidget")
 
-        # Get the crop button widget.
-        self.cropping_button = self.get_ui(QPushButton, "CroppingButton")
-        self.cropping_button.clicked.connect(self.crop)
+        # Get the cropping mode radio buttons.
+        self.automatic_cropping_mode = False
 
-        # Get the coordinates spinbox widgets.
-        self.cropping_start = []
-        self.cropping_end = []
+        def update_cropping_mode(mode: str) -> None:
+            """
+            Updates the cropping mode to either "manual" or "automatic".
+            """
+
+            assert mode in ["automatic", "manual"]
+            self.cropping_preview_allowed = False
+            self.cropped_volume = None
+            self.automatic_cropping_mode = mode == "automatic"
+            self.update_cropping()
+            self.cropping_preview_allowed = True
+
+        # Get and connect the manual/automatic mode radio buttons.
+        manual_cropping_radio_button = self.get_ui(QRadioButton, "ManualCroppingRadioButton")
+        manual_cropping_radio_button.toggled.connect(lambda: update_cropping_mode("manual"))
+        automatic_cropping_radio_button = self.get_ui(QRadioButton, "AutomaticCroppingRadioButton")
+        automatic_cropping_radio_button.toggled.connect(lambda: update_cropping_mode("automatic"))
+
+        # Connect the collapsible button to the update method.
+        self.cropping_collapsible_button.clicked.connect(self.update_cropping)
+
+        # Get and connect the manual crop button.
+        manual_cropping_button = self.get_ui(QPushButton, "ManualCroppingButton")
+        manual_cropping_button.clicked.connect(self.manual_crop)
+
+        # Get and connect the coordinates spinboxes for the cropping start and end positions.
+        self.manual_cropping_start = []
+        self.manual_cropping_end = []
         for axis, i in AXIS_MAP.items():
-            self.cropping_start.append(self.get_ui(QSpinBox, "s" + axis))
-            self.cropping_end.append(self.get_ui(QSpinBox, "e" + axis))
+            self.manual_cropping_start.append(self.get_ui(QSpinBox, "s" + axis))
+            self.manual_cropping_end.append(self.get_ui(QSpinBox, "e" + axis))
+            self.manual_cropping_start[i].valueChanged.connect(self.update_cropping)
+            self.manual_cropping_end[i].valueChanged.connect(self.update_cropping)
 
-            # Connect the spinbox widgets to their "on changed" function that displays the cropping preview.
-            self.cropping_start[i].valueChanged.connect(
-                lambda: self.update_cropping("manual")
-            )
-            self.cropping_end[i].valueChanged.connect(
-                lambda: self.update_cropping("manual")
-            )
+        # Get and connect the automatic crop button.
+        automatic_cropping_button = self.get_ui(QPushButton, "AutomaticCroppingButton")
+        automatic_cropping_button.clicked.connect(self.automatic_crop)
 
-        # Initialize the cropping preview.
-        self.cropped_volume = None
+        # Get and connect the coordinates spinboxes for the cropping margins.
+        self.automatic_cropping_margins = []
+        for axis, i in AXIS_MAP.items():
+            self.automatic_cropping_margins.append(self.get_ui(QSpinBox, axis + "Margin"))
+            MAXIMUM_AUTOMATIC_ROPPING_MARGIN = 1000000 # No automatic detection, so manual preset.
+            self.automatic_cropping_margins[i].setMaximum(MAXIMUM_AUTOMATIC_ROPPING_MARGIN)
+            self.automatic_cropping_margins[i].valueChanged.connect(self.update_cropping)
+
+        # Initialize the cropping preview data.
         self.cropping_box = None
+        self.cropped_volume = None
         self.cropping_preview_allowed = True
+
+        # Initialize the cropping feature.
         self.reset_cropping()
 
     def reset_cropping(self) -> None:
         """
-        …
+        Resets the cropping feature to its initial state.
         """
 
-        # Reset the cropping values.
+        # Block the preview (to avoid bugs when changing the cropping parameters.)
         self.cropping_preview_allowed = False
+
+        # Reset the manual/automatic cropping parameters.
         for i in range(3):
-            self.cropping_start[i].value = 0
-            self.cropping_end[i].value = 0
-        self.cropping_preview_allowed = True
+            self.manual_cropping_start[i].value = 0
+            self.manual_cropping_end[i].value = 0
+            self.automatic_cropping_margins[i].value = 0
+
+        # Collapse the cropping area.
         self.cropping_collapsible_button.collapsed = True
 
-        # Update the cropping.
-        self.update_cropping("manual")
+        # Unblock the preview.
+        self.cropping_preview_allowed = False
 
-    def update_cropping(self, variation: str) -> None:
+        # Update the cropping feature.
+        self.update_cropping()
+
+    def update_cropping(self) -> None:
         """
-        …
+        Updates the cropping feature UI and views according to the data.
         """
 
-        assert variation in ["manual", "automatic"]
+        # Display the defined mode parameters.
+        if self.automatic_cropping_mode:
+            self.get_ui(QGroupBox, "ManualCroppingGroupBox").setVisible(False)
+            self.get_ui(QGroupBox, "AutomaticCroppingGroupBox").setVisible(True)
+        else:
+            self.get_ui(QGroupBox, "ManualCroppingGroupBox").setVisible(True)
+            self.get_ui(QGroupBox, "AutomaticCroppingGroupBox").setVisible(False)
 
         # Hide the cropping box by default.
         if self.cropping_box and self.cropping_box.GetDisplayNode():
@@ -1607,32 +1644,24 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if not self.input_volume:
             return
 
-        # Reset the cropping value ranges.
+        # Reset the manual cropping value ranges.
         input_volume_image_data = self.input_volume.GetImageData()
         input_volume_dimensions = input_volume_image_data.GetDimensions()
         self.cropping_preview_allowed = False
         for i in range(3):
-            self.cropping_start[i].setMaximum(input_volume_dimensions[i])
-            self.cropping_end[i].setMaximum(input_volume_dimensions[i])
+            self.manual_cropping_start[i].setMaximum(input_volume_dimensions[i])
+            self.manual_cropping_end[i].setMaximum(input_volume_dimensions[i])
         self.cropping_preview_allowed = True
 
-        if (
-            variation == "manual"
-            and self.cropping_collapsible_button.isChecked()
-            and self.cropping_preview_allowed
-        ):
-            self.preview_cropping()
-
-        if (
-            variation == "automatic"
-            and self.cropping_collapsible_button.isChecked()
-            and self.cropping_preview_allowed
-        ):
+        # Preview the cropping box.
+        if self.automatic_cropping_mode:
             self.preview_automatic_cropping()
+        else:
+            self.preview_manual_cropping()
 
-    def preview_cropping(self) -> None:
+    def preview_manual_cropping(self) -> None:
         """
-        …
+        Previews the manual cropping box.
         """
 
         # :DIRTY/TRICKY:Iantsa: Volume cropped each time a parameter is changed by user, even if the volume is not cropped in the end.
@@ -1640,15 +1669,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Set the update rule to blocked.
         self.update_allowed = False
 
-        # Remove the previous cropping box if needed.
+        # Remove the previous cropping box.
         if self.cropping_box:
             mrmlScene.RemoveNode(self.cropping_box)
             self.cropping_box = None
 
-        # Ensure that the input volume is not None.
-        if not self.input_volume:
+        # Ensure that the preview can be carried out.
+        if not self.cropping_collapsible_button.isChecked() or not self.cropping_preview_allowed or not self.input_volume:
             self.cropped_volume = None
-            self.cropping_box = None
             self.update_allowed = True
             return
 
@@ -1656,13 +1684,12 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         start_val = []
         end_val = []
         for i in range(3):
-            start_val.append(self.cropping_start[i].value)
-            end_val.append(self.cropping_end[i].value)
+            start_val.append(self.manual_cropping_start[i].value)
+            end_val.append(self.manual_cropping_end[i].value)
 
         # Check that coordinates are valid.
         if any(end_val[i] <= start_val[i] for i in range(3)):
             self.cropped_volume = None
-            self.cropping_box = None
             self.update_allowed = True
             return
 
@@ -1670,9 +1697,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropped_volume = self.logic.crop(self.input_volume, start_val, end_val)
 
         # Create a new cropping box.
-        self.cropping_box = mrmlScene.AddNewNodeByClass(
-            "vtkMRMLMarkupsROINode", "Cropping Preview"
-        )
+        self.cropping_box = mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", "Cropping Preview")
         self.cropping_box.SetLocked(True)
 
         # Display cropping box only in red view.
@@ -1682,7 +1707,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         bounds = [0, 0, 0, 0, 0, 0]
         self.cropped_volume.GetBounds(bounds)
 
-        # Get the size of the crop region.
+        # Get the size of the cropped region.
         size = [end_val[i] - start_val[i] for i in range(3)]
 
         # Calculate the center and radius of the volume.
@@ -1692,20 +1717,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Transform the center and radius according to the volume's orientation and spacing.
         matrix = vtk.vtkMatrix4x4()
         self.input_volume.GetIJKToRASDirectionMatrix(matrix)
-        transform_matrix = np.array(
-            [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
-        )
+        transform_matrix = np.array([[matrix.GetElement(i, j) for j in range(3)] for i in range(3)])
         transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
-        transformed_radius = np.matmul(
-            transform_matrix,
-            np.array(self.cropped_volume.GetSpacing()) * np.array(radius),
-        )
+        transformed_radius = np.matmul(transform_matrix, np.array(self.cropped_volume.GetSpacing()) * np.array(radius))
 
         # Set the center and radius of the cropping box to the transformed center and radius.
         self.cropping_box.SetXYZ(transformed_center)
         self.cropping_box.SetRadiusXYZ(transformed_radius)
 
-        # Show the automatic cropping preview.
+        # Show the cropping preview.
         self.cropping_box.GetDisplayNode().SetVisibility(True)
 
         # Set the update rule to allowed.
@@ -1713,114 +1733,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :END_DIRTY/TRICKY:Iantsa:
 
-    def crop(self) -> None:
-        """
-        …
-        """
-
-        # Ensure that a volume is selected.
-        if not self.input_volume:
-            self.display_error_message("Please select a volume to crop.")
-            return
-
-        # :BUG:Iantsa: Not handled yet (can be non existent if crop button clicked without changing the default parameters)
-        if not self.cropped_volume:  # and not self.cropping_box:
-            return
-
-        # Retrieve coordinates input.
-        # :DIRTY:Iantsa: This is done twice: in preview and in crop.
-        start_val = []
-        end_val = []
-        for i in range(3):
-            start_val.append(self.cropping_start[i].value)
-            end_val.append(self.cropping_end[i].value)
-
-        # Check that coordinates are valid.
-        if any(end_val[i] <= start_val[i] for i in range(3)):
-            self.display_error_message("End values must be greater than start values.")
-            return
-
-        # Delete the cropping box (should exist if cropped_volume also exists)
-        assert self.cropping_box
-        self.update_allowed = False
-        mrmlScene.RemoveNode(self.cropping_box)
-        self.cropping_box = None
-        self.update_allowed = True
-
-        # Add the cropped volume to the scene.
-        self.add_new_volume(self.cropped_volume, "cropped")
-
-        # Log the cropping.
-        new_size = self.cropped_volume.GetImageData().GetDimensions()
-        print(
-            f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{self.cropped_volume.GetName()}".'
-        )
-
-        # Reset the cropping.
-        self.reset_cropping()
-
-        # Select the cropped volume.
-        self.choose_input_volume(len(self.volumes) - 1)
-
-        # Delete the temporary cropped volume.
-        self.cropped_volume = None
-        self.cropping_box = None
-
-    #
-    # AUTOMATIC CROPPING
-    #
-
-    def setup_automatic_cropping(self) -> None:
-        """
-        Sets up the automatic cropping widget by linking the UI to the scene and algorithm.
-        """
-
-        # Collapsible button and cropping data handled by manual cropping setup.
-
-        # Get the automatic crop button widget.
-        self.automatic_cropping_button = self.get_ui(
-            QPushButton, "AutomaticCroppingButton"
-        )
-        self.automatic_cropping_button.clicked.connect(self.automatic_crop)
-
-        # Get the coordinates spinbox widgets.
-        self.automatic_cropping_margins = []
-        for axis, i in AXIS_MAP.items():
-            self.automatic_cropping_margins.append(
-                self.get_ui(QSpinBox, axis + "Margin")
-            )
-            # :DIRTY:Iantsa: Magic number.
-            self.automatic_cropping_margins[i].setMaximum(2000)
-
-            # Connect the spinbox widgets to their "on changed" function that displays the automatic cropping preview.
-            self.automatic_cropping_margins[i].valueChanged.connect(
-                lambda: self.update_cropping("automatic")
-            )
-
-        self.reset_automatic_cropping()
-
-        # :TODO:Iantsa: Initialize the cropping volume/box with 0 margin instead of None.
-
-    def reset_automatic_cropping(self) -> None:
-        """
-        Reset the automatic cropping parameters.
-        """
-
-        # Reset the cropping values.
-        self.cropping_preview_allowed = False
-        for i in range(3):
-            self.automatic_cropping_margins[i].value = 0
-        self.cropping_preview_allowed = True
-        self.cropping_collapsible_button.collapsed = True
-
-        # Update the cropping.
-        self.update_cropping("automatic")
-
     def preview_automatic_cropping(self) -> None:
         """
-        Generates a bounding box to preview the automatic cropping.
-
-        Called when a margin parameter spin box value is changed.
+        Previews the automatic cropping box.
         """
 
         # :DIRTY/TRICKY:Iantsa: Volume cropped each time a parameter is changed by user, even if the volume is not cropped in the end.
@@ -1833,10 +1748,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             mrmlScene.RemoveNode(self.cropping_box)
             self.cropping_box = None
 
-        # Ensure that a volume is selected.
-        if not self.input_volume:
+        # Ensure that the preview can be carried out.
+        if not self.cropping_collapsible_button.isChecked() or not self.cropping_preview_allowed or not self.input_volume:
             self.cropped_volume = None
-            self.cropping_box = None
             self.update_allowed = True
             return
 
@@ -1846,10 +1760,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Ensure that a ROI has been selected.
         if name not in self.volume_roi_map:
             self.cropped_volume = None
-            self.cropping_box = None
-            self.display_error_message("Please select a ROI.")
+            self.update_allowed = True
             return
-        roi = self.volume_roi_map[name]  # type: ignore
+
+        # Retrieve the ROI.
+        roi = self.volume_roi_map[name]
 
         # Retrieve margins input.
         margins = []
@@ -1858,30 +1773,25 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Save the temporary cropped volume.
         try:
-            self.cropped_volume, start_val, end_val = self.logic.automatic_crop(
-                self.input_volume, roi, margins
-            )
+            self.cropped_volume, start_val, end_val = self.logic.automatic_crop(self.input_volume, roi, margins)
         except AutocroppingValueError as e:
             self.cropping_preview_allowed = False
             spin_box = self.automatic_cropping_margins[AXIS_MAP[e.axis]]
             spin_box.setValue(0)
-            self.cropping_preview_allowed = True
             self.cropped_volume = None
-            self.cropping_box = None
+            self.update_allowed = True
+            self.cropping_preview_allowed = True
             self.display_error_message(str(e))
             return
 
+        # Ensure that the cropped volume is not empty.
         if not self.cropped_volume:
-            self.cropping_box = None
-            self.display_error_message(
-                "Empty ROI selection. Please select a ROI again."
-            )
+            self.update_allowed = True
+            self.display_error_message("Empty ROI selection. Please select a ROI again.")
             return
 
         # Create a new cropping box.
-        self.cropping_box = mrmlScene.AddNewNodeByClass(
-            "vtkMRMLMarkupsROINode", "Automatic Cropping Preview"
-        )
+        self.cropping_box = mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", "Cropping Preview")
         self.cropping_box.SetLocked(True)
 
         # Display cropping box only in red view.
@@ -1891,30 +1801,25 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         bounds = [0, 0, 0, 0, 0, 0]
         self.cropped_volume.GetBounds(bounds)
 
-        # Compute the size of ROI.
+        # Compute the size of the cropped region.
         size = [end_val[i] - start_val[i] for i in range(3)]
 
-        # Calculate the center and radius of the ROI.
+        # Calculate the center and radius of the volume.
         center = [(bounds[i] + bounds[i + 1]) / 2 for i in range(0, 5, 2)]
         radius = [size[i] / 2 for i in range(3)]
 
         # Transform the center and radius according to the volume's orientation and spacing.
         matrix = vtk.vtkMatrix4x4()
         self.input_volume.GetIJKToRASDirectionMatrix(matrix)
-        transform_matrix = np.array(
-            [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
-        )
+        transform_matrix = np.array([[matrix.GetElement(i, j) for j in range(3)] for i in range(3)])
         transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
-        transformed_radius = np.matmul(
-            transform_matrix,
-            np.array(self.input_volume.GetSpacing()) * np.array(radius),
-        )
+        transformed_radius = np.matmul(transform_matrix, np.array(self.input_volume.GetSpacing()) * np.array(radius))
 
         # Set the center and radius of the cropping box to the transformed center and radius.
         self.cropping_box.SetXYZ(transformed_center)
         self.cropping_box.SetRadiusXYZ(transformed_radius)
 
-        # Show the automatic cropping preview.
+        # Show the cropping preview.
         self.cropping_box.GetDisplayNode().SetVisibility(True)
 
         # Set the update rule to allowed.
@@ -1922,52 +1827,98 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # :END_DIRTY/TRICKY:Iantsa:
 
-    def automatic_crop(self) -> None:
+    def manual_crop(self) -> None:
         """
-        Crops a volume using the selected ROI and margins.
+        Launches the input volume manual cropping.
         """
 
-        # Ensure that a volume is selected.
+        # Ensure that a volume is selected as input.
         if not self.input_volume:
-            self.display_error_message("Please select a volume to automatically crop.")
+            self.display_error_message("Please select a volume to crop.")
             return
 
-        # :BUG:Iantsa: Not handled yet (can be non existent if crop button clicked without changing the default parameters)
-        if not self.cropped_volume:  # and not self.cropping_box:
-            self.display_error_message(
-                "Margin out of bound. Please enter valid parameters."
-            )
+        # Ensure that the preview has successfully cropped the input volume.
+        if not self.cropped_volume:
+            self.preview_manual_cropping()
+
+        # Retrieve coordinates input.
+        start_val = []
+        end_val = []
+        for i in range(3):
+            start_val.append(self.manual_cropping_start[i].value)
+            end_val.append(self.manual_cropping_end[i].value)
+
+        # Check that coordinates are valid.
+        if any(end_val[i] <= start_val[i] for i in range(3)):
+            self.display_error_message("End values must be greater than start values.")
             return
 
-        # :BUG:Iantsa: Cannot ensure that coordinates are valid.
+        # Save the cropped volume reference.
+        volume = self.cropped_volume
 
-        # Delete the cropping box (should exist if cropped_volume also exists)
+        # Delete the cropping box and the cropped volume.
         assert self.cropping_box
         self.update_allowed = False
         mrmlScene.RemoveNode(self.cropping_box)
         self.cropping_box = None
+        self.cropped_volume = None
         self.update_allowed = True
 
-        volume = self.cropped_volume
+        # Add the cropped volume to the scene.
+        self.add_new_volume(volume, "cropped")
 
-        # Add the VTK volume to the scene.
-        self.add_new_volume(self.cropped_volume, "cropped")
-
-        # Log the automatic cropping.
+        # Log the manual cropping.
         new_size = volume.GetImageData().GetDimensions()
-        print(
-            f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{volume.GetName()}".'
-        )
+        print(f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{volume.GetName()}".')
 
         # Reset the cropping.
-        self.reset_automatic_cropping()
+        self.reset_cropping()
 
         # Select the cropped volume.
         self.choose_input_volume(len(self.volumes) - 1)
 
-        # Delete the temporary cropped volume.
-        self.cropped_volume = None
+    def automatic_crop(self) -> None:
+        """
+        Launches the input volume automatic cropping.
+        """
+
+        # Ensure that a volume is selected as input.
+        if not self.input_volume:
+            self.display_error_message("Please select a volume to crop.")
+            return
+
+        # Ensure that a ROI is selected.
+        if self.input_volume.GetName() not in self.volume_roi_map:
+            self.display_error_message("Please select a ROI for this input volume first.")
+            return
+
+        # Ensure that the preview has successfully cropped the input volume.
+        if not self.cropped_volume:
+            self.preview_automatic_cropping()
+
+        # Save the cropped volume reference.
+        volume = self.cropped_volume
+
+        # Delete the cropping box and the cropped volume.
+        assert self.cropping_box
+        self.update_allowed = False
+        mrmlScene.RemoveNode(self.cropping_box)
         self.cropping_box = None
+        self.cropped_volume = None
+        self.update_allowed = True
+
+        # Add the cropped volume to the scene.
+        self.add_new_volume(volume, "cropped")
+
+        # Log the automatic cropping.
+        new_size = volume.GetImageData().GetDimensions()
+        print(f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{volume.GetName()}".')
+
+        # Reset the cropping.
+        self.reset_cropping()
+
+        # Select the cropped volume.
+        self.choose_input_volume(len(self.volumes) - 1)
 
     #
     # RESAMPLING

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>401</width>
-    <height>2482</height>
+    <width>442</width>
+    <height>2794</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -97,7 +97,6 @@
        <widget class="QLabel" name="InputVolumeLabel">
         <property name="font">
          <font>
-          <weight>75</weight>
           <bold>true</bold>
          </font>
         </property>
@@ -108,7 +107,7 @@
       </item>
       <item>
        <widget class="ctkComboBox" name="InputVolumeComboBox">
-        <property name="defaultText">
+        <property name="defaultText" stdset="0">
          <string>Select a volume…</string>
         </property>
        </widget>
@@ -174,7 +173,6 @@
        <widget class="QLabel" name="TargetVolumeLabel">
         <property name="font">
          <font>
-          <weight>75</weight>
           <bold>true</bold>
          </font>
         </property>
@@ -185,7 +183,7 @@
       </item>
       <item>
        <widget class="ctkComboBox" name="TargetVolumeComboBox">
-        <property name="defaultText">
+        <property name="defaultText" stdset="0">
          <string>Select a volume…</string>
         </property>
        </widget>
@@ -246,11 +244,11 @@
     </spacer>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="PreprocessingCollapsibleWidget">
-     <property name="text">
+    <widget class="ctkCollapsibleButton" name="PreprocessingCollapsibleWidget" native="true">
+     <property name="text" stdset="0">
       <string>Preprocessing</string>
      </property>
-     <property name="collapsed">
+     <property name="collapsed" stdset="0">
       <bool>false</bool>
      </property>
      <layout class="QVBoxLayout" name="PreprocessingVerticalLayout" stretch="0,0,0">
@@ -270,14 +268,14 @@
        <number>12</number>
       </property>
       <item>
-       <widget class="ctkCollapsibleButton" name="ROISelectionCollapsibleWidget">
-        <property name="text">
+       <widget class="ctkCollapsibleButton" name="ROISelectionCollapsibleWidget" native="true">
+        <property name="text" stdset="0">
          <string>ROI Selection</string>
         </property>
-        <property name="collapsed">
+        <property name="collapsed" stdset="0">
          <bool>false</bool>
         </property>
-        <property name="flat">
+        <property name="flat" stdset="0">
          <bool>false</bool>
         </property>
         <layout class="QVBoxLayout" name="ROISelectionVerticalLayout">
@@ -400,14 +398,14 @@
        </widget>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="CroppingCollapsibleWidget">
+       <widget class="ctkCollapsibleButton" name="CroppingCollapsibleWidget" native="true">
         <property name="enabled">
          <bool>true</bool>
         </property>
-        <property name="text">
+        <property name="text" stdset="0">
          <string>Cropping</string>
         </property>
-        <property name="collapsed">
+        <property name="collapsed" stdset="0">
          <bool>false</bool>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout">
@@ -427,154 +425,241 @@
           <number>12</number>
          </property>
          <item>
-          <widget class="QLabel" name="CroppingInstructionLabel">
-           <property name="text">
-            <string>Crop a volume according to a start point and an end point.</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QGridLayout" name="CroppingLayout">
-           <item row="3" column="2">
-            <widget class="QSpinBox" name="ez"/>
+          <layout class="QGridLayout" name="CroppingModeLayout">
+           <item row="0" column="0">
+            <widget class="QRadioButton" name="ManualCroppingRadioButton">
+             <property name="text">
+              <string>Manual</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
            </item>
            <item row="0" column="1">
-            <widget class="QLabel" name="StartLabel">
+            <widget class="QRadioButton" name="AutomaticCroppingRadioButton">
              <property name="text">
-              <string>Start</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
+              <string>Automatic</string>
              </property>
             </widget>
-           </item>
-           <item row="0" column="2">
-            <widget class="QLabel" name="EndLabel">
-             <property name="text">
-              <string>End</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="2">
-            <widget class="QSpinBox" name="ex"/>
-           </item>
-           <item row="2" column="0">
-            <widget class="QLabel" name="YLabel">
-             <property name="text">
-              <string>Y</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QSpinBox" name="sx"/>
-           </item>
-           <item row="2" column="1">
-            <widget class="QSpinBox" name="sy"/>
-           </item>
-           <item row="3" column="1">
-            <widget class="QSpinBox" name="sz"/>
-           </item>
-           <item row="2" column="2">
-            <widget class="QSpinBox" name="ey"/>
-           </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="XLabel">
-             <property name="text">
-              <string>X</string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="0">
-            <widget class="QLabel" name="ZLabel">
-             <property name="text">
-              <string>Z</string>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="0">
-            <layout class="QFormLayout" name="formLayout"/>
            </item>
           </layout>
          </item>
          <item>
-          <widget class="QPushButton" name="CroppingButton">
-           <property name="text">
-            <string>Crop</string>
-           </property>
+          <widget class="QGroupBox" name="ManualCroppingGroupBox">
+           <layout class="QVBoxLayout" name="ManualCroppingLayout">
+            <property name="spacing">
+             <number>6</number>
+            </property>
+            <property name="leftMargin">
+             <number>6</number>
+            </property>
+            <property name="topMargin">
+             <number>6</number>
+            </property>
+            <property name="rightMargin">
+             <number>6</number>
+            </property>
+            <property name="bottomMargin">
+             <number>6</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="ManualCroppingTitleLabel">
+              <property name="font">
+               <font>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>Manual Cropping</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="ManualCroppingDescriptionLabel">
+              <property name="text">
+               <string>Crop a volume according to a start point and an end point.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QGridLayout" name="ManualCroppingParametersLayout">
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="sy"/>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="YLabel">
+                <property name="text">
+                 <string>Y</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <layout class="QFormLayout" name="formLayout"/>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="ez"/>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="ZLabel">
+                <property name="text">
+                 <string>Z</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="XLabel">
+                <property name="text">
+                 <string>X</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="ex"/>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="sx"/>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="ey"/>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="sz"/>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="EndLabel">
+                <property name="text">
+                 <string>End</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="StartLabel">
+                <property name="text">
+                 <string>Start</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="ManualCroppingButton">
+              <property name="text">
+               <string>Crop</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </widget>
          </item>
          <item>
-          <widget class="QLabel" name="AutomaticCroppingInstructionLabel">
-           <property name="text">
-            <string>Crop a volume according to ROI selection and margin in each axis.</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QGridLayout" name="gridLayout">
-           <property name="topMargin">
-            <number>0</number>
-           </property>
-           <item row="1" column="0">
-            <widget class="QLabel" name="AutomaticYLabel">
-             <property name="text">
-              <string>Y</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="0">
-            <widget class="QLabel" name="AutomaticXLabel">
-             <property name="minimumSize">
-              <size>
-               <width>110</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="lineWidth">
-              <number>0</number>
-             </property>
-             <property name="text">
-              <string>X</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="0">
-            <widget class="QLabel" name="AutomaticZLabel">
-             <property name="text">
-              <string>Z</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="1" colspan="2">
-            <widget class="QSpinBox" name="xMargin"/>
-           </item>
-           <item row="1" column="1" colspan="2">
-            <widget class="QSpinBox" name="yMargin"/>
-           </item>
-           <item row="2" column="1" colspan="2">
-            <widget class="QSpinBox" name="zMargin"/>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <widget class="QPushButton" name="AutomaticCroppingButton">
-           <property name="text">
-            <string>Automatic Crop</string>
-           </property>
+          <widget class="QGroupBox" name="AutomaticCroppingGroupBox">
+           <layout class="QVBoxLayout" name="AutomaticCroppingLayout">
+            <property name="spacing">
+             <number>6</number>
+            </property>
+            <property name="leftMargin">
+             <number>6</number>
+            </property>
+            <property name="topMargin">
+             <number>6</number>
+            </property>
+            <property name="rightMargin">
+             <number>6</number>
+            </property>
+            <property name="bottomMargin">
+             <number>6</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="AutomaticCroppingTitleLabel">
+              <property name="font">
+               <font>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>Automatic Cropping</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="AutomaticCroppingDescriptionLabel">
+              <property name="text">
+               <string>Crop a volume according to ROI selection and margin in each axis.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QGridLayout" name="AutomaticCroppingParametersLabel">
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <item row="1" column="0">
+               <widget class="QLabel" name="AutomaticYLabel">
+                <property name="text">
+                 <string>Y</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="AutomaticXLabel">
+                <property name="minimumSize">
+                 <size>
+                  <width>110</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="lineWidth">
+                 <number>0</number>
+                </property>
+                <property name="text">
+                 <string>X</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="AutomaticZLabel">
+                <property name="text">
+                 <string>Z</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1" colspan="2">
+               <widget class="QSpinBox" name="xMargin"/>
+              </item>
+              <item row="1" column="1" colspan="2">
+               <widget class="QSpinBox" name="yMargin"/>
+              </item>
+              <item row="2" column="1" colspan="2">
+               <widget class="QSpinBox" name="zMargin"/>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="AutomaticCroppingButton">
+              <property name="text">
+               <string>Automatic Crop</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </widget>
          </item>
         </layout>
        </widget>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="ResamplingCollapsibleWidget">
-        <property name="text">
+       <widget class="ctkCollapsibleButton" name="ResamplingCollapsibleWidget" native="true">
+        <property name="text" stdset="0">
          <string>Resampling</string>
         </property>
-        <property name="collapsed">
+        <property name="collapsed" stdset="0">
          <bool>false</bool>
         </property>
         <layout class="QVBoxLayout" name="ResamplingVerticalLayout" stretch="0,0">
@@ -630,14 +715,14 @@
     </spacer>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="RegistrationCollapsibleWidget">
-     <property name="text">
+    <widget class="ctkCollapsibleButton" name="RegistrationCollapsibleWidget" native="true">
+     <property name="text" stdset="0">
       <string>Registration</string>
      </property>
-     <property name="collapsed">
+     <property name="collapsed" stdset="0">
       <bool>false</bool>
      </property>
-     <property name="flat">
+     <property name="flat" stdset="0">
       <bool>false</bool>
      </property>
      <property name="title" stdset="0">
@@ -669,7 +754,6 @@
           <widget class="QLabel" name="label_3">
            <property name="font">
             <font>
-             <weight>75</weight>
              <bold>true</bold>
             </font>
            </property>
@@ -689,7 +773,7 @@
               <string>sitk registration algorithms </string>
              </property>
              <property name="text">
-              <string>sitk</string>
+              <string>SimpleITK</string>
              </property>
             </widget>
            </item>
@@ -699,7 +783,7 @@
               <string>SlicerElastix registration algorithms</string>
              </property>
              <property name="text">
-              <string>elastix presets</string>
+              <string>Elastix</string>
              </property>
             </widget>
            </item>
@@ -725,7 +809,7 @@
         </item>
         <item row="1" column="1">
          <widget class="ctkComboBox" name="comboBoxInterpolator">
-          <property name="defaultText">
+          <property name="defaultText" stdset="0">
            <string>Interpolator…</string>
           </property>
          </widget>
@@ -742,7 +826,7 @@
         </item>
         <item row="2" column="1">
          <widget class="ctkComboBox" name="ComboOptimizers">
-          <property name="defaultText">
+          <property name="defaultText" stdset="0">
            <string>Optimizer…</string>
           </property>
          </widget>
@@ -761,7 +845,7 @@
             <height>16777215</height>
            </size>
           </property>
-          <property name="defaultText">
+          <property name="defaultText" stdset="0">
            <string>Metrics…</string>
           </property>
          </widget>
@@ -779,11 +863,11 @@
        </layout>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="RegistrationSettingsCollapsibleButton">
-        <property name="text">
+       <widget class="ctkCollapsibleButton" name="RegistrationSettingsCollapsibleButton" native="true">
+        <property name="text" stdset="0">
          <string>Settings</string>
         </property>
-        <property name="collapsed">
+        <property name="collapsed" stdset="0">
          <bool>false</bool>
         </property>
         <layout class="QVBoxLayout" name="RegistrationSettingsLayout">
@@ -873,7 +957,6 @@ The sampling strategy affects the speed and robustness of registration.</string>
              <widget class="QLabel" name="label_7">
               <property name="font">
                <font>
-                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -976,7 +1059,6 @@ For example, a smoothing factor of 2 means that Gaussian filter will have a stan
              <widget class="QLabel" name="label_12">
               <property name="font">
                <font>
-                <weight>75</weight>
                 <bold>true</bold>
                </font>
               </property>
@@ -1032,7 +1114,7 @@ It is a positive scalar value that specify the standard deviation for each dimen
            <property name="title">
             <string>Gradient Descent</string>
            </property>
-           <property name="collapsed">
+           <property name="collapsed" stdset="0">
             <bool>false</bool>
            </property>
            <layout class="QVBoxLayout" name="RegistrationGradientDescentLayout">
@@ -1131,7 +1213,7 @@ It is a positive scalar value that specify the standard deviation for each dimen
            <property name="title">
             <string>Exhaustive</string>
            </property>
-           <property name="collapsed">
+           <property name="collapsed" stdset="0">
             <bool>false</bool>
            </property>
            <layout class="QVBoxLayout" name="RegistrationExhaustiveLayout">
@@ -1320,7 +1402,7 @@ It is a positive scalar value that specify the standard deviation for each dimen
            <item row="1" column="1">
             <widget class="QLabel" name="label_status">
              <property name="text">
-              <string>status:</string>
+              <string>Status:</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignCenter</set>
@@ -1362,14 +1444,14 @@ It is a positive scalar value that specify the standard deviation for each dimen
     </spacer>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="DifferenceMapCollapsibleWidget">
-     <property name="text">
+    <widget class="ctkCollapsibleButton" name="DifferenceMapCollapsibleWidget" native="true">
+     <property name="text" stdset="0">
       <string>Difference Map</string>
      </property>
-     <property name="collapsed">
+     <property name="collapsed" stdset="0">
       <bool>false</bool>
      </property>
-     <property name="flat">
+     <property name="flat" stdset="0">
       <bool>false</bool>
      </property>
      <layout class="QVBoxLayout" name="DifferenceMapVerticalLayout">
@@ -1390,7 +1472,7 @@ It is a positive scalar value that specify the standard deviation for each dimen
       </property>
       <item>
        <widget class="ctkComboBox" name="mapFunction">
-        <property name="defaultText">
+        <property name="defaultText" stdset="0">
          <string>Algorithms</string>
         </property>
        </widget>
@@ -1453,11 +1535,11 @@ It is a positive scalar value that specify the standard deviation for each dimen
     </spacer>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="PluginLoadingCollapsibleWidget">
-     <property name="text">
+    <widget class="ctkCollapsibleButton" name="PluginLoadingCollapsibleWidget" native="true">
+     <property name="text" stdset="0">
       <string>Plugins</string>
      </property>
-     <property name="collapsed">
+     <property name="collapsed" stdset="0">
       <bool>false</bool>
      </property>
      <layout class="QVBoxLayout" name="PluginsVerticalLayout" stretch="0,0">
