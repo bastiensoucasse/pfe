@@ -1664,8 +1664,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Previews the manual cropping box.
         """
 
-        # :DIRTY/TRICKY:Iantsa: Volume cropped each time a parameter is changed by user, even if the volume is not cropped in the end.
-
         # Set the update rule to blocked.
         self.update_allowed = False
 
@@ -1731,14 +1729,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Set the update rule to allowed.
         self.update_allowed = True
 
-        # :END_DIRTY/TRICKY:Iantsa:
-
     def preview_automatic_cropping(self) -> None:
         """
         Previews the automatic cropping box.
         """
-
-        # :DIRTY/TRICKY:Iantsa: Volume cropped each time a parameter is changed by user, even if the volume is not cropped in the end.
 
         # Set the update rule to blocked.
         self.update_allowed = False
@@ -1825,8 +1819,6 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Set the update rule to allowed.
         self.update_allowed = True
 
-        # :END_DIRTY/TRICKY:Iantsa:
-
     def manual_crop(self) -> None:
         """
         Launches the input volume manual cropping.
@@ -1855,6 +1847,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Save the cropped volume reference.
         volume = self.cropped_volume
+        assert volume
 
         # Delete the cropping box and the cropped volume.
         assert self.cropping_box
@@ -1898,6 +1891,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Save the cropped volume reference.
         volume = self.cropped_volume
+        assert volume
 
         # Delete the cropping box and the cropped volume.
         assert self.cropping_box
