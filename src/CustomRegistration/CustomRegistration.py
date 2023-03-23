@@ -1542,7 +1542,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # Get the collapsible button.
-        self.cropping_collapsible_button = self.get_ui(ctkCollapsibleButton, "CroppingCollapsibleWidget")
+        self.cropping_collapsible_button = self.get_ui(
+            ctkCollapsibleButton, "CroppingCollapsibleWidget"
+        )
 
         # Get the cropping mode radio buttons.
         self.automatic_cropping_mode = False
@@ -1560,10 +1562,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropping_preview_allowed = True
 
         # Get and connect the manual/automatic mode radio buttons.
-        manual_cropping_radio_button = self.get_ui(QRadioButton, "ManualCroppingRadioButton")
-        manual_cropping_radio_button.toggled.connect(lambda: update_cropping_mode("manual"))
-        automatic_cropping_radio_button = self.get_ui(QRadioButton, "AutomaticCroppingRadioButton")
-        automatic_cropping_radio_button.toggled.connect(lambda: update_cropping_mode("automatic"))
+        manual_cropping_radio_button = self.get_ui(
+            QRadioButton, "ManualCroppingRadioButton"
+        )
+        manual_cropping_radio_button.toggled.connect(
+            lambda: update_cropping_mode("manual")
+        )
+        automatic_cropping_radio_button = self.get_ui(
+            QRadioButton, "AutomaticCroppingRadioButton"
+        )
+        automatic_cropping_radio_button.toggled.connect(
+            lambda: update_cropping_mode("automatic")
+        )
 
         # Connect the collapsible button to the update method.
         self.cropping_collapsible_button.clicked.connect(self.update_cropping)
@@ -1588,10 +1598,18 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Get and connect the coordinates spinboxes for the cropping margins.
         self.automatic_cropping_margins = []
         for axis, i in AXIS_MAP.items():
-            self.automatic_cropping_margins.append(self.get_ui(QSpinBox, axis + "Margin"))
-            MAXIMUM_AUTOMATIC_ROPPING_MARGIN = 1000000 # No automatic detection, so manual preset.
-            self.automatic_cropping_margins[i].setMaximum(MAXIMUM_AUTOMATIC_ROPPING_MARGIN)
-            self.automatic_cropping_margins[i].valueChanged.connect(self.update_cropping)
+            self.automatic_cropping_margins.append(
+                self.get_ui(QSpinBox, axis + "Margin")
+            )
+            MAXIMUM_AUTOMATIC_ROPPING_MARGIN = (
+                1000000  # No automatic detection, so manual preset.
+            )
+            self.automatic_cropping_margins[i].setMaximum(
+                MAXIMUM_AUTOMATIC_ROPPING_MARGIN
+            )
+            self.automatic_cropping_margins[i].valueChanged.connect(
+                self.update_cropping
+            )
 
         # Initialize the cropping preview data.
         self.cropping_box = None
@@ -1673,7 +1691,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropping_box = None
 
         # Ensure that the preview can be carried out.
-        if not self.cropping_collapsible_button.isChecked() or not self.cropping_preview_allowed or not self.input_volume:
+        if (
+            not self.cropping_collapsible_button.isChecked()
+            or not self.cropping_preview_allowed
+            or not self.input_volume
+        ):
             self.cropped_volume = None
             self.update_allowed = True
             return
@@ -1695,7 +1717,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.cropped_volume = self.logic.crop(self.input_volume, start_val, end_val)
 
         # Create a new cropping box.
-        self.cropping_box = mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", "Cropping Preview")
+        self.cropping_box = mrmlScene.AddNewNodeByClass(
+            "vtkMRMLMarkupsROINode", "Cropping Preview"
+        )
         self.cropping_box.SetLocked(True)
 
         # Display cropping box only in red view.
@@ -1715,9 +1739,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Transform the center and radius according to the volume's orientation and spacing.
         matrix = vtk.vtkMatrix4x4()
         self.input_volume.GetIJKToRASDirectionMatrix(matrix)
-        transform_matrix = np.array([[matrix.GetElement(i, j) for j in range(3)] for i in range(3)])
+        transform_matrix = np.array(
+            [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
+        )
         transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
-        transformed_radius = np.matmul(transform_matrix, np.array(self.cropped_volume.GetSpacing()) * np.array(radius))
+        transformed_radius = np.matmul(
+            transform_matrix,
+            np.array(self.cropped_volume.GetSpacing()) * np.array(radius),
+        )
 
         # Set the center and radius of the cropping box to the transformed center and radius.
         self.cropping_box.SetXYZ(transformed_center)
@@ -1743,7 +1772,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropping_box = None
 
         # Ensure that the preview can be carried out.
-        if not self.cropping_collapsible_button.isChecked() or not self.cropping_preview_allowed or not self.input_volume:
+        if (
+            not self.cropping_collapsible_button.isChecked()
+            or not self.cropping_preview_allowed
+            or not self.input_volume
+        ):
             self.cropped_volume = None
             self.update_allowed = True
             return
@@ -1767,7 +1800,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Save the temporary cropped volume.
         try:
-            self.cropped_volume, start_val, end_val = self.logic.automatic_crop(self.input_volume, roi, margins)
+            self.cropped_volume, start_val, end_val = self.logic.automatic_crop(
+                self.input_volume, roi, margins
+            )
         except AutocroppingValueError as e:
             self.cropping_preview_allowed = False
             spin_box = self.automatic_cropping_margins[AXIS_MAP[e.axis]]
@@ -1781,11 +1816,15 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Ensure that the cropped volume is not empty.
         if not self.cropped_volume:
             self.update_allowed = True
-            self.display_error_message("Empty ROI selection. Please select a ROI again.")
+            self.display_error_message(
+                "Empty ROI selection. Please select a ROI again."
+            )
             return
 
         # Create a new cropping box.
-        self.cropping_box = mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", "Cropping Preview")
+        self.cropping_box = mrmlScene.AddNewNodeByClass(
+            "vtkMRMLMarkupsROINode", "Cropping Preview"
+        )
         self.cropping_box.SetLocked(True)
 
         # Display cropping box only in red view.
@@ -1805,9 +1844,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         # Transform the center and radius according to the volume's orientation and spacing.
         matrix = vtk.vtkMatrix4x4()
         self.input_volume.GetIJKToRASDirectionMatrix(matrix)
-        transform_matrix = np.array([[matrix.GetElement(i, j) for j in range(3)] for i in range(3)])
+        transform_matrix = np.array(
+            [[matrix.GetElement(i, j) for j in range(3)] for i in range(3)]
+        )
         transformed_center = np.array(center) + np.matmul(transform_matrix, start_val)
-        transformed_radius = np.matmul(transform_matrix, np.array(self.input_volume.GetSpacing()) * np.array(radius))
+        transformed_radius = np.matmul(
+            transform_matrix,
+            np.array(self.input_volume.GetSpacing()) * np.array(radius),
+        )
 
         # Set the center and radius of the cropping box to the transformed center and radius.
         self.cropping_box.SetXYZ(transformed_center)
@@ -1862,7 +1906,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Log the manual cropping.
         new_size = volume.GetImageData().GetDimensions()
-        print(f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{volume.GetName()}".')
+        print(
+            f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{volume.GetName()}".'
+        )
 
         # Reset the cropping.
         self.reset_cropping()
@@ -1882,7 +1928,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Ensure that a ROI is selected.
         if self.input_volume.GetName() not in self.volume_roi_map:
-            self.display_error_message("Please select a ROI for this input volume first.")
+            self.display_error_message(
+                "Please select a ROI for this input volume first."
+            )
             return
 
         # Ensure that the preview has successfully cropped the input volume.
@@ -1906,7 +1954,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Log the automatic cropping.
         new_size = volume.GetImageData().GetDimensions()
-        print(f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{volume.GetName()}".')
+        print(
+            f'"{self.input_volume.GetName()}" has been cropped to size ({new_size[0]}x{new_size[1]}x{new_size[2]}) as "{volume.GetName()}".'
+        )
 
         # Reset the cropping.
         self.reset_cropping()
@@ -2455,6 +2505,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 print(
                     f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
                 )
+                self.reset_view()
                 self.choose_input_volume(len(self.volumes) - 1)
             if self.regProcess and self.regProcess.message_error:
                 self.display_error_message(self.regProcess.message_error)
