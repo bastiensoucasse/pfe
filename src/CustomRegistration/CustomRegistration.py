@@ -2507,6 +2507,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 )
                 self.reset_view()
                 self.choose_input_volume(len(self.volumes) - 1)
+                self.reset_registration()
+                self.get_ui(
+                    ctkCollapsibleButton, "RegistrationSettingsCollapsibleButton"
+                ).collapsed = True
+                self.get_ui(
+                    ctkCollapsibleButton, "RegistrationCollapsibleWidget"
+                ).collapsed = True
             if self.regProcess and self.regProcess.message_error:
                 self.display_error_message(self.regProcess.message_error)
 
