@@ -46,7 +46,31 @@ Launching this module might update the view and change the layout of the softwar
 
 ### Registration
 
-**This section is still under development.**
+Multiple registration possibilities are at your disposal. You have the choice between SimpleITK based or SlicerElastix based registration. After the your selection, other settings will help you tune your registration as you wish to get the results you need. Among important parameters you must use are metrics, optimizers, and interpolators (Remark : those settings are unecessary when choosing an Elastix presets, this library is independent).
+
+![image](https://user-images.githubusercontent.com/56124098/227151680-3feddeba-decf-482e-ab69-23d7936ea1ea.png)
+
+For a simple rigid registration, after the selection of the volume to registrate and the fixed volume, Gradient Descent optimizer and the linear interpolator is recommended. You can tune the gradient descent parameters once you have selected the Rigid sitk algorithm and gradient descent, but the default parameters should be enough.
+
+After you have adjusted your inputs for the available parameters. You can press the **Apply** Button, you will have access to a cancel button if the computation is taking too much time.
+
+![image](https://user-images.githubusercontent.com/56124098/227152490-abcfa778-61b7-4298-82c1-30b9b2bf3477.png)
+ 
+ After registration, the result will be displayed in the red window.
+ 
+ ![image](https://user-images.githubusercontent.com/56124098/227166041-018e5464-6aff-4ed1-91b4-7d0e31176a41.png)
+
+Here is a little resume of other registration algorithms you may use :
+- Rigid : a process of aligning two images by applying a 3D transformation that includes rotation and translation.
+- Affine : a process of aligning two images by applying a 3D transformation that includes rotation, translation, scaling and shearing.
+- Non Rigid Bspline: a process of aligning two images by applying a 3D transformation that includes deformation.
+- Demons : a non rigid registration, it estimates force vectors that drive the deformation toward alignment and smoothing the force vectors by Gaussian convolution.
+- Elastix Rigid : an elastix presets to apply a rigid regisration.
+- Elastix Non Rigid : an elastix presets to apply a non-rigid registration.
+- Other Elastix presets and Demons
+
+The **Settings** panel is only available for sitk algorithms. All parameters have a by default value, so you do not have to tune any parameters.\
+*Note that non rigid BSpline is taking a very long time with gradient descent, you may prefer the LBFGSB optimizer instead.*
 
 ### Plugins
 
