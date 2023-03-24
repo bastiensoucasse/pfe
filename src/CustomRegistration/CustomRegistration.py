@@ -3150,13 +3150,51 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
 
         self.logic = CustomRegistrationLogic()
 
-        # self.test_roi_selection()
+        self.test_roi_selection()
         self.test_manual_cropping()
-        # self.test_automatic_cropping()
-        # self.test_resampling()
+        self.test_automatic_cropping()
+        self.test_resampling()
 
-        # self.setup_registration_test()
-        # self.test_rigid_registration_1()
+        self.setup_registration_test()
+        self.test_rigid_registration_1()
+
+    def assertVolumeEqual(self, volume1: vtkMRMLScalarVolumeNode, volume2: vtkMRMLScalarVolumeDisplayNode) -> None:
+        """
+        Asserts that two VTK volumes are equal, by comparing their spacings, origins, direction matrices and pixel data.
+
+        Parameters:
+            volume1: The first VTK volume.
+            volume2: The second VTK volume.
+        """
+
+        # Check that spacings are equal.
+        self.assertSequenceEqual(volume1.GetSpacing(), volume2.GetSpacing())
+
+        # Check that origins are equal.
+        self.assertSequenceEqual(volume1.GetOrigin(), volume2.GetOrigin())
+
+        # Check that direction matrices are equal.
+        volume1_direction = vtk.vtkMatrix4x4()
+        volume2_direction = vtk.vtkMatrix4x4()
+
+        volume1.GetIJKToRASDirectionMatrix(volume1_direction)
+        volume2.GetIJKToRASDirectionMatrix(volume2_direction)
+        
+        volume1_direction_array = [
+            [int(volume1_direction.GetElement(i, j)) for j in range(4)]
+            for i in range(4)
+        ]
+        volume2_direction_array = [
+            [int(volume2_direction.GetElement(i, j)) for j in range(4)] for i in range(4)
+        ]
+
+        self.assertSequenceEqual(volume1_direction_array, volume2_direction_array)
+
+        # Check that pixel data are equal.
+        volume1_array = vtk.util.numpy_support.vtk_to_numpy(volume1.GetImageData().GetPointData().GetScalars())  # type: ignore
+        volume2_array = vtk.util.numpy_support.vtk_to_numpy(volume2.GetImageData().GetPointData().GetScalars())  # type: ignore
+
+        self.assertTrue(np.array_equal(volume1_array, volume2_array))
 
     def test_roi_selection(self) -> None:
         """
@@ -3170,10 +3208,6 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         """
         Tests the manual cropping logic.
         """
-
-        # :BUG:Iantsa: IDK WHY THIS IS NOT WORKING!
-        # print("Manual cropping test ignored because of a bug!")
-        # return
 
         # Load a volume as test data.
         volume = util.loadVolume(self.resourcePath("TestData/MR-head.nrrd"))
@@ -3242,7 +3276,6 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         self.assertTrue(np.array_equal(cropped_array, expected_array))
 
         mrmlScene.RemoveNode(volume)
-        volume = None
 
         # Log the manual cropping test.
         print("Manual cropping test passed.")
