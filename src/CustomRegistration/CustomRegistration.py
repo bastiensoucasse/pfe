@@ -1601,11 +1601,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.automatic_cropping_margins.append(
                 self.get_ui(QSpinBox, axis + "Margin")
             )
-            MAXIMUM_AUTOMATIC_ROPPING_MARGIN = (
+            MAXIMUM_AUTOMATIC_CROPPING_MARGIN = (
                 1000000  # No automatic detection, so manual preset.
             )
             self.automatic_cropping_margins[i].setMaximum(
-                MAXIMUM_AUTOMATIC_ROPPING_MARGIN
+                MAXIMUM_AUTOMATIC_CROPPING_MARGIN
             )
             self.automatic_cropping_margins[i].valueChanged.connect(
                 self.update_cropping
