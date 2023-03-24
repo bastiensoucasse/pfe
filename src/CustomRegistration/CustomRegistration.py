@@ -704,7 +704,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     return
 
             # Select the volume at specified index otherwise.
-            self.choose_input_volume(index)
+            self.select_input_volume(index)
 
         # Connect the input volume combo box.
         self.input_volume_combo_box.activated.connect(on_input_volume_combo_box_changed)
@@ -715,9 +715,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # Reset the input volume.
-        self.choose_input_volume()
+        self.select_input_volume()
 
-    def choose_input_volume(self, index: int = -1) -> None:
+    def select_input_volume(self, index: int = -1) -> None:
         """
         Selects an input volume.
         """
@@ -846,7 +846,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     return
 
             # Select the volume at specified index otherwise.
-            self.choose_target_volume(index)
+            self.select_target_volume(index)
 
         # Connect the target volume combo box.
         self.target_volume_combo_box.activated.connect(
@@ -859,9 +859,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
 
         # Clear the view (top visualization).
-        self.choose_target_volume()
+        self.select_target_volume()
 
-    def choose_target_volume(self, index: int = -1) -> None:
+    def select_target_volume(self, index: int = -1) -> None:
         """
         Selects an target volume.
         """
@@ -1907,7 +1907,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.reset_cropping()
 
         # Select the cropped volume.
-        self.choose_input_volume(len(self.volumes) - 1)
+        self.select_input_volume(len(self.volumes) - 1)
 
     def automatic_crop(self) -> None:
         """
@@ -1955,7 +1955,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.reset_cropping()
 
         # Select the cropped volume.
-        self.choose_input_volume(len(self.volumes) - 1)
+        self.select_input_volume(len(self.volumes) - 1)
 
     #
     # RESAMPLING
@@ -2022,7 +2022,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.reset_resampling()
 
         # Select the resampled volume.
-        self.choose_input_volume(len(self.volumes) - 1)
+        self.select_input_volume(len(self.volumes) - 1)
 
     #
     # REGISTRATION
@@ -2499,7 +2499,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                     f'"{self.input_volume.GetName()}" has been registered as "{self.volumes[len(self.volumes) - 1].GetName()}".'
                 )
                 self.reset_view()
-                self.choose_input_volume(len(self.volumes) - 1)
+                self.select_input_volume(len(self.volumes) - 1)
                 self.reset_registration()
                 self.get_ui(
                     ctkCollapsibleButton, "RegistrationSettingsCollapsibleButton"
