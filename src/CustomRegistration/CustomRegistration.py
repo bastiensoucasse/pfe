@@ -730,6 +730,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.input_volume = self.volumes[index]
             self.input_volume_index = index
             assert self.input_volume
+
+        # Desynchronize the slice sliders.
+        for i in range(3):
+            self.slice[i].sliceController().setSliceLink(False)
+
         self.update()
 
     def rename_input_volume(self) -> None:
@@ -874,6 +879,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.target_volume = self.volumes[index]
             self.target_volume_index = index
             assert self.target_volume
+
+        # Desynchronize the slice sliders.
+        for i in range(3):
+            self.slice[i].sliceController().setSliceLink(False)
+
         self.update()
 
     def rename_target_volume(self) -> None:
@@ -951,7 +961,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         self.slice_composite_nodes = []
 
         # List of vtkMRMLSliceLogic objects that provide logic for manipulating a slice view of a volume.
-        self.slice_logic = []
+        self.slice = []
 
         # Retrieve the objects for each view.
         for i in range(len(VIEWS)):
@@ -960,10 +970,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
             assert self.slice_composite_nodes[i]
 
-            self.slice_logic.append(
-                app.layoutManager().sliceWidget(VIEWS[i]).sliceLogic()
+            self.slice.append(
+                app.layoutManager().sliceWidget(VIEWS[i])
             )
-            assert self.slice_logic[i]
+            assert self.slice[i]
 
         # Initialize the view.
         self.reset_view()
@@ -975,7 +985,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
         # Clear each of the slice composite nodes.
         for i in range(len(self.slice_composite_nodes)):
-            slice_node = self.slice_logic[i].GetSliceNode()
+            slice_node = self.slice[i].sliceLogic().GetSliceNode()
             slice_node.SetOrientationToAxial()
 
         # Update the slice composite nodes.
@@ -1043,7 +1053,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.slice_composite_nodes[view_id].SetForegroundOpacity(0.5)
 
         # Scale the view to the volumes.
-        self.slice_logic[view_id].FitSliceToAll()
+        self.slice[view_id].sliceLogic().FitSliceToAll()
 
     #
     # PASCAL-ONLY MODE
@@ -2507,6 +2517,11 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
                 self.get_ui(
                     ctkCollapsibleButton, "RegistrationCollapsibleWidget"
                 ).collapsed = True
+
+                # Synchronize the slice sliders.
+                for i in range(3):
+                    self.slice[i].sliceController().setSliceLink(True)
+
             if self.regProcess and self.regProcess.message_error:
                 self.display_error_message(self.regProcess.message_error)
 
@@ -3150,13 +3165,13 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
 
         self.logic = CustomRegistrationLogic()
 
-        # self.test_roi_selection()
-        # self.test_manual_cropping()
+        self.test_roi_selection()
+        self.test_manual_cropping()
         self.test_automatic_cropping()
-        # self.test_resampling()
+        self.test_resampling()
 
-        # self.setup_registration_test()
-        # self.test_rigid_registration_1()
+        self.setup_registration_test()
+        self.test_rigid_registration_1()
 
     def assertVolumeEqual(self, volume1: vtkMRMLScalarVolumeNode, volume2: vtkMRMLScalarVolumeDisplayNode) -> None:
         """
