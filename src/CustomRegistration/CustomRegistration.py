@@ -3212,8 +3212,9 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         Tests the manual cropping logic.
         """
 
-        # Load a volume as test data.
-        volume = util.loadVolume(self.resourcePath("TestData/MR-head.nrrd"))
+        # Load volumes as test and expected data.
+        volume = util.loadVolume(self.resourcePath("TestData/MRHead.nrrd"))
+        expected_volume = util.loadVolume(self.resourcePath("TestData/MRHead_cropped.nrrd"))
 
         # Define the crop parameters.
         start = [50, 50, 50]
@@ -3234,50 +3235,9 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
             print("[ERROR] Cropping test failed.")
             return
 
-        # Check that the resulting cropped image has the expected dimensions.
-        self.assertSequenceEqual(
-            cropped_volume.GetImageData().GetDimensions(), [150, 150, 50]
-        )
+        self.assertVolumeEqual(cropped_volume, expected_volume)
 
-        # Check that the resulting cropped image has the expected spacing.
-        self.assertSequenceEqual(cropped_volume.GetSpacing(), volume.GetSpacing())
-
-        # Check that the resulting cropped image has the expected origin.
-        self.assertSequenceEqual(cropped_volume.GetOrigin(), volume.GetOrigin())
-
-        # Check that the resulting cropped image has the expected direction.
-        cropped_volume_direction = vtk.vtkMatrix4x4()
-        volume_direction = vtk.vtkMatrix4x4()
-
-        cropped_volume.GetIJKToRASDirectionMatrix(cropped_volume_direction)
-        volume.GetIJKToRASDirectionMatrix(volume_direction)
-
-        cropped_volume_direction_array = [
-            [int(cropped_volume_direction.GetElement(i, j)) for j in range(4)]
-            for i in range(4)
-        ]
-        volume_direction_array = [
-            [int(volume_direction.GetElement(i, j)) for j in range(4)] for i in range(4)
-        ]
-
-        self.assertSequenceEqual(cropped_volume_direction_array, volume_direction_array)
-
-        # Check that the resulting cropped image has the expected content.
-        volume_array = vtk.util.numpy_support.vtk_to_numpy(volume.GetImageData().GetPointData().GetScalars())  # type: ignore
-        volume_array = np.reshape(
-            volume_array, volume.GetImageData().GetDimensions()[::-1]
-        )
-
-        cropped_array = vtk.util.numpy_support.vtk_to_numpy(cropped_volume.GetImageData().GetPointData().GetScalars())  # type: ignore
-        cropped_array = np.reshape(
-            cropped_array, cropped_volume.GetImageData().GetDimensions()[::-1]
-        )
-
-        expected_array = volume_array[
-            start[2] : end[2], start[1] : end[1], start[0] : end[0]
-        ]
-        self.assertTrue(np.array_equal(cropped_array, expected_array))
-
+        # Clean the scene.
         mrmlScene.RemoveNode(volume)
 
         # Log the manual cropping test.
