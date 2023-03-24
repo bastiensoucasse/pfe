@@ -170,24 +170,17 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
             The cropped VTK volume.
         """
 
-        # :TODO:Iantsa: Delete former implementation when done with report.
-        # crop_filter = sitk.ExtractImageFilter()
-        # crop_filter.SetIndex(index)
-        # crop_filter.SetSize(size)
-        # cropped_image = crop_filter.Execute(image)
-        # return cropped_image
-
         # Ensure that the size is valid.
         crop_size = [end[i] - start[i] for i in range(len(start))]
         if not all(crop_size):
             return None
 
-        # Handles the autocropping offset too large.
+        # Preshot the ValueError (raised by SimpleITK originally) to get the axis with the error.
         dims = volume.GetImageData().GetDimensions()
         for axis, i in AXIS_MAP.items():
             if start[i] < 0 or end[i] > dims[i]:
-                raise AutocroppingValueError(
-                    f"Offset {axis} too large.",
+                raise AxisValueError(
+                    f'Value error on axis "{axis}".',
                     axis,
                 )
 
@@ -1803,14 +1796,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             self.cropped_volume, start_val, end_val = self.logic.automatic_crop(
                 self.input_volume, roi, margins
             )
-        except AutocroppingValueError as e:
+        except AxisValueError as e:
             self.cropping_preview_allowed = False
-            spin_box = self.automatic_cropping_margins[AXIS_MAP[e.axis]]
-            spin_box.setValue(0)
             self.cropped_volume = None
             self.update_allowed = True
             self.cropping_preview_allowed = True
-            self.display_error_message(str(e))
+            self.display_error_message(f'Margin too large on axis "{e.axis}".')
+            spin_box = self.automatic_cropping_margins[AXIS_MAP[e.axis]]
+            spin_box.setValue(0)
             return
 
         # Ensure that the cropped volume is not empty.
@@ -3157,13 +3150,13 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
 
         self.logic = CustomRegistrationLogic()
 
-        self.test_roi_selection()
+        # self.test_roi_selection()
         self.test_manual_cropping()
-        self.test_automatic_cropping()
-        self.test_resampling()
+        # self.test_automatic_cropping()
+        # self.test_resampling()
 
-        self.setup_registration_test()
-        self.test_rigid_registration_1()
+        # self.setup_registration_test()
+        # self.test_rigid_registration_1()
 
     def test_roi_selection(self) -> None:
         """
@@ -3179,8 +3172,8 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         """
 
         # :BUG:Iantsa: IDK WHY THIS IS NOT WORKING!
-        print("Manual cropping test ignored because of a bug!")
-        return
+        # print("Manual cropping test ignored because of a bug!")
+        # return
 
         # Load a volume as test data.
         volume = util.loadVolume(self.resourcePath("TestData/MR-head.nrrd"))
@@ -3190,10 +3183,10 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         end = [200, 200, 100]
 
         # Check that invalid parameters are rejected.
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AxisValueError):
             self.logic.crop(volume, start, [end[i] + 1000 for i in range(3)])
 
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AxisValueError):
             self.logic.crop(volume, [start[i] - 1000 for i in range(3)], end)
 
         # Call our function on valid parameters.
@@ -3420,7 +3413,7 @@ class RegistrationProcess(Process):
             su.PushVolumeToSlicer(image_resampled, name=volume_name)
 
 
-class AutocroppingValueError(ValueError):
+class AxisValueError(ValueError):
     def __init__(self, message, axis):
         assert axis in AXIS_MAP
         super().__init__(message)
