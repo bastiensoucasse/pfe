@@ -3160,12 +3160,15 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
 
     def assertVolumeEqual(self, volume1: vtkMRMLScalarVolumeNode, volume2: vtkMRMLScalarVolumeDisplayNode) -> None:
         """
-        Asserts that two VTK volumes are equal, by comparing their spacings, origins, direction matrices and pixel data.
+        Asserts that two VTK volumes are equal, by comparing their dimensions, spacings, origins, direction matrices and pixel data.
 
         Parameters:
             volume1: The first VTK volume.
             volume2: The second VTK volume.
         """
+
+        # Check that dimensions are equal.
+        self.assertSequenceEqual(volume1.GetImageData().GetDimensions(), volume2.GetImageData().GetDimensions())
 
         # Check that spacings are equal.
         self.assertSequenceEqual(volume1.GetSpacing(), volume2.GetSpacing())
