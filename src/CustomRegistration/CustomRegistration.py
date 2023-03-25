@@ -237,8 +237,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         pixel_data_array = vtk.util.numpy_support.vtk_to_numpy(
             roi_image_data.GetPointData().GetScalars()
         )
-        # :TODO:Iantsa: Make sure the order is the right one for better optimization.
-        pixel_data_array = pixel_data_array.reshape(dims, order="F")
+        pixel_data_array = pixel_data_array.reshape(dims)
 
         # Ensure the selection is not empty.
         if not np.any(pixel_data_array):
