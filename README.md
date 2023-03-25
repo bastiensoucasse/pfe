@@ -38,11 +38,75 @@ In Slicer, you can now find the Custom Registration module in the module selecto
 
 Launching this module might update the view and change the layout of the software. All previous data is saved and can be used from the Custom Registration module.
 
+![General View](images/general-view.png)
+
 ## Using Custom Registration
 
 ### Preprocessing
 
-**This section is still under development.**
+#### ROI Selection
+
+ROI selection allows you to define the relevant information of the image. You can use it to automatically crop the image with [the cropping feature](#cropping), or with you own algorithms thanks to [the plugins](#plugins).
+
+To select the ROI of an image (or two), first select an image as input (and one as target). Head over to the _ROI Selection_ of the Custom Registration module panel.
+
+![ROI Selection UI](images/roi-selection-ui.png)
+
+You can select the ROI by thresholding the image(s) with the slider(s). The threshold will appear red over the image.
+
+![ROI Selection Preview](images/roi-selection-preview.png)
+
+When _Select ROI_ is clicked, the largest conected component will be kept as the ROI and will appear green over the image.
+
+![ROI Selection View](images/roi-selection-view.png)
+
+#### Cropping
+
+You can crop your image either manually, or automatically around the ROI in your image.
+
+##### Manual
+
+To manually crop an image, select it as input image and open the _Cropping_ section of the Custom Registration module panel, with the _Manual_ mode.
+
+![Manual Cropping UI](images/manual-cropping-ui.png)
+
+You can enter the start and end positions of the crop region. A bounding box will appear over the image.
+
+![Manual Cropping Preview](images/manual-cropping-preview.png)
+
+Once you click the _Crop_ button, a new image corresponding to the cropped image will be created and selected as the new input image.
+
+![Manual Cropping View](images/manual-cropping-view.png)
+
+##### Automatic
+
+To automatically crop an image, select it as input image, select a ROI, and open the _Cropping_ section of the Custom Registration module panel, with the _Automatic_ mode.
+
+![Automatic Cropping UI](images/automatic-cropping-ui.png)
+
+You can enter the margins around the ROI. A bounding box will appear over the image.
+
+![Automatic Cropping Preview](images/automatic-cropping-preview.png)
+
+Once you click the _Crop_ button, a new image corresponding to the cropped image will be created and selected as the new input image.
+
+![Automatic Cropping View](images/automatic-cropping-view.png)
+
+#### Resampling
+
+You can resample an image automatically to match another image's dimensions and pixel spacing (for registration, difference map computation, etc.).
+
+First, select the image you want to resample as input image, and the image you want to match as target image.
+
+![Resampling Before](images/resampling-before.png)
+
+Then, you can simply open the _Resampling_ section of the Custom Registration module panel, and click the _Resample_ button.
+
+![Resampling UI](images/resampling-ui.png)
+
+A new image corresponding to the cropped image will be created and selected as the new input image. You can check the new dimensions and pixel spacing.
+
+![Resampling After](images/resampling-after.png)
 
 ### Registration
 
@@ -55,22 +119,28 @@ For a simple rigid registration, after the selection of the volume to registrate
 After you have adjusted your inputs for the available parameters. You can press the **Apply** Button, you will have access to a cancel button if the computation is taking too much time.
 
 ![image](https://user-images.githubusercontent.com/56124098/227152490-abcfa778-61b7-4298-82c1-30b9b2bf3477.png)
- 
- After registration, the result will be displayed in the red window.
- 
- ![image](https://user-images.githubusercontent.com/56124098/227166041-018e5464-6aff-4ed1-91b4-7d0e31176a41.png)
 
-Here is a little resume of other registration algorithms you may use :
-- Rigid : a process of aligning two images by applying a 3D transformation that includes rotation and translation.
-- Affine : a process of aligning two images by applying a 3D transformation that includes rotation, translation, scaling and shearing.
-- Non Rigid Bspline: a process of aligning two images by applying a 3D transformation that includes deformation.
-- Demons : a non rigid registration, it estimates force vectors that drive the deformation toward alignment and smoothing the force vectors by Gaussian convolution.
-- Elastix Rigid : an elastix presets to apply a rigid regisration.
-- Elastix Non Rigid : an elastix presets to apply a non-rigid registration.
-- Other Elastix presets and Demons
+After registration, the result will be displayed in the red window.
 
-The **Settings** panel is only available for sitk algorithms. All parameters have a by default value, so you do not have to tune any parameters.\
-*Note that non rigid BSpline is taking a very long time with gradient descent, you may prefer the LBFGSB optimizer instead.*
+![image](https://user-images.githubusercontent.com/56124098/227166041-018e5464-6aff-4ed1-91b4-7d0e31176a41.png)
+
+Here is a recap of other registration algorithms you may use.
+
+- Rigid: Process of aligning two images by applying a 3D transformation that includes rotation and translation.
+- Affine: Process of aligning two images by applying a 3D transformation that includes rotation, translation, scaling and shearing.
+- Non Rigid B-Spline: Process of aligning two images by applying a 3D transformation that includes deformation.
+- Demons: Non-rigid registration, it estimates force vectors that drive the deformation toward alignment and smoothing the force vectors by Gaussian convolution.
+- Elastix Rigid: Elastix preset to apply a rigid regisration.
+- Elastix Non Rigid: Elastix preset to apply a non-rigid registration.
+- Other Elastix presets and Demons.
+
+The **Settings** panel is only available for sitk algorithms. All parameters have a by default value, so you do not have to tune any parameters.
+
+_Note that non rigid BSpline is taking a very long time with gradient descent, you may prefer the LBFGSB optimizer instead._
+
+### Difference Map
+
+…
 
 ### Plugins
 
@@ -82,10 +152,10 @@ A plugin consists of two files:
 
 - A graphical interface stored in an UI (XML) file: `.ui`. This file must contain all the widgets you will want to manipulate to apply parameters to your algorithm. You can write your own or more easily generate one with dedicated tools such as Slicer's pre-built designer, which you can find into the _Application Settings_ (in the _Edit_ menu), under _Developer_ menu, or Qt Designer (also included in Qt Creator)–but you might be missing Slicer's custom widgets with the latter.
 - A script stored in a Python file: `.py`. The script must contain a `run` function. Keep it mind that this function is only an entry point for your plugin. You can write all your script inside, use different functions and files, or even call algorithms written in different languages or from libraries. The `run` function receives four parameters:
-    - `ui`: Your plugin graphical interface to retrieve data from (parameters, other values…). You can retrieve any element from your graphical interface as an object by using `ui.findChild(type, name)`, to access and control its value.
-    - `scene`: Slicer's MRML Scene (for adding, removing, or editing volumes and other nodes). You can check its usage in [Slicer's documentation](https://slicer.readthedocs.io/en/latest/developer_guide/mrml_overview.html).
-    - `input_volume`: The input volume defined in Custom Registration (appearing in the top view), which is the one that is either preprocessed or registered. If no volume is selected as input, its value will be `None`.
-    - `target_volume`: The target volume defined in Custom Registration (appearing in the bottom-left view), which is the one that is selected as target to process the input volume accordingly. If no volume is selected as target, its value will be `None`.
+  - `ui`: Your plugin graphical interface to retrieve data from (parameters, other values…). You can retrieve any element from your graphical interface as an object by using `ui.findChild(type, name)`, to access and control its value.
+  - `scene`: Slicer's MRML Scene (for adding, removing, or editing volumes and other nodes). You can check its usage in [Slicer's documentation](https://slicer.readthedocs.io/en/latest/developer_guide/mrml_overview.html).
+  - `input_volume`: The input volume defined in Custom Registration (appearing in the top view), which is the one that is either preprocessed or registered. If no volume is selected as input, its value will be `None`.
+  - `target_volume`: The target volume defined in Custom Registration (appearing in the bottom-left view), which is the one that is selected as target to process the input volume accordingly. If no volume is selected as target, its value will be `None`.
 
 #### Loading a Plugin
 
