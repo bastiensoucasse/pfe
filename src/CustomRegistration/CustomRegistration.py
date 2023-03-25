@@ -970,9 +970,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             )
             assert self.slice_composite_nodes[i]
 
-            self.slice.append(
-                app.layoutManager().sliceWidget(VIEWS[i])
-            )
+            self.slice.append(app.layoutManager().sliceWidget(VIEWS[i]))
             assert self.slice[i]
 
         # Initialize the view.
@@ -3173,7 +3171,9 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         self.setup_registration_test()
         self.test_rigid_registration_1()
 
-    def assertVolumeEqual(self, volume1: vtkMRMLScalarVolumeNode, volume2: vtkMRMLScalarVolumeDisplayNode) -> None:
+    def assertVolumeEqual(
+        self, volume1: vtkMRMLScalarVolumeNode, volume2: vtkMRMLScalarVolumeDisplayNode
+    ) -> None:
         """
         Asserts that two VTK volumes are equal, by comparing their dimensions, spacings, origins, direction matrices and pixel data.
 
@@ -3183,7 +3183,10 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         """
 
         # Check that dimensions are equal.
-        self.assertSequenceEqual(volume1.GetImageData().GetDimensions(), volume2.GetImageData().GetDimensions())
+        self.assertSequenceEqual(
+            volume1.GetImageData().GetDimensions(),
+            volume2.GetImageData().GetDimensions(),
+        )
 
         # Check that spacings are equal.
         self.assertSequenceEqual(volume1.GetSpacing(), volume2.GetSpacing())
@@ -3197,13 +3200,14 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
 
         volume1.GetIJKToRASDirectionMatrix(volume1_direction)
         volume2.GetIJKToRASDirectionMatrix(volume2_direction)
-        
+
         volume1_direction_array = [
             [int(volume1_direction.GetElement(i, j)) for j in range(4)]
             for i in range(4)
         ]
         volume2_direction_array = [
-            [int(volume2_direction.GetElement(i, j)) for j in range(4)] for i in range(4)
+            [int(volume2_direction.GetElement(i, j)) for j in range(4)]
+            for i in range(4)
         ]
 
         self.assertSequenceEqual(volume1_direction_array, volume2_direction_array)
@@ -3214,13 +3218,55 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
 
         self.assertTrue(np.array_equal(volume1_array, volume2_array))
 
+    #
+    # TESTS
+    #
+
     def test_roi_selection(self) -> None:
         """
         Tests the ROI selection logic.
         """
 
-        print("ROI selection test not yet implemented.")
-        pass
+        # Defines the input volume and expected ROI volume couples to test.
+        VOLUMES = [
+            (
+                self.resourcePath("TestData/Sphere.nrrd"),  # Input volume.
+                self.resourcePath("TestData/Sphere.nrrd"),  # Expected ROI volume.
+                1,  # Threshold value.
+            ),
+            (
+                self.resourcePath("TestData/SphereNoised.nrrd"),  # Input volume.
+                self.resourcePath("TestData/Sphere.nrrd"),  # Expected ROI volume.
+                2,  # Threshold value.
+            ),
+        ]
+
+        for input_volume_path, output_roi_volume_path, threshold_value in VOLUMES:
+            # Load the input volume and the expected ROI volume.
+            input_volume: vtkMRMLScalarVolumeNode = util.loadVolume(input_volume_path)
+            expected_roi_volume: vtkMRMLScalarVolumeNode = util.loadVolume(
+                output_roi_volume_path
+            )
+
+            # Compute the mask to call the ROI selection logic.
+            mask_volume: vtkMRMLScalarVolumeNode = self.logic.create_mask(
+                input_volume, threshold_value
+            )
+
+            # Compute the ROI volume thanks to the mask.
+            roi_volume: vtkMRMLScalarVolumeNode = self.logic.select_roi(
+                input_volume, mask_volume
+            )
+
+            # Test if the computed ROI volume matches the expected ROI volume.
+            self.assertVolumeEqual(roi_volume, expected_roi_volume)
+
+            # Remove the input/target volumes.
+            mrmlScene.RemoveNode(input_volume)
+            mrmlScene.RemoveNode(expected_roi_volume)
+
+        # Log the ROI selection test.
+        print("ROI selection test passed.")
 
     def test_manual_cropping(self) -> None:
         """
@@ -3229,7 +3275,9 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
 
         # Load volumes as test and expected data.
         volume = util.loadVolume(self.resourcePath("TestData/MRHead.nrrd"))
-        expected_volume = util.loadVolume(self.resourcePath("TestData/MRHead_cropped.nrrd"))
+        expected_volume = util.loadVolume(
+            self.resourcePath("TestData/MRHead_cropped.nrrd")
+        )
 
         # Define the crop parameters.
         start = [50, 50, 50]
@@ -3267,17 +3315,23 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         # Load volumes as test and expected data.
         volume = util.loadVolume(self.resourcePath("TestData/MRHead.nrrd"))
         roi = util.loadVolume(self.resourcePath("TestData/MRHead_roi.nrrd"))
-        expected_volume = util.loadVolume(self.resourcePath("TestData/MRHead_automatic_cropped.nrrd"))
+        expected_volume = util.loadVolume(
+            self.resourcePath("TestData/MRHead_automatic_cropped.nrrd")
+        )
 
         # Define the margins.
         margins = [10, 20, 0]
 
         # Check that invalid parameters are rejected.
         with self.assertRaises(AxisValueError):
-            self.logic.automatic_crop(volume, roi, [margins[i] + 1000 for i in range(3)])
+            self.logic.automatic_crop(
+                volume, roi, [margins[i] + 1000 for i in range(3)]
+            )
 
         with self.assertRaises(RuntimeError):
-            self.logic.automatic_crop(volume, roi, [margins[i] - 1000 for i in range(3)])
+            self.logic.automatic_crop(
+                volume, roi, [margins[i] - 1000 for i in range(3)]
+            )
 
         # Call our function on valid parameters.
         cropped_volume = vtkMRMLScalarVolumeNode()
@@ -3297,7 +3351,6 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         # Log the manual cropping test.
         print("Automatic cropping test passed.")
 
-
     def test_resampling(self) -> None:
         """
         Tests the resampling logic.
@@ -3306,8 +3359,8 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         # Defines the input/target volume couples to test.
         VOLUMES = [
             (
-                self.resourcePath("TestData/MR-head.nrrd"),
-                self.resourcePath("TestData/MR-head.nrrd"),
+                self.resourcePath("TestData/MRHead.nrrd"),
+                self.resourcePath("TestData/MRHead.nrrd"),
             ),
             (
                 self.resourcePath("TestData/MRBrainTumor1.nrrd"),
