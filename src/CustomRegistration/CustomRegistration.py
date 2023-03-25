@@ -3155,21 +3155,6 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         module_path = os.path.dirname(modules.customregistration.path)
         return os.path.join(module_path, "Resources", path)
 
-    def runTest(self):
-        """
-        Runs all the tests in the Custom Registration module.
-        """
-
-        self.logic = CustomRegistrationLogic()
-
-        self.test_roi_selection()
-        self.test_manual_cropping()
-        self.test_automatic_cropping()
-        self.test_resampling()
-
-        self.setup_registration_test()
-        self.test_rigid_registration_1()
-
     def assertVolumeEqual(
         self, volume1: vtkMRMLScalarVolumeNode, volume2: vtkMRMLScalarVolumeDisplayNode
     ) -> None:
@@ -3216,6 +3201,21 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         volume2_array = vtk.util.numpy_support.vtk_to_numpy(volume2.GetImageData().GetPointData().GetScalars())  # type: ignore
 
         self.assertTrue(np.array_equal(volume1_array, volume2_array))
+
+    def runTest(self):
+        """
+        Runs all the tests in the Custom Registration module.
+        """
+
+        self.logic = CustomRegistrationLogic()
+
+        self.test_roi_selection()
+        self.test_manual_cropping()
+        self.test_automatic_cropping()
+        self.test_resampling()
+
+        self.setup_registration_test()
+        self.test_rigid_registration_1()
 
     #
     # TESTS

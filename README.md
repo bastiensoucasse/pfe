@@ -1,6 +1,6 @@
 # Custom Registration
 
-![Custom Registration Logo](images/custom_registration_logo.png)
+![Custom Registration Logo](images/custom-registration-logo.png)
 
 Custom Registration is a 3D image registration extension for 3D Slicer. It allows applying preprocessing to the images (ROI selection, cropping, and resampling), running rigid and non-rigid registration algorithms, computing and visualizing difference maps, and running your algorithms with your graphical interface plugged in.
 
@@ -89,10 +89,14 @@ A plugin consists of two files:
 
 #### Loading a Plugin
 
-Head over to the _Plugins_ section of the Custom Registration module panel, where you can find a _Load Plugin_ button. When clicked, a _Plugin Loading_ dialog window opens. You can choose a name for your plugin, and load the graphical interface and script files. You can then hit _Load_ to add your plugin to the extension module.
+Head over to the _Plugins_ section of the Custom Registration module panel, where you can find a _Load Plugin_ button.
 
-![Plugin Loading Dialog Window](images/plugin_loading_dialog_window.png)
+![Plugins UI](images/plugins-ui.png)
+
+When clicked, a _Plugin Loading_ dialog window opens. You can choose a name for your plugin, and load the graphical interface and script files. You can then hit _Load_ to add your plugin to the extension module.
+
+![Plugins Loading UI](images/plugins-loading-ui.png)
 
 Once loaded, your plugin appears after the plugin loading area, under a collapible button named as your plugin. You can there find your graphical interface and a _Run_ button to execute your script.
 
-![Plugins Section](images/plugins_section.png)
+![Plugins Integration UI](images/plugins-integration-ui.png)
