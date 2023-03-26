@@ -364,7 +364,7 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
                 outputNode, kernel, mode="constant", cval=0.0
             )
         # #  Normalize the difference
-        outputNode = outputNode / np.linalg.norm(outputNode)
+        outputNode = (outputNode - np.min(outputNode)) / (np.max(outputNode) - np.min(outputNode))
 
         #  Create a new volume node for the output
         volume_image_data = vtk.vtkImageData()
@@ -3254,11 +3254,12 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         """
 
         self.logic = CustomRegistrationLogic()
-        self.test_roi_selection()
-        self.test_manual_cropping()
-        self.test_automatic_cropping()
-        self.test_resampling()
-        self.test_registration()
+        # self.test_roi_selection()
+        # self.test_manual_cropping()
+        # self.test_automatic_cropping()
+        # self.test_resampling()
+        # self.test_registration()
+        # self.test_difference_map()
         self.test_difference_map()
 
     #
@@ -3450,19 +3451,98 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         """
         Tests the registration logic.
         """
-
+        
         print("[WIP] Registration test not yet linked.")
         pass
 
-    def test_difference_map(self) -> None:
-        """
-        Tests the difference map logic.
-        """
+    def test_difference_map(self):
+        image1 = np.zeros((3, 3, 3))
+        image2 = np.zeros((3, 3, 3))
+        image1[1, 1, 1] = 1
+        image2[1, 1, 2] = 1
 
-        print("[WIP] Difference map test not yet implemented.")
-        pass
+        #:COMMENT: Create VTK image data objects from the input images
+        volume_image_data = vtk.vtkImageData()
+        volume_image_data.SetDimensions(image1.shape[::-1])
+        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(image1.flatten())
+        volume_image_data.GetPointData().SetScalars(vtk_array)
+        imageData1 = vtkMRMLScalarVolumeNode()
+        imageData1.SetAndObserveImageData(volume_image_data)
+    
+        #:COMMENT: Create VTK image data objects from the input images
+        volume_image_data2 = vtk.vtkImageData()
+        volume_image_data2.SetDimensions(image1.shape[::-1])
+        volume_image_data2.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array2 = vtk.util.numpy_support.numpy_to_vtk(image2.flatten())
+        volume_image_data2.GetPointData().SetScalars(vtk_array2)
+        imageData2 = vtkMRMLScalarVolumeNode()
+        imageData2.SetAndObserveImageData(volume_image_data2)
 
+    
+        #:COMMENT: Test absolute mode
+        output_volume = vtkMRMLScalarVolumeNode()
+        output_volume, _ = self.logic.difference_map(imageData1, imageData2, "output", "absolute", 0)
+        expected_output =  np.array([0., 0., 0., 0., 0., 0.,
+                0., 0., 0., 0., 0., 0.,
+                0., 1., 1., 0., 0., 0.,
+                0., 0., 0., 0., 0., 0.,
+                0., 0., 0.])
+       
+        
+        assert np.allclose(vtk.util.numpy_support.vtk_to_numpy(output_volume.GetImageData().GetPointData().GetScalars()), expected_output)
+        
+        #:COMMENT: Test convolution mode
 
+        output_volume, _ = self.logic.difference_map(imageData1, imageData2, "output", "gradient", 3)
+        
+        
+        expected_output = np.array([0.   , 0.5  , 0.375, 0.125, 0.75 , 0.625, 0.   , 0.5  ,
+                0.375, 0.125, 0.75 , 0.625, 0.25 , 1.   , 0.875, 0.125,
+                0.75 , 0.625, 0.   , 0.5  , 0.375, 0.125, 0.75 , 0.625,
+                0.   , 0.5  , 0.375])
+        assert np.allclose(vtk.util.numpy_support.vtk_to_numpy(output_volume.GetImageData().GetPointData().GetScalars()), expected_output)
+        
+
+        #:COMMENT: Test convolution mode
+        image1 = np.zeros((3, 3, 3))
+        image2 = np.zeros((3, 3, 3))
+        image1[1, 1, 1] = 1
+        image2[1, 1, 1] = 0.5
+
+        #:COMMENT: Create VTK image data objects from the input images
+        volume_image_data = vtk.vtkImageData()
+        volume_image_data.SetDimensions(image1.shape[::-1])
+        volume_image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array = vtk.util.numpy_support.numpy_to_vtk(image1.flatten())
+        volume_image_data.GetPointData().SetScalars(vtk_array)
+        imageData1 = vtkMRMLScalarVolumeNode()
+        imageData1.SetAndObserveImageData(volume_image_data)
+    
+        #:COMMENT: Create VTK image data objects from the input images
+        volume_image_data2 = vtk.vtkImageData()
+        volume_image_data2.SetDimensions(image1.shape[::-1])
+        volume_image_data2.AllocateScalars(vtk.VTK_FLOAT, 1)
+        vtk_array2 = vtk.util.numpy_support.numpy_to_vtk(image2.flatten())
+        volume_image_data2.GetPointData().SetScalars(vtk_array2)
+        imageData2 = vtkMRMLScalarVolumeNode()
+        imageData2.SetAndObserveImageData(volume_image_data2)
+
+        
+        output_volume, _ = self.logic.difference_map(imageData1, imageData2, "difference", "gradient", 3)
+        expected_output = np.array([0., 0.33333333, 0., 0.33333333, 0.66666667,
+                0.33333333, 0., 0.33333333, 0., 0.33333333,
+                0.66666667, 0.33333333, 0.66666667, 1, 0.66666667,
+                0.33333333, 0.66666667, 0.33333333, 0, 0.33333333,
+                0.        , 0.33333333, 0.66666667, 0.33333333, 0.,
+                0.33333333, 0.])
+        assert np.allclose(vtk.util.numpy_support.vtk_to_numpy(output_volume.GetImageData().GetPointData().GetScalars()), expected_output)
+        
+        print("difference map test passed")
+    
+
+   
+    
 class RegistrationProcess(Process):
     """
     Class to process registration as a background task using the extension ParallelProcessing
