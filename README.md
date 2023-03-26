@@ -140,7 +140,16 @@ _Note that non rigid BSpline is taking a very long time with gradient descent, y
 
 ### Difference Map
 
-…
+It is possible to calculate a difference map from the source image and the target image and the reference image, a drop down menu allows you to choose between gradient difference or absolute value mode. To eliminate noise, it is also possible to blur the image by choosing the size of its kernel.
+
+![image](images/UI_difference_map.png)
+
+
+To display the map, simply press "Apply". Then the difference map will appear in the yellow window.
+
+![image](images/absolute.png)
+
+
 
 ### Plugins
 
