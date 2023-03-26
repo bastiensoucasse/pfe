@@ -3256,12 +3256,12 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         """
 
         self.logic = CustomRegistrationLogic()
-        # self.test_roi_selection()
-        # self.test_manual_cropping()
-        # self.test_automatic_cropping()
-        # self.test_resampling()
-        # self.test_registration()
-        # self.test_difference_map()
+        self.test_roi_selection()
+        self.test_manual_cropping()
+        self.test_automatic_cropping()
+        self.test_resampling()
+        self.test_registration()
+        
         self.test_difference_map()
 
     #
