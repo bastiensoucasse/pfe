@@ -3261,7 +3261,7 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         self.test_automatic_cropping()
         self.test_resampling()
         self.test_registration()
-        
+
         self.test_difference_map()
 
     #
