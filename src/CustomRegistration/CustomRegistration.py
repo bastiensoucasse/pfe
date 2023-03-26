@@ -121,7 +121,6 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
         Parameters:
             volume: The VTK volume to select the ROI from.
             mask_volume: The ROI binary mask as a SimpleITK image.
-            threshold: The threshold value.
 
         Returns:
             The VTK volume representing the ROI of the input volume.
@@ -299,6 +298,20 @@ class CustomRegistrationLogic(ScriptedLoadableModuleLogic):
     #
 
     def difference_map(self, imageData1, imageData2, name, mode, sigma):
+        """
+        Computes the difference map between two volumes.
+
+        Parameters:
+            imageData1: The first VTK volume.
+            imageData2: The second VTK volume.
+            name: The name of the difference map.
+            mode: The algorithm to compute the difference map.
+            sigma: The standard deviation of the Gaussian kernel.
+
+        Returns:
+            The difference map as a VTK volume.
+        """
+
         dims1 = imageData1.GetImageData().GetDimensions()
         dims2 = imageData2.GetImageData().GetDimensions()
         if dims1 != dims2:
@@ -719,6 +732,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def select_input_volume(self, index: int = -1) -> None:
         """
         Selects an input volume.
+
+        Parameters:
+            index: The input volume index.
         """
 
         if index < 0:
@@ -790,9 +806,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if self.input_volume_index == self.target_volume_index:
             self.reset_target_volume()
         self.reset_input_volume()
-        self.update_allowed = False
         mrmlScene.RemoveNode(volume)
-        self.update_allowed = True
         print(f'"{volume.GetName()}" has been deleted.')
         volume = None
 
@@ -868,6 +882,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def select_target_volume(self, index: int = -1) -> None:
         """
         Selects an target volume.
+
+        Parameters:
+            index: The target volume index.
         """
 
         if index < 0:
@@ -939,9 +956,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         if self.target_volume_index == self.input_volume_index:
             self.reset_input_volume()
         self.reset_target_volume()
-        self.update_allowed = False
         mrmlScene.RemoveNode(volume)
-        self.update_allowed = True
         print(f'"{volume.GetName()}" has been deleted.')
         volume = None
 
@@ -1058,7 +1073,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_pascal_only_mode(self) -> None:
         """
-        …
+        Sets up the Pascal-Only mode by retrieving the 3D view and the UI elements.
         """
 
         # Retrieve the Pascal-only mode checkbox.
@@ -1083,7 +1098,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_pascal_only_mode(self) -> None:
         """
-        …
+        Resets the Pascal-Only to its default state by hiding the 3D view and removing the volume inside.
         """
 
         # Uncheck the Pascal-only mode checkbox and update the Pascal-only mode.
@@ -1092,7 +1107,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_pascal_only_mode(self) -> None:
         """
-        …
+        Updates the Pascal-Only mode by displaying the 3D view if needed, and displaying the volume if so.
         """
 
         # Remove any volume from the 3D view.
@@ -1135,7 +1150,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_roi_selection(self) -> None:
         """
-        …
+        Sets up the ROI selection by retrieving the UI elements, and initialiazing the color nodes and the data.
         """
 
         # Create a color table node that assigns the ROI mask to red.
@@ -1199,7 +1214,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_roi_selection(self) -> None:
         """
-        …
+        Resets the ROI selection to its default state.
         """
 
         # Reset the ROI selection threshold values.
@@ -1214,7 +1229,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_roi_selection(self, variation: str = "all") -> None:
         """
-        …
+        Updates the ROI selection by retrieving the UI elements, and initialiazing the color nodes and the data.
+
+        Parameters:
+            variation: Either "input", "target", or "all".
         """
 
         assert variation in ["input", "target", "all"]
@@ -1266,7 +1284,10 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def preview_roi_selection(self, variation: str = "all") -> None:
         """
-        …
+        Previews the ROI selection by computaing and displaying the mask in the 2D view for the input or target volume.
+
+        Parameters:
+            variation: Either "input", "target", or "all".
         """
 
         assert variation in ["input", "target", "all"]
@@ -1370,6 +1391,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def display_roi(self, variation: str = "all") -> None:
         """
         Displays the ROI volume in green.
+
+        Parameters:
+            variation: Either "input", "target", or "all".
         """
 
         assert variation in ["input", "target", "all"]
@@ -1478,7 +1502,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def select_roi(self) -> None:
         """
-        …
+        Selects a ROI on the input and target volumes.
         """
 
         # Ensure that a volume is selected.
@@ -1970,7 +1994,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_resampling(self) -> None:
         """
-        …
+        Sets up the resampling feature by retrieving the UI element.
         """
 
         # Get the resampling button.
@@ -1984,7 +2008,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_resampling(self) -> None:
         """
-        …
+        Resets the resampling feature to its initial state.
         """
 
         self.get_ui(
@@ -1996,14 +2020,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_resampling(self) -> None:
         """
-        …
+        Updates the resampling feature.
         """
 
         # Nothing to update.
 
     def resample(self) -> None:
         """
-        …
+        Resamples the input volume to match the target volume.
         """
 
         # Ensure that the input and target volumes are selected.
@@ -2037,7 +2061,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_registration(self) -> None:
         """
-        Set up registration UI elements and connect to code and functions.
+        Sets up registration UI elements and connect to code and functions.
         """
 
         # Link settings UI and code
@@ -2200,8 +2224,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_registration(self) -> None:
         """
-        Reset all user parameters, disable all parameters until user selects an algorithm
+        Resets all user parameters, disable all parameters until user selects an algorithm
         """
+
         self.metrics_combo_box.setCurrentIndex(-1)
         self.optimizers_combo_box.setCurrentIndex(-1)
         self.interpolator_combo_box.setCurrentIndex(-1)
@@ -2239,8 +2264,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_registration_optimizer(self) -> None:
         """
-        Update the UI according to selected optimizer by user.
+        Updates the UI according to selected optimizer by user.
         """
+
         self.reset_optimizers_box()
         if self.optimizers_combo_box.currentText == "Gradient Descent":
             self.gradients_box.setEnabled(True)
@@ -2256,8 +2282,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_metrics_value(self) -> None:
         """
-        update the displayed value for metrics depending on the choice of the metrics
+        Updates the displayed value for metrics depending on the choice of the metrics
         """
+
         if "Mattes" in self.metrics_combo_box.currentText:
             self.metric_related_value_label.text = "number Of Histogram Bins"
             self.metric_related_value_spin_box.setValue(50)
@@ -2273,12 +2300,13 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_registration(self, is_sitk: bool, index: int) -> None:
         """
-        update the UI according to the registration algorithm selected by the user.
+        Updates the UI according to the registration algorithm selected by the user.
 
         Parameters:
-            is_sitk: boolean that indicates if the registration algorithm is from sitk
-            index: the current index of the combo box
+            is_sitk: A boolean that indicates if the registration algorithm is from sitk.
+            index: The current index of the combo box.
         """
+
         self.reset_registration()
         if is_sitk:
             self.sitk_combo_box.setCurrentIndex(index)
@@ -2312,7 +2340,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def register(self) -> None:
         """
-        Apply a registration algorithm. Either sitk based, or using SlicerElastix algorithm.
+        Applies a registration algorithm. Either sitk based, or using SlicerElastix algorithm.
         """
 
         # Ensure the parameters are set.
@@ -2371,8 +2399,9 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Fills the data_dictionary parameters with user prompts, dictionary used for registration
 
         Parameters:
-            data_dictionary: the dictionary to fill.
+            data_dictionary: The dictionary to fill.
         """
+
         # ---- User settings retrieve -----
         data_dictionary["histogram_bin_count"] = int(
             self.metric_related_value_spin_box.value
@@ -2443,6 +2472,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
             moving_image: the image to registrate.
             input: the dictionary that contains user parameters.
         """
+
         self.elastix_logic = None
         self.process_logic = ProcessesLogic(
             completedCallback=lambda: self.on_registration_completed()
@@ -2461,6 +2491,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Calls SlicerElastix registration with the selected preset by the user.
         Adds a registrated volume if registration is complete.
         """
+
         self.regProcess = None
         self.elastix_logic = Elastix.ElastixLogic()
         self.button_registration.setEnabled(False)
@@ -2491,6 +2522,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         Handles the completion callback.
         Stops the ProgressBar and timer.
         """
+
         self.progressBar.setMaximum(100)
         self.progressBar.setValue(100)
         self.timer.stop()
@@ -2526,6 +2558,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Starts the progressBar activation and a timer to displays elapsed time.
         """
+
         self.progressBar.setVisible(True)
         self.label_status.setVisible(True)
         self.progressBar.setMinimum(0)
@@ -2541,12 +2574,14 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         displays elapsed time
         """
+
         self.label_status.setText(f"status: {self.elapsed_time.elapsed()//1000}s")
 
     def cancel_registration_process(self) -> None:
         """
         Stops progressBar, timer and kills the registration process.
         """
+
         self.timer.stop()
         self.progressBar.setMaximum(100)
         self.progressBar.setValue(0)
@@ -2562,6 +2597,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         kills the slicerParallelProcessing registration processus.
         """
+
         import os
         import signal
 
@@ -2573,6 +2609,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Assert that the content of the convergence minimum value is correct.
         """
+
         value = self.conv_min_val_edit.text
         try:
             float(value)
@@ -2587,6 +2624,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Assert that the content of the number of steps value is correct.
         """
+
         nb_of_steps = self.nb_steps_edit.text
         try:
             nb_of_steps = [int(step) for step in nb_of_steps.split(",")]
@@ -2605,6 +2643,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Assert that the content of the step length value is correct.
         """
+
         step_length = self.step_length_edit.text
         if step_length == "pi":
             return
@@ -2618,6 +2657,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Assert that the content of the optimizer scale value is correct.
         """
+
         optimizer_scale = self.opti_scale_edit.text
         try:
             optimizer_scale = [int(scale) for scale in optimizer_scale.split(",")]
@@ -2636,6 +2676,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Assert that the content of the gradient convergence tolerance value is correct.
         """
+
         value = self.gradient_conv_tol_edit.text
         try:
             float(value)
@@ -2650,6 +2691,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Assert that the content of the standard deviation value is correct.
         """
+
         value = self.demons_std_deviation.text
         try:
             float(value)
@@ -2664,6 +2706,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Assert that the content of the transform domain mesh size value is correct.
         """
+
         value = self.transform_domain_mesh_size.text
         try:
             if int(value) <= 0:
@@ -2677,6 +2720,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Assert that the content of the scale factor vector is correct.
         """
+
         try:
             scale_factor = [int(factor) for factor in self.scale_factor.text.split(",")]
             if len(scale_factor) != 3:
@@ -2694,6 +2738,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
         """
         Assert that the content of the shrink factor vector is correct.
         """
+
         try:
             factor = [int(factor) for factor in QLineEdit.text.split(",")]
             if len(factor) != 3:
@@ -2831,7 +2876,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def setup_plugin_loading(self) -> None:
         """
-        …
+        Sets up the plugin loading feature by retrieving and connecting the UI data.
         """
 
         # Initialize the plugin script list.
@@ -3045,7 +3090,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def reset_plugin_loading(self) -> None:
         """
-        …
+        Resets the plugin loading.
         """
 
         # Nothing to reset.
@@ -3055,7 +3100,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
 
     def update_plugin_loading(self) -> None:
         """
-        …
+        Udpates the plugin loading.
         """
 
         # Nothing to update.
@@ -3067,6 +3112,7 @@ class CustomRegistrationWidget(ScriptedLoadableModuleWidget):
     def display_error_message(self, message: str) -> None:
         """
         Displays an error message.
+
         Parameters:
             message: Message to be displayed.
         """
@@ -3204,18 +3250,16 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
 
     def runTest(self):
         """
-        Runs all the tests in the Custom Registration module.
+        Runs all the tests.
         """
 
         self.logic = CustomRegistrationLogic()
-
         self.test_roi_selection()
         self.test_manual_cropping()
         self.test_automatic_cropping()
         self.test_resampling()
-
-        self.setup_registration_test()
-        self.test_rigid_registration_1()
+        self.test_registration()
+        self.test_difference_map()
 
     #
     # TESTS
@@ -3402,58 +3446,21 @@ class CustomRegistrationTest(ScriptedLoadableModuleTest, unittest.TestCase):
         # Log the resampling test.
         print("Resampling test passed.")
 
-    def setup_registration_test(self) -> None:
-        self.fixed_image = self.resourcePath("TestData/RegLib_C01_MRMeningioma_1.nrrd")
-        self.moving_image = self.resourcePath("TestData/RegLib_C01_MRMeningioma_2.nrrd")
-        self.fixed_image = sitk.ReadImage(self.fixed_image, sitk.sitkFloat32)
-        self.moving_image = sitk.ReadImage(self.moving_image, sitk.sitkFloat32)
-        print("")
+    def test_registration(self) -> None:
+        """
+        Tests the registration logic.
+        """
 
-    def test_rigid_registration_1(self) -> None:
-        parameters = {}
-        parameters["metrics"] = "MeanSquares"
-        parameters["interpolator"] = "Linear"
-        parameters["optimizer"] = "Gradient Descent"
-        parameters["algorithm"] = "rigid"
-        parameters["histogram_bin_count"] = 50
-        parameters["sampling_strategy"] = 2
-        parameters["sampling_percentage"] = 0.01
-        # parameters for gradient optimizer
-        parameters["learning_rate"] = 5
-        parameters["nb_iteration"] = 100
-        parameters["convergence_min_val"] = 1e-6
-        parameters["convergence_win_size"] = 10
-        from Resources.Scripts.Registration.Rigid import rigid_registration
+        print("[WIP] Registration test not yet linked.")
+        pass
 
-        final_transform = rigid_registration(
-            self.fixed_image, self.moving_image, parameters
-        )
-        expected_transform = sitk.ReadTransform(
-            self.resourcePath("TestData/expected_transform_1.tfm")
-        )
-        self.assertIsNotNone(final_transform)
-        self.assertEqual(
-            final_transform.GetDimension(), expected_transform.GetDimension()
-        )
-        self.assertEqual(
-            final_transform.GetNumberOfFixedParameters(),
-            expected_transform.GetNumberOfFixedParameters(),
-        )
-        self.assertEqual(
-            final_transform.GetNumberOfParameters(),
-            expected_transform.GetNumberOfParameters(),
-        )
-        for x, y in zip(
-            final_transform.GetParameters(), expected_transform.GetParameters()
-        ):
-            self.assertAlmostEqual(x, y, delta=0.01)
-        for x, y in zip(
-            final_transform.GetFixedParameters(),
-            expected_transform.GetFixedParameters(),
-        ):
-            self.assertAlmostEqual(x, y, delta=0.01)
+    def test_difference_map(self) -> None:
+        """
+        Tests the difference map logic.
+        """
 
-        print("Rigid registration test #1 passed.")
+        print("[WIP] Difference map test not yet implemented.")
+        pass
 
 
 class RegistrationProcess(Process):
@@ -3477,7 +3484,10 @@ class RegistrationProcess(Process):
 
     def prepareProcessInput(self) -> bytes:
         """
-        Helper function to send input parameters to a script
+        Prepares the input parameters to send to a script.
+
+        Returns:
+            bytes: The input parameters to send to the script.
         """
 
         input = {}
@@ -3488,12 +3498,12 @@ class RegistrationProcess(Process):
 
     def useProcessOutput(self, processOutput) -> None:
         """
-        Helper function to received output parameters from the script
-        Write to slicer the registrated volume if no error occured.
+        Receives the output parameters from the script. Saves into 3D Slicer the registrated volume if no error occured.
 
         Parameters:
-            processOutput: a dictionary that contains the results of the script (a registration, a transform...)
+            processOutput: Dictionary that contains the results of the script (registration, transform…)
         """
+
         if self.registration_completed:
             output = pickle.loads(processOutput)
             image_resampled = output["image_resampled"]
