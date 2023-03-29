@@ -14,11 +14,11 @@ Custom Registration is a 3D image registration extension for 3D Slicer. It allow
 
 As Custom Registation is an extension, you must have [3D Slicer](https://slicer.org) installed on your system. You can either install or build the software by following [the documentation](https://slicer.readthedocs.io/en/latest/user_guide/getting_started.html).
 
-### Building from Source
-
-#### Dependencies
+### Dependencies
 
 You must install the extensions for 3D Slicer _SlicerElastix_ and _ParallelProcessing_ to use CustomRegistration. First, head over to the _Extension Manager_ module. Search for these two extensions and install them. You must restart 3D Slicer for the installation to complete.
+
+### Building from Source
 
 #### 3D Slicer Developer Mode
 
