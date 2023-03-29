@@ -16,6 +16,10 @@ As Custom Registation is an extension, you must have [3D Slicer](https://slicer.
 
 ### Building from Source
 
+#### Dependencies
+
+You must install the extensions for 3D Slicer _SlicerElastix_ and _ParallelProcessing_ to use CustomRegistration. First, head over to the _Extension Manager_ module. Search for these two extensions and install them. You must restart 3D Slicer for the installation to complete.
+
 #### 3D Slicer Developer Mode
 
 Activate the developer mode in 3D Slicer if not already done. You can achieve this by going into the _Application Settings_ (in the _Edit_ menu). Under _Developer_, check _Enable developer mode_ and restart the software.
